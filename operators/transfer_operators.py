@@ -1,11 +1,8 @@
 import re
-
 import bmesh
 import bpy
 
-import bpy
-
-abc_name_pattern = re.compile(r'xform_(\d+)_material_(\d+)')
+from mmd_kafei_tools import utils
 
 
 class TRANSFER_OT_preset_xiaoer(bpy.types.Operator):
@@ -97,103 +94,42 @@ class ModifyHueSat(bpy.types.Operator):
         return {'FINISHED'}
 
 
-def set_visibility(obj, hide_set_flag, hide_viewport_flag, hide_render_flag):
-    """设置Blender物体的可见性相关属性"""
-    # 是否在视图中隐藏
-    obj.hide_set(hide_set_flag)
-    # 是否在视图中禁用
-    obj.hide_viewport = hide_viewport_flag
-    # 是否在渲染中禁用
-    obj.hide_render = hide_render_flag
-
-
-def hide_object(obj):
-    """隐藏物体。在视图中隐藏，在视图中禁用，在渲染中禁用"""
-    set_visibility(obj, True, True, True)
-
-
-def show_object(obj):
-    """显示物体。在视图中取消隐藏，在视图中取消禁用，在渲染中取消禁用"""
-    set_visibility(obj, False, False, False)
-
-
-def sort_mesh_objects(mesh_objects, mmd_type):
-    """依据mmd_type对mesh物体名称进行排序"""
-    if mmd_type == 'ROOT':
-        mesh_objects.sort(key=lambda obj: obj.name)
-    else:
-        mesh_objects.sort(key=lambda obj: int(abc_name_pattern.match(obj.name).group(2)))
-    return mesh_objects
-
-
-def get_mesh_objects(obj):
-    """获取空物体下面的mesh对象，顺序为大纲顺序"""
-    mesh_objects = [obj] if obj.type == 'MESH' else []
-    for child in obj.children:
-        if child.type in {'ARMATURE', 'MESH'}:
-            mesh_objects.extend(get_mesh_objects(child))
-    return mesh_objects
-
-
-def get_abc_objects():
-    """获取场景中的abc对象"""
-    abc_objects = [obj for obj in bpy.context.scene.objects if abc_name_pattern.match(obj.name)]
-    return abc_objects
-
-
-def modifiers_by_type(obj, typename):
-    """通过类型获取修改器"""
-    return [x for x in obj.modifiers if x.type == typename]
-
-
-def deselect_all_objects():
-    """对场景中的选中对象和活动对象取消选择"""
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = None
-
-
-def select_and_activate(obj):
-    """选中并激活物体"""
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
-
-
 def link_materials_between_objects(abc_pmx_map):
     """关联pmx材质到abc上面"""
     for abc_mesh_object, pmx_mesh_object in abc_pmx_map.items():
-        deselect_all_objects()
+        utils.deselect_all_objects()
         # 选中并激活abc对象
-        select_and_activate(abc_mesh_object)
+        utils.select_and_activate(abc_mesh_object)
         # 选中并激活pmx对象
-        select_and_activate(pmx_mesh_object)
+        utils.select_and_activate(pmx_mesh_object)
         # 复制UV贴图
         bpy.ops.object.join_uvs()
         # 关联材质
         bpy.ops.object.make_links_data(type='MATERIAL')
-    deselect_all_objects()
+    utils.deselect_all_objects()
 
 
 def link_modifiers_between_objects(abc_pmx_map):
     """复制pmx修改器到abc上面（同时保留网格序列缓存修改器，删除骨架修改器）"""
     for abc_mesh_object, pmx_mesh_object in abc_pmx_map.items():
-        deselect_all_objects()
+        utils.deselect_all_objects()
         # 备份abc的修改器（不进行这一步的话abc的修改器会丢失）
         # 创建一个临时网格对象（立方体）
         bpy.ops.mesh.primitive_cube_add(size=2, enter_editmode=False, align='WORLD', location=(0, 0, 0))
         temp_mesh_object = bpy.context.active_object
         # 将abc的修改器关联到临时网格对象上面
-        select_and_activate(temp_mesh_object)
-        select_and_activate(abc_mesh_object)
+        utils.select_and_activate(temp_mesh_object)
+        utils.select_and_activate(abc_mesh_object)
         bpy.ops.object.make_links_data(type='MODIFIERS')
 
         # 复制pmx修改器到abc上面
-        deselect_all_objects()
-        select_and_activate(abc_mesh_object)
-        select_and_activate(pmx_mesh_object)
+        utils.deselect_all_objects()
+        utils.select_and_activate(abc_mesh_object)
+        utils.select_and_activate(pmx_mesh_object)
         bpy.ops.object.make_links_data(type='MODIFIERS')
 
         # 将临时网格对象的修改器名称、类型、属性复制到abc的新建修改器上面
-        deselect_all_objects()
+        utils.deselect_all_objects()
         modifier_src = temp_mesh_object.modifiers[0]
         modifier_dst = abc_mesh_object.modifiers.new(modifier_src.name, modifier_src.type)
         properties = [p.identifier for p in modifier_src.bl_rna.properties
@@ -202,30 +138,18 @@ def link_modifiers_between_objects(abc_pmx_map):
             setattr(modifier_dst, prop, getattr(modifier_src, prop))
 
         # 如果网格对象缓存修改器不在第一位，则将其移动到第一位
-        select_and_activate(abc_mesh_object)
+        utils.select_and_activate(abc_mesh_object)
         while abc_mesh_object.modifiers.find(modifier_dst.name) != 0:
             bpy.ops.object.modifier_move_up(modifier=modifier_dst.name)
         # 删除骨架修改器
-        armature_modifiers = modifiers_by_type(abc_mesh_object, 'ARMATURE')
+        armature_modifiers = utils.modifiers_by_type(abc_mesh_object, 'ARMATURE')
         for armature_modifier in armature_modifiers:
             abc_mesh_object.modifiers.remove(armature_modifier)
 
         # 删除临时网格对象
-        deselect_all_objects()
-        select_and_activate(temp_mesh_object)
+        utils.deselect_all_objects()
+        utils.select_and_activate(temp_mesh_object)
         bpy.ops.object.delete()
-
-
-def find_pmx_root():
-    """寻找pmx对应空物体"""
-    return next((obj for obj in bpy.context.scene.objects if obj.mmd_type == 'ROOT'), None)
-
-
-def find_abc_root():
-    """寻找abc对应空物体"""
-    return next(
-        (obj for obj in bpy.context.scene.objects if obj.type == 'EMPTY' and not obj.parent and obj.mmd_type == 'NONE'),
-        None)
 
 
 def find_locator():
@@ -233,18 +157,6 @@ def find_locator():
     return next(
         (obj for obj in bpy.context.scene.objects if obj.type == 'EMPTY' and obj.name in '面部定位'),
         None)
-
-
-def move_object_to_collection_recursive(obj, target_collection):
-    """将指定对象及其子级（递归）移动到指定集合"""
-    # 将对象从原始集合中移除
-    if obj.users_collection:
-        obj.users_collection[0].objects.unlink(obj)
-    # 将对象添加到目标集合中
-    target_collection.objects.link(obj)
-    # 递归处理子对象
-    for child in obj.children:
-        move_object_to_collection_recursive(child, target_collection)
 
 
 def process_outline(abc_pmx_map, outline_width):
@@ -291,9 +203,9 @@ def process_locator(abc_mesh_objects):
 
     # 将locator移动到abc所在集合
     if target_collection:
-        move_object_to_collection_recursive(locator, target_collection)
-    deselect_all_objects()
-    select_and_activate(located_obj)
+        utils.move_object_to_collection_recursive(locator, target_collection)
+    utils.deselect_all_objects()
+    utils.select_and_activate(located_obj)
     min_z_vertex = None
     min_x_vertex = None
     max_x_vertex = None
@@ -343,13 +255,13 @@ def process_locator(abc_mesh_objects):
     bmesh.update_edit_mesh(mesh_target)
 
     # 编辑模式下选择网格对象并设置三个顶点为父级
-    show_object(locator)
+    utils.show_object(locator)
     locator.select_set(True)
     bpy.ops.object.vertex_parent_set()
     bpy.ops.object.mode_set(mode='OBJECT')
     # 将locator的位置设置为平均值
     locator.location = (average_x, average_y, average_z)
-    set_visibility(locator, False, False, True)
+    utils.set_visibility(locator, False, False, True)
     # 将作为顶点父级的顶点放入顶点组中
     vertex_group_name = locator.name
     vertex_group = located_obj.vertex_groups.new(name=vertex_group_name)
@@ -365,7 +277,7 @@ def process_light():
         bpy.context.scene.collection.children.link(light_collection)
     for obj in bpy.data.objects:
         if obj.type == 'LIGHT' and obj.name in bpy.context.view_layer.objects:
-            move_object_to_collection_recursive(obj, light_collection)
+            utils.move_object_to_collection_recursive(obj, light_collection)
 
 
 def is_completed(abc_mesh_objects):
@@ -379,11 +291,6 @@ def is_completed(abc_mesh_objects):
                 return False
     # 如果所有物体都通过了上述检查，则返回True
     return True
-
-
-def case_insensitive_replace(pattern, replacement, string):
-    """忽略大小写替换"""
-    return re.sub(pattern, replacement, string, flags=re.IGNORECASE)
 
 
 def gen_abc_root(pmx_root, abc_mesh_objects):
@@ -402,14 +309,14 @@ def gen_abc_root(pmx_root, abc_mesh_objects):
     # 创建一个名称为 pmx_root_name+" abc" 的空物体
     abc_root = None
     if 'pmx' in pmx_root_name.lower():
-        abc_root = bpy.data.objects.new(case_insensitive_replace("pmx", "abc", pmx_root_name), None)
+        abc_root = bpy.data.objects.new(utils.case_insensitive_replace("pmx", "abc", pmx_root_name), None)
     else:
         abc_root = bpy.data.objects.new(pmx_root_name + " abc", None)
     bpy.context.collection.objects.link(abc_root)
     # 将abc_mesh_objects全部移动到users_collection中并将空物体设置为父级
     for obj in abc_mesh_objects:
         obj.parent = abc_root
-    move_object_to_collection_recursive(abc_root, target_collection)
+    utils.move_object_to_collection_recursive(abc_root, target_collection)
     return abc_root
 
 
@@ -438,14 +345,14 @@ def modify_hue_sat(hue, saturation, value):
 
 def process(outline_width):
     """一键上材质（三渲二abc流程）（小二）"""
-    pmx_root = find_pmx_root()
-    abc_root = find_abc_root()
-    pmx_mesh_objects = get_mesh_objects(pmx_root)
-    abc_mesh_objects = get_abc_objects()
-    sort_mesh_objects(pmx_mesh_objects, pmx_root.mmd_type)
+    pmx_root = utils.find_pmx_root()
+    abc_root = utils.find_abc_root()
+    pmx_mesh_objects = utils.get_mesh_objects(pmx_root)
+    abc_mesh_objects = utils.get_abc_objects()
+    utils.sort_mesh_objects(pmx_mesh_objects, pmx_root.mmd_type)
     if abc_root is None and len(abc_mesh_objects) > 0:
         abc_root = gen_abc_root(pmx_root, abc_mesh_objects)
-    sort_mesh_objects(abc_mesh_objects, abc_root.mmd_type)
+    utils.sort_mesh_objects(abc_mesh_objects, abc_root.mmd_type)
     abc_pmx_map = dict(zip(abc_mesh_objects, pmx_mesh_objects))
     if not is_completed(abc_mesh_objects):
         link_materials_between_objects(abc_pmx_map)
@@ -454,9 +361,6 @@ def process(outline_width):
         process_locator(abc_mesh_objects)
     process_outline(abc_pmx_map, outline_width)
 
-
-# todo 一键修改贴图色彩空间（包括toon等）
-# todo 一键修改色相饱和度
 
 if __name__ == "__main__":
     # process(12.5)

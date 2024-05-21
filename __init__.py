@@ -1,3 +1,5 @@
+from mmd_kafei_tools import auto_load
+
 bl_info = {
     "name": "mmd_kafei_tools",
     "description": "MMD实用工具",
@@ -8,23 +10,13 @@ bl_info = {
     "category": "Object",
 }
 
-import bpy
-from .operators import TRANSFER_OT_preset_xiaoer
-from .operators import ModifyImageColorspace
-from .operators import ModifyHueSat
-from .panel import PresetTransferPanel
-
-classes = (TRANSFER_OT_preset_xiaoer, ModifyImageColorspace, ModifyHueSat, PresetTransferPanel)
-
-
+auto_load.init()
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
+    auto_load.register()
 
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+    auto_load.unregister()
 
 
 if __name__ == "__main__":
