@@ -1,6 +1,6 @@
 import bpy
 
-from ..operaters.transfer_operators import TransferPmxToAbc
+from ..operaters.transfer_operators import TransferPmxToAbcOperator
 
 
 class TransferPmxToAbcPanel(bpy.types.Panel):
@@ -57,7 +57,7 @@ class TransferPmxToAbcPanel(bpy.types.Panel):
             modifiers_row.enabled = True
 
         row = layout.row()
-        row.operator(TransferPmxToAbc.bl_idname, text=TransferPmxToAbc.bl_label)
+        row.operator(TransferPmxToAbcOperator.bl_idname, text=TransferPmxToAbcOperator.bl_label)
 
 
 class PrePostProcessingPanel(bpy.types.Panel):
