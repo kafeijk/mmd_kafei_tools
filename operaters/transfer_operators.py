@@ -227,80 +227,58 @@ def truncate(value, precision):
 
 def link_multi_slot_materials(mapping):
     """关联pmx材质到abc上面（多材质槽情况下）"""
+    # 坐标精度，不建议让用户修改这个值
     precision = 0.0001
     for source, target in mapping.items():
+        # 没有active_object直接mode_set会报异常
+        if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode='OBJECT')
         deselect_all_objects()
-        # 选中并激活pmx对象
         select_and_activate(source)
-        # 获取pmx对象的材质槽中的材质（第二个材质到最后一个）
-        material_slots = source.material_slots[1:]
-        material_list = [slot.material for slot in material_slots]
-        # 获取pmx对象中使用了某材质的面的顶点的世界坐标map，如果abc对象的顶点的世界坐标存在于map中，则将这些点选中，通过编辑模式的"将活动材质指定到选中的区域"的操作来上材质
-        # 避免通过顶点所对应的面来上材质，会有重合点的干扰（重合点对应的多个面分属不同材质，都设置为相同材质的话有问题），所以直接简单通过选中顶点再赋予激活材质的方式来指定材质
-        # todo for材质对应的面，获取面对应的顶点，找到target对应的顶点，选中上材质，再次循环，而非全部找到后一起上材质
-        for material in material_list:
-            material_index = source.data.materials.find(material.name)
-            if material_index != -1:
-                bpy.ops.object.mode_set(mode='OBJECT')
-                deselect_all_objects()
-                select_and_activate(source)
-                # 切换到编辑模式
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.select_mode(type="VERT")
-                bpy.ops.mesh.select_all(action='DESELECT')
-                # 获取网格数据
-                mesh = source.data
-                # 使用bmesh创建一个网格实例
-                bm = bmesh.from_edit_mesh(mesh)
-                # 存储已经选中的顶点坐标
-                selected_verts = {}
-                # 遍历所有多边形
-                for poly in bm.faces:
-                    # 检查多边形的材质索引是否与目标索引匹配
-                    if poly.material_index == material_index:
-                        # 遍历多边形的顶点
-                        for vert in poly.verts:
-                            # 将顶点的世界坐标进行精度误差处理，得到的结果保存在map中。
-                            # 如果不进行精度误差处理，直接将str(global_co)作为key，坐标值只会保留小数点后4位，后续比对时可能存在漏掉顶点的情况。
-                            # 这里对坐标值 / precision后的结果进行截断，保留整数，误差为±1，即对应小数时的精度。
-                            global_co = source.matrix_world @ vert.co
-                            for i in range(-1, 2):
-                                for j in range(-1, 2):
-                                    for k in range(-1, 2):
-                                        key = (
-                                            truncate(global_co[0], precision) + i * 1,
-                                            truncate(global_co[1], precision) + j * 1,
-                                            truncate(global_co[2], precision) + k * 1)
-                                        selected_verts[str(key)] = 0
-                # 更新网格
-                bmesh.update_edit_mesh(mesh)
-                bpy.ops.object.mode_set(mode='OBJECT')  # 切换回对象模式
 
-                select_and_activate(target)
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.select_mode(type="VERT")
-                # 每次选择之前先取消选择
-                bpy.ops.mesh.select_all(action='DESELECT')
-                # 获取网格数据
-                mesh_target = target.data
-                # 使用bmesh创建一个网格实例
-                bm_target = bmesh.from_edit_mesh(mesh_target)
-                for vert in bm_target.verts:
-                    global_co = target.matrix_world @ vert.co
-                    key = (
-                        truncate(global_co[0], precision), truncate(global_co[1], precision),
-                        truncate(global_co[2], precision))
-                    if str(key) in selected_verts:
-                        vert.select = True
-                # 更新网格
-                bmesh.update_edit_mesh(mesh_target)
-                bpy.context.object.active_material_index = material_index
+        # 通过面的质心坐标（局部）来确定源和目标的映射关系，以此来关联材质
+        # 模型可能会存在重合面，导致质心位置相同
+        # 但是pmx模型的肌和体，要么分属不同的网格对象，要么属于同一网格对象的不同面
+        # 不论是哪种情况，重合面都不会对最终的结果产生影响（如有其它普遍且未考虑进来的情况再说）
 
-                # 先返回一次对象模式再指定，不知道为啥...
-                bpy.ops.object.mode_set(mode='OBJECT')  # 切换回对象模式
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.object.material_slot_assign()
-                bpy.ops.object.mode_set(mode='OBJECT')  # 切换回对象模式
+        # 获取源物体网格数据
+        source_mesh = source.data
+        # 源物体质心与面的map
+        source_center_poly_map = {}
+        # 源物体面与对应材质的map
+        source_poly_material_map = {}
+        for source_poly in source_mesh.polygons:
+            source_poly_material_map[source_poly.index] = source_poly.material_index
+
+            # 将质心坐标（局部）进行精度误差处理，得到的结果保存在map中。
+            # 如果不进行精度误差处理，直接将poly.center作为key，坐标值只会保留小数点后4位。（以四舍五入的方式）
+            # 首先想到的是增加精度，获取更后面的值，直到完整获取整个数值以避免四舍五入，但是这样会产生精度丢失的问题
+            # 实际的值非常不可控，所以才要四舍五入吧，但问题的原因不是四舍五入，而是存在误差
+            # 事实上，保留小数点后四位已经足够了，但个别面的质心坐标值依然存在误差。
+            # 这里对坐标值 / precision后的结果进行截断，保留整数，误差为±1。
+            for i in range(-1, 2):
+                for j in range(-1, 2):
+                    for k in range(-1, 2):
+                        key = (
+                            truncate(source_poly.center.x, precision) + i * 1,
+                            truncate(source_poly.center.y, precision) + j * 1,
+                            truncate(source_poly.center.z, precision) + k * 1)
+                        source_center_poly_map[key] = source_poly.index
+
+        deselect_all_objects()
+        select_and_activate(target)
+        # 获取目标物体网格数据
+        target_mesh = target.data
+        for target_poly in target_mesh.polygons:
+            # target_poly的质心坐标要乘上0.08，但是质心坐标不会随着缩放比例的变化而变化
+            key = (
+                truncate(target_poly.center.x * 0.08, precision),
+                truncate(target_poly.center.y * 0.08, precision),
+                truncate(target_poly.center.z * 0.08, precision))
+            if key in source_center_poly_map:
+                source_poly = source_center_poly_map[key]
+                material_index = source_poly_material_map[source_poly]
+                target_poly.material_index = material_index
 
 
 def link_modifiers(mapping):
