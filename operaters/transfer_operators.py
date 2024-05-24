@@ -5,7 +5,7 @@ import bmesh
 from ..utils import *
 
 
-class TransferPmxToAbc(bpy.types.Operator):
+class TransferPmxToAbcOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.transfer_pmx_to_abc"  # 引用时的唯一标识符
     bl_label = "传递"  # 显示名称（F3搜索界面，不过貌似需要注册，和panel中显示的内容区别开）
     bl_description = "将pmx模型的材质传递到abc模型上"
@@ -20,19 +20,19 @@ def main(operator, context):
     # 获取abc和pmx对应的mesh对象并生成字典
     pmx_root = find_pmx_root()
     if pmx_root is None:
-        operator.report(type={'Warning'}, message=f'没有找到pmx对象')
+        operator.report(type={'WARNING'}, message=f'没有找到pmx对象')
         return
     pmx_armature = find_pmx_armature(pmx_root)
     if pmx_armature is None:
-        operator.report(type={'Warning'}, message=f'在{pmx_root.name}中没有找到pmx骨架')
+        operator.report(type={'WARNING'}, message=f'在{pmx_root.name}中没有找到pmx骨架')
         return
     pmx_objects = find_pmx_objects(pmx_armature)
     if len(pmx_objects) == 0:
-        operator.report(type={'Warning'}, message=f'在{pmx_root.name}中没有找到网格对象')
+        operator.report(type={'WARNING'}, message=f'在{pmx_root.name}中没有找到网格对象')
         return
     abc_objects = find_abc_objects()
     if len(abc_objects) == 0:
-        operator.report(type={'Warning'}, message=f'没有找到abc文件对应的网格对象')
+        operator.report(type={'WARNING'}, message=f'没有找到abc文件对应的网格对象')
         return
 
     scene = context.scene
@@ -62,7 +62,7 @@ def main(operator, context):
     # 关联pmx材质到abc上面（多材质槽情况下）
     multi_material_slots_flag = props.multi_material_slots_flag
     if multi_material_slots_flag:
-        link_multi_slot_materials(pmx2abc_mapping)
+        link_multi_slot_materials(operator, pmx2abc_mapping)
 
     # 为每个abc网格对象赋予顶点色，新建uv并使这些uv孤岛比例平均化
     gen_skin_uv_flag = props.gen_skin_uv_flag
@@ -225,7 +225,7 @@ def truncate(value, precision):
     return math.floor(value / precision)
 
 
-def link_multi_slot_materials(mapping):
+def link_multi_slot_materials(operator, mapping):
     """关联pmx材质到abc上面（多材质槽情况下）"""
     # 坐标精度，不建议让用户修改这个值
     precision = 0.0001
@@ -269,6 +269,7 @@ def link_multi_slot_materials(mapping):
         select_and_activate(target)
         # 获取目标物体网格数据
         target_mesh = target.data
+        match_count = 0
         for target_poly in target_mesh.polygons:
             # target_poly的质心坐标要乘上0.08，但是质心坐标不会随着缩放比例的变化而变化
             key = (
@@ -276,9 +277,15 @@ def link_multi_slot_materials(mapping):
                 truncate(target_poly.center.y * 0.08, precision),
                 truncate(target_poly.center.z * 0.08, precision))
             if key in source_center_poly_map:
+                match_count += 1
                 source_poly = source_center_poly_map[key]
                 material_index = source_poly_material_map[source_poly]
                 target_poly.material_index = material_index
+        if match_count != len(source_mesh.polygons):
+            # 如果出现特殊情况给予提示
+            operator.report(type={'WARNING'},
+                            message=f'源物体:{source.name}, 面数:{len(source_mesh.polygons)}, '
+                                    f'目标物体:{target.name}, 面数:{len(source_mesh.polygons)}, 匹配成功面数:{match_count}, 请检查')
 
 
 def link_modifiers(mapping):
