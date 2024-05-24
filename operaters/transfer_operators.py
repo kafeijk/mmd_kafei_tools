@@ -117,7 +117,7 @@ def link_materials(operator, mapping):
         if len(source_mesh.loops) != len(target_mesh.loops):
             operator.report(type={'WARNING'},
                             message=f'未能成功复制UV，请检查。'
-                                    f'源物体：{source.name}，loops：{len(source_mesh.loops)}，面数：{len(source_mesh.polygons)}, '
+                                    f'源物体：{source.name}，loops：{len(source_mesh.loops)}，面数：{len(source_mesh.polygons)}。'
                                     f'目标物体：{target.name}，loops：{len(target_mesh.loops)}，面数：{len(target_mesh.polygons)}')
             continue
         # 记录源物体活动的UV、用于渲染的UV、原始uv数量
@@ -334,7 +334,7 @@ def link_multi_slot_materials(operator, mapping):
             # 如果出现特殊情况给予提示
             operator.report(type={'WARNING'},
                             message=f'未能完整传递多材质，请检查。'
-                                    f'源物体：{source.name}，面数：{len(source_mesh.polygons)}，'
+                                    f'源物体：{source.name}，面数：{len(source_mesh.polygons)}。'
                                     f'目标物体：{target.name}，面数：{len(source_mesh.polygons)}，匹配成功面数：{match_count}')
 
 
