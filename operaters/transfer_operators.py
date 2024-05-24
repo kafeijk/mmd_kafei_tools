@@ -45,6 +45,17 @@ def main(operator, context):
     sort_pmx_objects(pmx_objects)
     sort_abc_objects(abc_objects)
     pmx2abc_mapping = dict(zip(pmx_objects, abc_objects))
+
+    # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
+    # 记录pmx和abc物体的可见性
+    visibility_map = {}
+    for source, target in pmx2abc_mapping.items():
+        visibility_map[source] = (source.hide_select, source.hide_get(), source.hide_viewport, source.hide_render)
+        visibility_map[target] = (target.hide_select, target.hide_get(), target.hide_viewport, target.hide_render)
+    for source, target in pmx2abc_mapping.items():
+        set_visibility(source, False, False, False, False)
+        set_visibility(target, False, False, False, False)
+
     # 关联pmx材质到abc上面
     link_materials(pmx2abc_mapping)
 
@@ -70,17 +81,9 @@ def main(operator, context):
     if modifiers_flag:
         link_modifiers(pmx2abc_mapping)
 
-
-def get_sorted_mesh_objects(parent_name):
-    parent = bpy.data.objects.get(parent_name, None)
-    if parent is None:
-        raise ValueError(f"找不到名称为 {parent_name} 的空物体，请检查。")
-    mesh_objects = get_mesh_objects(parent)
-    if parent.mmd_type == 'ROOT':
-        mesh_objects.sort(key=lambda obj: obj.name)
-    else:
-        mesh_objects.sort(key=lambda obj: int(obj.name.replace("xform_0_material_", "").split(".")[0]))
-    return mesh_objects
+    # 恢复原有可见性
+    for obj, visibility in visibility_map.items():
+        set_visibility(obj, visibility[0], visibility[1], visibility[2], visibility[3])
 
 
 def get_mesh_objects(obj):
@@ -100,21 +103,6 @@ def modifiers_by_name(obj, name):
 def modifiers_by_type(obj, typename):
     """ 通过类型获取修改器 """
     return [x for x in obj.modifiers if x.type == typename]
-
-
-def select_and_activate(obj):
-    """选中并激活物体"""
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-
-
-def deselect_all_objects():
-    """对场景中的选中对象和活动对象取消选择"""
-    if bpy.context.active_object is None:
-        return
-    bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = None
 
 
 def link_materials(mapping):

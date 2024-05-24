@@ -29,3 +29,30 @@ def sort_pmx_objects(objects):
 
 def sort_abc_objects(objects):
     objects.sort(key=lambda obj: int(ABC_NAME_PATTERN.match(obj.name).group(2)))
+
+
+def select_and_activate(obj):
+    """选中并激活物体"""
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+
+
+def deselect_all_objects():
+    """对场景中的选中对象和活动对象取消选择"""
+    if bpy.context.active_object is None:
+        return
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = None
+
+
+def set_visibility(obj, hide_select_flag, hide_set_flag, hide_viewport_flag, hide_render_flag):
+    """设置Blender物体的可见性相关属性"""
+    # 是否可选
+    obj.hide_select = hide_select_flag
+    # 是否在视图中隐藏
+    obj.hide_set(hide_set_flag)
+    # 是否在视图中禁用
+    obj.hide_viewport = hide_viewport_flag
+    # 是否在渲染中禁用
+    obj.hide_render = hide_render_flag
