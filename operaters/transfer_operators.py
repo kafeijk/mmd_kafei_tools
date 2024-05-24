@@ -57,7 +57,7 @@ def main(operator, context):
         set_visibility(target, False, False, False, False)
 
     # 关联pmx材质到abc上面
-    link_materials(pmx2abc_mapping)
+    link_materials(operator, pmx2abc_mapping)
 
     # 关联pmx材质到abc上面（多材质槽情况下）
     multi_material_slots_flag = props.multi_material_slots_flag
@@ -105,18 +105,67 @@ def modifiers_by_type(obj, typename):
     return [x for x in obj.modifiers if x.type == typename]
 
 
-def link_materials(mapping):
+def link_materials(operator, mapping):
     """关联source材质到target上面"""
     for source, target in mapping.items():
-        deselect_all_objects()
-        # 选中并激活target对象
-        select_and_activate(target)
-        # 选中并激活source对象
-        select_and_activate(source)
-        # 复制UV贴图
-        bpy.ops.object.join_uvs()
-        # 关联材质
-        bpy.ops.object.make_links_data(type='MATERIAL')
+        source_mesh = source.data
+        target_mesh = target.data
+        if len(source_mesh.uv_layers) == 0:
+            continue
+        # 如果loop值不一致，则跳过本次循环，但这不意味着错误
+        # 比如3.x导入abc复制uv出问题，用2.x导入并拷贝到当前工程，执行插件依然可以进行后续逻辑
+        if len(source_mesh.loops) != len(target_mesh.loops):
+            operator.report(type={'WARNING'},
+                            message=f'未能成功复制UV，请检查。'
+                                    f'源物体：{source.name}，loops：{len(source_mesh.loops)}，面数：{len(source_mesh.polygons)}, '
+                                    f'目标物体：{target.name}，loops：{len(target_mesh.loops)}，面数：{len(target_mesh.polygons)}')
+            continue
+        # 记录源物体活动的UV、用于渲染的UV、原始uv数量
+        source_uv_active_index = source_mesh.uv_layers.active_index
+        source_uv_render_index = 0
+        for index, uv_layer in enumerate(source_mesh.uv_layers):
+            if uv_layer.active_render:
+                source_uv_render_index = index
+        source_original_uv_count = len(source_mesh.uv_layers)
+        # 记录目标物体原始uv数量
+        target_original_uv_count = len(target_mesh.uv_layers)
+
+        for uv_layer in source.data.uv_layers:
+            # 复制UV时，复制的是活动状态的UV
+            uv_layer.active = True
+            # 新建uv
+            # blender 3.0以下（如2.93）导入abc，uv命名是"uv"，而不是"UVMap"
+            # 所以除非刻意进行额外操作，否则出现"UV名称已存在（或者说UV命名冲突，不过实际名称会自动修改并不会冲突）"的问题的可能性很低，这里对此种情况暂不处理。
+            # pmx对象最多5个uv，abc对象1个uv（3.0以下导入时），通常情况下，不会超过8个的上限，如超过，这里对此种情况暂不处理。
+            target_mesh.uv_layers.new(name=uv_layer.name)
+            target_mesh.uv_layers[uv_layer.name].active = True
+
+            deselect_all_objects()
+            # 选中并激活target对象
+            select_and_activate(target)
+            # 选中并激活source对象
+            select_and_activate(source)
+            # 复制UV贴图
+            bpy.ops.object.join_uvs()
+            # 关联材质
+            bpy.ops.object.make_links_data(type='MATERIAL')
+
+        # 恢复uv的激活状态
+        source_mesh.uv_layers[source_uv_active_index].active = True
+        source_mesh.uv_layers[source_uv_render_index].active_render = True
+        target_current_uv_count = len(target_mesh.uv_layers)
+        # 目标物体原始UV数量为0，且全部复制成功
+        if target_original_uv_count == 0 and target_current_uv_count == source_original_uv_count:
+            target_mesh.uv_layers[source_uv_active_index].active = True
+            target_mesh.uv_layers[source_uv_render_index].active_render = True
+        # 目标物体原始UV数量不为0，且全部复制成功
+        elif target_original_uv_count != 0 and target_current_uv_count == (
+                source_original_uv_count + target_original_uv_count):
+            target_mesh.uv_layers[source_uv_active_index + target_original_uv_count].active = True
+            target_mesh.uv_layers[source_uv_render_index + target_original_uv_count].active_render = True
+        else:
+            # 要么不复制，要么全部复制成功，其它情况，这里暂不考虑
+            pass
     deselect_all_objects()
 
 
@@ -132,7 +181,7 @@ def process_skin_uv(mapping, skin_uv_name):
         bpy.ops.object.mode_set(mode='VERTEX_PAINT')
         bpy.ops.object.mode_set(mode='OBJECT')
         # 新建并激活uv
-        target_mesh = bpy.data.meshes[target.data.name]
+        target_mesh = target.data
         target_mesh.uv_layers.new(name=skin_uv_name)
         target_mesh.uv_layers[skin_uv_name].active = True
         target_mesh.uv_layers[skin_uv_name].active_render = True
@@ -148,7 +197,7 @@ def process_skin_uv(mapping, skin_uv_name):
     bpy.ops.object.mode_set(mode='OBJECT')
     # 恢复到原来的uv todo 是否先记录下比较好，但实际没什么必要
     for average_islands_obj in average_islands_scale_objs:
-        average_islands_mesh = bpy.data.meshes[average_islands_obj.data.name]
+        average_islands_mesh = average_islands_obj.data
         average_islands_mesh.uv_layers[0].active = True
         average_islands_mesh.uv_layers[0].active_render = True
 
@@ -284,8 +333,9 @@ def link_multi_slot_materials(operator, mapping):
         if match_count != len(source_mesh.polygons):
             # 如果出现特殊情况给予提示
             operator.report(type={'WARNING'},
-                            message=f'源物体:{source.name}, 面数:{len(source_mesh.polygons)}, '
-                                    f'目标物体:{target.name}, 面数:{len(source_mesh.polygons)}, 匹配成功面数:{match_count}, 请检查')
+                            message=f'未能完整传递多材质，请检查。'
+                                    f'源物体：{source.name}，面数：{len(source_mesh.polygons)}，'
+                                    f'目标物体：{target.name}，面数：{len(source_mesh.polygons)}，匹配成功面数：{match_count}')
 
 
 def link_modifiers(mapping):
