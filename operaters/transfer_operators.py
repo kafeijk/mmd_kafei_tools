@@ -68,7 +68,7 @@ def main(operator, context):
     gen_skin_uv_flag = props.gen_skin_uv_flag
     if gen_skin_uv_flag:
         skin_uv_name = props.skin_uv_name
-        process_skin_uv(pmx2abc_mapping, skin_uv_name)
+        gen_skin_uv(operator, pmx2abc_mapping, skin_uv_name)
 
     # 关联pmx顶点组及顶点权重到abc上面（正序）
     vgs_flag = props.vgs_flag
@@ -116,7 +116,7 @@ def link_materials(operator, mapping):
         # 比如3.x导入abc复制uv出问题，用2.x导入并拷贝到当前工程，执行插件依然可以进行后续逻辑
         if len(source_mesh.loops) != len(target_mesh.loops):
             operator.report(type={'WARNING'},
-                            message=f'未能成功复制UV，请检查。'
+                            message=f'传递材质时未能成功复制UV，请检查。'
                                     f'源物体：{source.name}，loops：{len(source_mesh.loops)}，面数：{len(source_mesh.polygons)}。'
                                     f'目标物体：{target.name}，loops：{len(target_mesh.loops)}，面数：{len(target_mesh.polygons)}')
             continue
@@ -137,7 +137,13 @@ def link_materials(operator, mapping):
             # blender 3.0以下（如2.93）导入abc，uv命名是"uv"，而不是"UVMap"
             # 所以除非刻意进行额外操作，否则出现"UV名称已存在（或者说UV命名冲突，不过实际名称会自动修改并不会冲突）"的问题的可能性很低，这里对此种情况暂不处理。
             # pmx对象最多5个uv，abc对象1个uv（3.0以下导入时），通常情况下，不会超过8个的上限，如超过，这里对此种情况暂不处理。
-            target_mesh.uv_layers.new(name=uv_layer.name)
+            new_uv = target_mesh.uv_layers.new(name=uv_layer.name)
+            if new_uv is None:
+                # 目标物体uv数量达到上限，给予提示
+                operator.report(type={'WARNING'},
+                                message=f'传递材质时未能成功复制UV，请检查。目标物体：{target.name}，目标物体UV数量：{len(target.data.uv_layers)}。'
+                                        f'源物体UV名称：{uv_layer.name}')
+                continue
             target_mesh.uv_layers[uv_layer.name].active = True
 
             deselect_all_objects()
@@ -169,37 +175,58 @@ def link_materials(operator, mapping):
     deselect_all_objects()
 
 
-def process_skin_uv(mapping, skin_uv_name):
+def gen_skin_uv(operator, mapping, skin_uv_name):
     """为每个网格对象赋予顶点色，新建uv并使这些uv孤岛比例平均化"""
+    if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    # 记录各物体原始的活动的uv及用于渲染的uv
+    obj_active_uv_map = {}
+    obj_render_uv_map = {}
+    for _, target in mapping.items():
+        for index, uv_layer in enumerate(target.data.uv_layers):
+            if uv_layer.active:
+                obj_active_uv_map[target.name] = index
+            if uv_layer.active_render:
+                obj_render_uv_map[target.name] = index
+
     # 待执行孤岛比例平均化的对象列表
-    average_islands_scale_objs = []
-    for source, target in mapping.items():
+    candidate_objs = []
+    for _, target in mapping.items():
         deselect_all_objects()
-        average_islands_scale_objs.append(target)
         # 进入顶点绘制模式再返回物体模式
         select_and_activate(target)
         bpy.ops.object.mode_set(mode='VERTEX_PAINT')
         bpy.ops.object.mode_set(mode='OBJECT')
         # 新建并激活uv
         target_mesh = target.data
-        target_mesh.uv_layers.new(name=skin_uv_name)
-        target_mesh.uv_layers[skin_uv_name].active = True
-        target_mesh.uv_layers[skin_uv_name].active_render = True
+        new_uv = target_mesh.uv_layers.new(name=skin_uv_name)
+        if new_uv:
+            new_uv.active = True
+            new_uv.active_render = True
+            # 只有成功创建UV的物体才会被添加进列表，否则后续操作会破坏其原始UV的布局
+            candidate_objs.append(target)
+        else:
+            operator.report(type={'WARNING'},
+                            message=f'未能成功创建皮肤UV，请检查。物体：{target.name}，当前UV数量：{len(target.data.uv_layers)}')
 
+    # 孤岛比例平均化
     deselect_all_objects()
-    for average_islands_obj in average_islands_scale_objs:
-        select_and_activate(average_islands_obj)
+    for candidate_obj in candidate_objs:
+        select_and_activate(candidate_obj)
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    # 孤岛比例平均化
     bpy.ops.uv.average_islands_scale()
     bpy.ops.mesh.select_all(action='DESELECT')
     bpy.ops.object.mode_set(mode='OBJECT')
-    # 恢复到原来的uv todo 是否先记录下比较好，但实际没什么必要
-    for average_islands_obj in average_islands_scale_objs:
-        average_islands_mesh = average_islands_obj.data
-        average_islands_mesh.uv_layers[0].active = True
-        average_islands_mesh.uv_layers[0].active_render = True
+
+    # 恢复各物体原始的活动的uv及用于渲染的uv，未成功创建UV的物体无需恢复
+    for candidate_obj in candidate_objs:
+        candidate_mesh = candidate_obj.data
+        active_uv_index = obj_active_uv_map[candidate_obj.name]
+        render_uv_index = obj_render_uv_map[candidate_obj.name]
+        candidate_mesh.uv_layers[active_uv_index].active = True
+        candidate_mesh.uv_layers[render_uv_index].active_render = True
 
 
 def link_vertices_group(mapping):
