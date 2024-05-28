@@ -43,7 +43,15 @@ class TransferPmxToAbcPanel(bpy.types.Panel):
             row = layout.row()
             box = row.box()
             box.prop(props, "face_locator")
-            box.prop(props, "outline_width")
+            face_row = box.row()
+
+            face_row.prop(props, "auto_face_location")
+            auto_face_location = props.auto_face_location
+            if not auto_face_location:
+                face_box = box.box()
+                face_box.prop(props, "face_object")
+                # 顶点组太多了，让用户手动输入名称
+                face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
 
             multi_material_slots_row.enabled = False
             vgs_row.enabled = False

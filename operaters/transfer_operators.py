@@ -1,6 +1,9 @@
 import math
+import random
+import time
 
 import bmesh
+from mathutils import Vector
 
 from ..utils import *
 
@@ -16,45 +19,344 @@ class TransferPmxToAbcOperator(bpy.types.Operator):
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
 
-def main(operator, context):
-    # 获取abc和pmx对应的mesh对象并生成字典
+def process_locator(operator, mapping, face_locator, auto_face_location, face_object, face_vg):
+    """处理定位头部的物体，将其由骨架转移到脸部顶点组上面（顶点父级）
+       abc描边宽度一般为pmx描边宽度的12.5倍，但是描边宽度实现方式不同（如几何节点、实体化），这里暂不处理
+    """
+    # 手动吸管输入
+    # todo located_obj让用户自己选？待定 不能让用户选located_obj，就算选，也应该让用户选择面部顶点组来准确定位，如果三点父级不在同一个松散块上，会存在问题的。
+
+    locator = face_locator
+    vg_name = locator.parent_bone
+
+    face_obj = None
+    # 备选三点父级位置（source）
+    source_face_vert_location = {}
+    if auto_face_location is False:
+        for source, target in mapping.items():
+            if source.name == face_object.name:
+                face_obj = target
+                break
+        if face_obj is None:
+            raise Exception(f"在pmx模型中找不到名称为{face_object.name}的物体。")
+
+        group_names = {v.index: v.name for v in face_object.vertex_groups}
+        bm = bmesh.new()
+        bm.from_mesh(face_object.data)
+        # 获取顶点的变形权重层
+        dvert_lay = bm.verts.layers.deform.active
+        count = 0
+        for vert in bm.verts:
+            dvert = vert[dvert_lay]
+            for group_index, weight in dvert.items():
+                group_name = group_names[group_index]
+                if group_name == face_vg and weight == 1.0:
+                    count += 1
+                    # 备选三点父级位置
+                    for i in range(-1, 2):
+                        for j in range(-1, 2):
+                            for k in range(-1, 2):
+                                key = (
+                                    truncate(vert.co.x) + i * 1,
+                                    truncate(vert.co.y) + j * 1,
+                                    truncate(vert.co.z) + k * 1)
+                                if key not in source_face_vert_location:
+                                    source_face_vert_location[key] = 1
+                                else:
+                                    source_face_vert_location[key] = source_face_vert_location[key] + 1
+        if count < 3:
+            raise Exception(f"在{face_object.name}中未找到属于顶点组{face_vg}且权重为1的至少三个非重合顶点。")
+
+    else:
+        # 面部物体flag
+        face_flag = False
+        # 获取source中，属于头部顶点组且权重为1的顶点。
+        # 在这些顶点中，默认通过“局部z最小的那个顶点所对应的物体”为面部，面部中，“含顶点数最多”的松散块作为待选区域，待选区域中的（无重合点的）三个边缘顶点（min_x, max_x, min_z）作为三点父级
+        # 这么做的目的是尽量避免眼睛，眉毛，口腔等部位因形态键造成的位置不稳定
+        # 不过这样定位面部并不准确，但是这些顶点属于头部顶点组且权重为1，且面部定位器位于三点父级的质心，可正确提供面部旋转信息（预设大多只需要旋转信息而非位置），所以就算定位到帽子等部位也没关系。
+        # 可以额外提供一个顶点组参数作为面部待选区域，该参数由用户指定，用于准确定位面部
+
+        # 在所有源物体中局部z值最小的顶点
+        face_min_z = float('inf')
+        # 拥有局部z值最小的顶点的源物体所对应的目标物体
+        face_min_z_obj = None
+        for source, target in mapping.items():
+            current_min_z = float('inf')
+            current_min_z_obj = None
+            # 符合条件的顶点数量
+            count = 0
+            # 符合条件的顶点位置 -> 出现次数，次数大于1表明存在重合点
+            vert_location = {}
+            # 顶点组索引 -> 顶点组名称
+            group_names = {v.index: v.name for v in source.vertex_groups}
+
+            bm = bmesh.new()
+            bm.from_mesh(source.data)
+            # 获取顶点的变形权重层
+            dvert_lay = bm.verts.layers.deform.active
+            for vert in bm.verts:
+                dvert = vert[dvert_lay]
+                for group_index, weight in dvert.items():
+                    group_name = group_names[group_index]
+                    if group_name == vg_name and weight == 1.0:
+                        count += 1
+                        if vert.co.z < current_min_z:
+                            current_min_z = vert.co.z
+                            current_min_z_obj = target
+                        # 备选三点父级位置
+                        for i in range(-1, 2):
+                            for j in range(-1, 2):
+                                for k in range(-1, 2):
+                                    key = (
+                                        truncate(vert.co.x) + i * 1,
+                                        truncate(vert.co.y) + j * 1,
+                                        truncate(vert.co.z) + k * 1)
+                                    if key not in vert_location:
+                                        vert_location[key] = 1
+                                    else:
+                                        vert_location[key] = vert_location[key] + 1
+            if count >= 3:  # 3点父级
+                if current_min_z < face_min_z:
+                    face_flag = True
+                    source_face_vert_location = vert_location
+                    face_min_z = current_min_z
+                    face_min_z_obj = current_min_z_obj
+            bm.free()
+
+        if face_flag:
+            face_obj = face_min_z_obj
+        else:
+            raise Exception(f"在PMX模型中未找到属于顶点组{vg_name}且权重为1的至少三个非重合顶点。")
+
+    bm = bmesh.new()
+    bm.from_mesh(face_obj.data)
+    # 根据备选三点父级位置（source）获取备选三点父级位置（target）
+    # 这个过程会去除重合点对最终结果的影响（如焊接修改器）
+    target_face_vert_location = []
+    for vert in bm.verts:
+        key = (
+            truncate(vert.co.x * 0.08, ),
+            truncate(vert.co.y * 0.08),
+            truncate(vert.co.z * 0.08))
+        if key in source_face_vert_location:
+            v_count = source_face_vert_location[key]
+            if v_count > 1:
+                continue
+            target_face_vert_location.append(vert)
+
+    # 面部松散块
+    islands = [island for island in get_islands(bm, verts=target_face_vert_location)["islands"]]
+    # 面部待选区域  随机松散块测试 face = random.choice(islands) if islands else None
+    face_area = max(islands, key=len) if islands else None
+
+    # 三点父级对应顶点
+    min_z_vertex = min(face_area, key=lambda v: v.co.z)
+    min_x_vertex = min(face_area, key=lambda v: v.co.x)
+    max_x_vertex = max(face_area, key=lambda v: v.co.x)
+    min_z_vertex.select = True
+    min_x_vertex.select = True
+    max_x_vertex.select = True
+    parents = [min_z_vertex, min_x_vertex, max_x_vertex]
+
+    # 清除面部定位器之前的父级（保持变换）
+    world_loc = locator.matrix_world.to_translation()
+    locator.parent = None
+    locator.matrix_world.translation = world_loc
+    target_collection = face_obj.users_collection[0]
+    # 将面部定位器移动到abc所在集合
+    if target_collection:
+        move_to_target_collection_recursive(locator, target_collection)
+
+    # 将面部定位器移动到三点父级质心（全局坐标）
+    avg_position = Vector(sum((face_obj.matrix_world @ v.co for v in parents), Vector())) / len(parents)
+    locator.location = avg_position
+
+    # 将三点父级对应顶点放入顶点组中
+    vertex_group = face_obj.vertex_groups.new(name="FACE_VERTEX_3")
+    parent_indexes = [v.index for v in parents]
+    vertex_group.add(parent_indexes, 1.0, 'REPLACE')
+
+    # 设置三点父级
+    bm.to_mesh(face_obj.data)
+    bm.free()
+    select_and_activate(face_obj)
+    bpy.ops.object.mode_set(mode='EDIT')
+    show_object(locator)
+    locator.select_set(True)
+    bpy.ops.object.vertex_parent_set()
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    set_visibility(locator, False, True, False, True)
+
+
+def check_locator(locator):
+    if locator is None:
+        raise Exception(f'未找到面部定位器对象')
+    # 先仅考虑骨骼父级的情况
+    if locator.parent_type != 'BONE':
+        raise Exception(f'面部定位器的父级类型不受支持。支持类型：骨骼（BONE），当前类型：{locator.parent_type}')
+    vg_name = locator.parent_bone
+    if vg_name is None or vg_name == '':
+        raise Exception(f'面部定位器未绑定到父级骨骼')
+    return True
+
+
+def check_transfer_pmx_to_abc_props(operator, props):
     pmx_root = find_pmx_root()
     if pmx_root is None:
-        operator.report(type={'WARNING'}, message=f'没有找到pmx对象')
-        return
+        operator.report(type={'ERROR'}, message=f'没有找到pmx对象')
+        return False
     pmx_armature = find_pmx_armature(pmx_root)
     if pmx_armature is None:
-        operator.report(type={'WARNING'}, message=f'在{pmx_root.name}中没有找到pmx骨架')
-        return
+        operator.report(type={'ERROR'}, message=f'在{pmx_root.name}中没有找到pmx骨架')
+        return False
     pmx_objects = find_pmx_objects(pmx_armature)
     if len(pmx_objects) == 0:
-        operator.report(type={'WARNING'}, message=f'在{pmx_root.name}中没有找到网格对象')
-        return
+        operator.report(type={'ERROR'}, message=f'在{pmx_root.name}中没有找到网格对象')
+        return False
     abc_objects = find_abc_objects()
     if len(abc_objects) == 0:
-        operator.report(type={'WARNING'}, message=f'没有找到abc文件对应的网格对象')
-        return
-
-    scene = context.scene
-    props = scene.mmd_kafei_tools_transfer_pmx_to_abc
+        operator.report(type={'ERROR'}, message=f'没有找到abc文件对应的网格对象')
+        return False
 
     toon_shading_flag = props.toon_shading_flag
     face_locator = props.face_locator
-    outline_width = props.outline_width
+    auto_face_location = props.auto_face_location
+    face_object = props.face_object
+    face_vg = props.face_vg
+    # 排除面部定位器对操作流程的影响
+    if toon_shading_flag:
+        if face_locator is None:
+            operator.report(type={'ERROR'}, message=f'未找到面部定位器对象')
+            return False
+        # 先仅考虑骨骼父级的情况
+        if face_locator.parent_type != 'BONE':
+            operator.report(type={'ERROR'},
+                            message=f'面部定位器的父级类型不受支持。支持类型：骨骼（BONE），当前类型：{face_locator.parent_type}')
+            return False
+        vg_name = face_locator.parent_bone
+        if vg_name is None or vg_name == '':
+            operator.report(type={'ERROR'}, message=f'面部定位器未绑定到父级骨骼')
+            return False
 
+    if auto_face_location is False:
+        if face_object is None:
+            operator.report(type={'ERROR'}, message=f'请输入面部对象')
+            return False
+        if face_vg is None or face_vg == '':
+            operator.report(type={'ERROR'}, message=f'请输入面部顶点组')
+            return False
+    return True
+
+
+def get_mesh_stats(obj):
+    # Ensure the object is a mesh
+    if obj.type != 'MESH':
+        raise TypeError(f"Object {obj.name} is not a mesh")
+
+    # todo 待进一步探明配对时需要排除哪些影响
+    # mesh = obj.to_mesh(preserve_all_data_layers=True, depsgraph=bpy.context.evaluated_depsgraph_get())
+    mesh = obj.data
+
+    vert_count = len(mesh.vertices)
+    edge_count = len(mesh.edges)
+    face_count = len(mesh.polygons)
+    loop_count = len(mesh.loops)
+
+    return vert_count, edge_count, face_count, loop_count
+
+
+def matching(sources, targets):
+    """尽可能的对物体配对
+        4w面  循环80w次  耗时0.7秒
+        13w面 循环230w次 耗时2.3秒 20w面应该是常用模型的较大值了
+        50w面 循环800w次 耗时10秒
+    """
+    start_time = time.time()
+    pmx2abc_mapping = {}
+    for source in sources:
+        for target in targets:
+            source_stats = get_mesh_stats(source)
+            target_stats = get_mesh_stats(target)
+            if source_stats != target_stats:
+                continue
+
+            vertices = {}
+            for vert in source.data.vertices:
+                for i in range(-1, 2):
+                    for j in range(-1, 2):
+                        for k in range(-1, 2):
+                            key = (
+                                truncate(vert.co.x) + i * 1,
+                                truncate(vert.co.y) + j * 1,
+                                truncate(vert.co.z) + k * 1)
+                            if key not in vertices:
+                                vertices[key] = 1
+                            else:
+                                vertices[key] = vertices[key] + 1
+
+            match_count = 0
+            for vert in target.data.vertices:
+                key = (
+                    truncate(vert.co.x * 0.08),
+                    truncate(vert.co.y * 0.08),
+                    truncate(vert.co.z * 0.08))
+                if key in vertices:
+                    match_count += 1
+            if match_count / len(target.data.vertices) > 0.95:
+                pmx2abc_mapping[source] = target
+    print(f"代码执行时间: {time.time() - start_time} 秒")
+    return pmx2abc_mapping
+
+
+def main(operator, context):
+    # todo 重复执行时，默认重新执行，需清除之前的内容?
+    # todo 增加 abc -> pmx pmx->pmx的逻辑 三渲二仅支持pmx -> abc
+    # pmx -> abc 操作频率较高，仅用名称配对即可
+    # pmx -> pmx / abc -> pmx 在换头类角色上材质/网格顺序内容变动的情况下 能够很好地适应。
+    # 后者频率较低，使用强校验（顶点数量、位置要一致），但要尽可能配对更多的物体，如提供一个容忍度，大于这个数值的顶点数一致即可，以解决
+    scene = context.scene
+
+    # 参数校验
+    props = scene.mmd_kafei_tools_transfer_pmx_to_abc
+    if check_transfer_pmx_to_abc_props(operator, props) is False:
+        return
+
+    pmx_root = find_pmx_root()
+    pmx_armature = find_pmx_armature(pmx_root)
+    pmx_objects = find_pmx_objects(pmx_armature)
+    # 排除面部定位器对排序所造成的影响
+    face_locator = props.face_locator
+    if face_locator:
+        for i in range(len(pmx_objects) - 1, -1, -1):
+            pmx_object = pmx_objects[i]
+            if pmx_object.name == face_locator.name:
+                pmx_objects.pop(i)
+                break
+    abc_objects = find_abc_objects()
     sort_pmx_objects(pmx_objects)
     sort_abc_objects(abc_objects)
+    # 通过名称可以进行快速的配对，但是，如果pmx网格内容/顺序修改了，无法进行 abc -> pmx 的反向配对
+    # 通过顶点数量进行配对，可能会出现顶点数相同但网格内容不同的情况，如左目右目（但几率非常低）
+    # 通过顶点数进行初步判断，再通过顶点局部位置是否相同（含误差）进行二次判断（相较其他方法慢一些），可以排除无关物体带来的影响，可以尽可能的双向配对
+    # todo 看看二次配对所花费的时间
+
+
+    # unit_test_compare可以对两个MESH进行比较，但是结果是String类型的而且描述比较模糊无法获取到完整的信息
     pmx2abc_mapping = dict(zip(pmx_objects, abc_objects))
+    pmx2abc_mapping = matching(pmx_objects, abc_objects)
+
+    toon_shading_flag = props.toon_shading_flag
+    face_object = props.face_object
+    face_vg = props.face_vg
+    auto_face_location = props.auto_face_location
 
     # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
     # 记录pmx和abc物体的可见性
-    visibility_map = {}
-    for source, target in pmx2abc_mapping.items():
-        visibility_map[source] = (source.hide_select, source.hide_get(), source.hide_viewport, source.hide_render)
-        visibility_map[target] = (target.hide_select, target.hide_get(), target.hide_viewport, target.hide_render)
-    for source, target in pmx2abc_mapping.items():
-        set_visibility(source, False, False, False, False)
-        set_visibility(target, False, False, False, False)
+    display_list = pmx_objects + abc_objects
+    display_list.append(pmx_root)
+    display_list.append(pmx_armature)
+    visibility_map = show_objects(display_list)
 
     # 关联pmx材质到abc上面
     link_materials(operator, pmx2abc_mapping)
@@ -73,17 +375,29 @@ def main(operator, context):
     # 关联pmx顶点组及顶点权重到abc上面（正序）
     vgs_flag = props.vgs_flag
     if vgs_flag:
-        link_vertices_group(pmx2abc_mapping)
-        link_vertices_weight(pmx2abc_mapping)
+        link_vertices_group(pmx_armature, pmx2abc_mapping)
+        link_vertices_weight(pmx_armature, pmx2abc_mapping)
 
     # 复制pmx修改器到abc上面（同时保留网格序列缓存修改器，删除骨架修改器）
     modifiers_flag = props.modifiers_flag
     if modifiers_flag:
         link_modifiers(pmx2abc_mapping)
 
+    # 三渲二面部定位器处理
+    if toon_shading_flag:
+        process_locator(operator, pmx2abc_mapping, face_locator, auto_face_location, face_object, face_vg)
+
     # 恢复原有可见性
     for obj, visibility in visibility_map.items():
         set_visibility(obj, visibility[0], visibility[1], visibility[2], visibility[3])
+
+
+def show_objects(display_list):
+    visibility_map = {}
+    for obj in display_list:
+        visibility_map[obj] = (obj.hide_select, obj.hide_get(), obj.hide_viewport, obj.hide_render)
+        show_object(obj)
+    return visibility_map
 
 
 def get_mesh_objects(obj):
@@ -229,82 +543,97 @@ def gen_skin_uv(operator, mapping, skin_uv_name):
         candidate_mesh.uv_layers[render_uv_index].active_render = True
 
 
-def link_vertices_group(mapping):
-    """关联source指定顶点组之后的顶点组到target上面（正序）
-    todo 更稳妥的方式是溜一遍pose bone，去除pose bone和mmd标识顶点组之后的内容为要关联的内容"""
+def link_vertices_group(pmx_armature, mapping):
+    """将pmx物体自定义的顶点组传递到abc的对应物体上（正序）"""
+    # 获取pmx物体默认的顶点组
+    default_vgs = get_default_vgs(pmx_armature)
+
+    # 移除目标物体的自定义顶点组，而且目标物体执行插件前也不应该有顶点组，需要保证源物体和目标物体顶点组完全一致后续才不会出错
+    for _, target in mapping.items():
+        target.vertex_groups.clear()
+
+    # 传递顶点组
     for source, target in mapping.items():
         source_vgs = source.vertex_groups
-        mmd_vertex_order_flag = False
         for source_vg in source_vgs:
-            if source_vg.name == 'mmd_vertex_order':
-                mmd_vertex_order_flag = True
-                continue
-            if mmd_vertex_order_flag:
+            if source_vg.name not in default_vgs:
                 target.vertex_groups.new(name=source_vg.name)
 
 
-def link_vertices_weight(mapping):
-    """关联pmx顶点组权重到abc上面"""
+def get_default_vgs(pmx_armature):
+    default_vgs = []
+    pbs = pmx_armature.pose.bones
+    for pb in pbs:
+        default_vgs.append(pb.name)
+    default_vgs.append('mmd_edge_scale')
+    default_vgs.append('mmd_vertex_order')
+    return default_vgs
+
+
+def link_vertices_weight(pmx_armature, mapping):
+    """将pmx物体自定义的顶点组权重传递到abc的对应物体上"""
+    # 获取pmx物体默认的顶点组
+    default_vgs = get_default_vgs(pmx_armature)
+
+    # 传递顶点组权重
+    # 预先获取所有顶点组信息，仅遍历一次全部target顶点 / 每有一个顶点组，遍历一次全部target顶点
     for source, target in mapping.items():
         deselect_all_objects()
         source_vgs = source.vertex_groups
-        for source_vg in reversed(source_vgs):
-            if source_vg.name == 'mmd_vertex_order':
-                break
-            # 激活target对象的顶点组
+        vg_name_infos = {}
+        for source_vg in source_vgs:
+            if source_vg.name in default_vgs:
+                continue
+            # 激活source对象当前顶点组
             select_and_activate(source)
             bpy.ops.object.vertex_group_set_active(group=source_vg.name)
-            # 获取target对象的顶点组中的顶点、权重信息
-            verts_and_weights = get_vertices_and_weights(source, source_vg)
-            select_and_activate(target)
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='DESELECT')
-            mesh = target.data
-            bm = bmesh.from_edit_mesh(mesh)
-
-            vert_group_map = {}  # 用于存储顶点和对应的顶点组信息
-            bpy.ops.mesh.select_mode(type="VERT")
-            for poly in bm.faces:
-                for vert in poly.verts:
-                    vert_world_pos = target.matrix_world @ vert.co
-                    vert_key = str(vert_world_pos)
-                    if vert_key in verts_and_weights:
-                        vert.select = True
-                        vert_group_name, weight = verts_and_weights[vert_key]
-                        vert_group_map[vert.index] = (vert_group_name, weight)
-            bmesh.update_edit_mesh(mesh)
-            bpy.ops.mesh.select_all(action='DESELECT')
-            bpy.ops.object.mode_set(mode='OBJECT')
-            for vert_index, (vert_group_name, weight) in vert_group_map.items():
-                vg = target.vertex_groups.get(vert_group_name)
-                if not vg:
-                    vg = target.vertex_groups.new(name=vert_group_name)
-                vg.add([vert_index], weight, 'REPLACE')
+            # 获取source对象当前顶点组中的顶点、权重信息
+            vertices_and_weights = get_vertices_and_weights(source, source_vg)
+            if len(vertices_and_weights) == 0:
+                continue
+            vg_name_infos[source_vg.name] = vertices_and_weights
+        # 获取target顶点
+        # 如果坐标值 in vertices_and_weights，则设置相应权重
+        for vert in target.data.vertices:
+            for vg_name, vg_info in vg_name_infos.items():
+                target_vg = target.vertex_groups[vg_name]
+                key = (
+                    truncate(vert.co.x * 0.08),
+                    truncate(vert.co.y * 0.08),
+                    truncate(vert.co.z * 0.08))
+                if key in vg_info:
+                    weight = vg_info[key]
+                    target_vg.add([vert.index], weight, 'REPLACE')
 
 
 def get_vertices_and_weights(obj, vertex_group):
     """获取顶点组中的顶点及其权重map"""
-    verts_and_weights = {}
+    vertices_and_weights = {}
     mesh = obj.data
     vertex_group_index = obj.vertex_groups.find(vertex_group.name)
     if vertex_group_index != -1:
         for vert in mesh.vertices:
             for group_element in vert.groups:
                 if group_element.group == vertex_group_index:
-                    verts_and_weights[str(obj.matrix_world @ vert.co)] = (vertex_group.name, group_element.weight)
-                    break
-    return verts_and_weights
+                    for i in range(-1, 2):
+                        for j in range(-1, 2):
+                            for k in range(-1, 2):
+                                key = (
+                                    truncate(vert.co.x) + i * 1,
+                                    truncate(vert.co.y) + j * 1,
+                                    truncate(vert.co.z) + k * 1)
+                                vertices_and_weights[key] = group_element.weight
+    return vertices_and_weights
 
 
-def truncate(value, precision):
+def truncate(value):
     """对值÷精度后的结果进行截断，返回整数部分"""
-    return math.floor(value / precision)
+    return math.floor(value / PRECISION)
 
 
 def link_multi_slot_materials(operator, mapping):
     """关联pmx材质到abc上面（多材质槽情况下）"""
     # 坐标精度，不建议让用户修改这个值
-    precision = 0.0001
     for source, target in mapping.items():
         # 没有active_object直接mode_set会报异常
         if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
@@ -331,14 +660,14 @@ def link_multi_slot_materials(operator, mapping):
             # 首先想到的是增加精度，获取更后面的值，直到完整获取整个数值以避免四舍五入，但是这样会产生精度丢失的问题
             # 实际的值非常不可控，所以才要四舍五入吧，但问题的原因不是四舍五入，而是存在误差
             # 事实上，保留小数点后四位已经足够了，但个别面的质心坐标值依然存在误差。
-            # 这里对坐标值 / precision后的结果进行截断，保留整数，误差为±1。
+            # 这里对坐标值 / PRECISION后的结果进行截断，保留整数，误差为±1。
             for i in range(-1, 2):
                 for j in range(-1, 2):
                     for k in range(-1, 2):
                         key = (
-                            truncate(source_poly.center.x, precision) + i * 1,
-                            truncate(source_poly.center.y, precision) + j * 1,
-                            truncate(source_poly.center.z, precision) + k * 1)
+                            truncate(source_poly.center.x) + i * 1,
+                            truncate(source_poly.center.y) + j * 1,
+                            truncate(source_poly.center.z) + k * 1)
                         source_center_poly_map[key] = source_poly.index
 
         deselect_all_objects()
@@ -349,9 +678,9 @@ def link_multi_slot_materials(operator, mapping):
         for target_poly in target_mesh.polygons:
             # target_poly的质心坐标要乘上0.08，但是质心坐标不会随着缩放比例的变化而变化
             key = (
-                truncate(target_poly.center.x * 0.08, precision),
-                truncate(target_poly.center.y * 0.08, precision),
-                truncate(target_poly.center.z * 0.08, precision))
+                truncate(target_poly.center.x * 0.08),
+                truncate(target_poly.center.y * 0.08),
+                truncate(target_poly.center.z * 0.08))
             if key in source_center_poly_map:
                 match_count += 1
                 source_poly = source_center_poly_map[key]
@@ -369,7 +698,7 @@ def link_modifiers(mapping):
     """复制pmx修改器到abc上面（同时保留网格序列缓存修改器，删除骨架修改器）"""
     for source, target in mapping.items():
         deselect_all_objects()
-        # 备份abc的修改器（不进行这一步的话abc的修改器会丢失）
+        # 备份abc物体的修改器（不进行这一步的话abc物体的修改器会丢失）
         # 创建一个临时网格对象（立方体）
         bpy.ops.mesh.primitive_cube_add(size=2, enter_editmode=False, align='WORLD', location=(0, 0, 0))
         temp_mesh_object = bpy.context.active_object
@@ -384,27 +713,40 @@ def link_modifiers(mapping):
         select_and_activate(source)
         bpy.ops.object.make_links_data(type='MODIFIERS')
 
+        # 增强健壮性 无法移动至一个需要原始数据的修改器之上
+        for i in range(len(target.modifiers) - 1, -1, -1):
+            modifier = target.modifiers[i]
+            if modifier.type in ['SOFT_BODY', 'MULTIRES']:
+                target.modifiers.remove(modifier)
+
         # 将临时网格对象的修改器名称、类型、属性复制到abc的新建修改器上面
+        # 因为默认顶点组并没有关联到target中，所以可能存在target修改器属性值为红的情况，但这里暂不处理（可能性较低）
         deselect_all_objects()
         select_and_activate(temp_mesh_object)
-        # todo 更具体一些的修改器比较合适
-        mSrc = None
-        for modifier in temp_mesh_object.modifiers:
-            mSrc = modifier
-            break
-        select_and_activate(target)
-        mDst = target.modifiers.new(mSrc.name, mSrc.type)
-        properties = [p.identifier for p in mSrc.bl_rna.properties
-                      if not p.is_readonly]
-        for prop in properties:
-            setattr(mDst, prop, getattr(mSrc, prop))
+        for index, modifier in enumerate(temp_mesh_object.modifiers):
+            select_and_activate(target)
+            m_dst = target.modifiers.new(modifier.name, modifier.type)
+            properties = [p.identifier for p in modifier.bl_rna.properties
+                          if not p.is_readonly]
+            for prop in properties:
+                setattr(m_dst, prop, getattr(modifier, prop))
 
-        # 如果网格对象缓存修改器不在第一位，则将其移动到第一位
-        while target.modifiers.find(mDst.name) != 0:
-            bpy.ops.object.modifier_move_up(modifier=mDst.name)
+            while target.modifiers.find(modifier.name) != index:
+                bpy.ops.object.modifier_move_up(modifier=modifier.name)
+
         # 删除骨架修改器
         for armature_modifier in modifiers_by_type(target, 'ARMATURE'):
             target.modifiers.remove(armature_modifier)
+
+        # 如果修改器涉及到source对象的引用，则将其修改为target的引用
+        for target_modifier in target.modifiers:
+            properties = [p.identifier for p in target_modifier.bl_rna.properties
+                          if not p.is_readonly]
+            for prop in properties:
+                value = getattr(target_modifier, prop)
+                if isinstance(value, bpy.types.Object):
+                    if value.name == source.name:
+                        setattr(target_modifier, prop, target)
 
         # 删除临时网格对象
         deselect_all_objects()

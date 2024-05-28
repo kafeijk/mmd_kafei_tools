@@ -1,26 +1,26 @@
 import bpy
 
 
-def update_param(self, context):
+def update_vgs_flag(self, context):
     if self.modifiers_flag:
         self.vgs_flag = True
+
+
+def auto_fill(self, context):
     if self.toon_shading_flag:
         self.multi_material_slots_flag = True
         self.vgs_flag = True
         self.modifiers_flag = True
-        auto_fill(self, context)
 
-
-def auto_fill(self, context):
-    if self.face_locator is None:
-        pmx_model = next((obj for obj in bpy.context.scene.objects if obj.mmd_type == 'ROOT'), None)
-        if pmx_model is None:
-            return
-        pmx_armature = next((child for child in pmx_model.children if child.type == 'ARMATURE'), None)
-        if pmx_armature is None:
-            return
-        face_locator = next((child for child in pmx_armature.children if child.parent_type == 'BONE'), None)
-        self.face_locator = face_locator
+        if self.face_locator is None:
+            pmx_model = next((obj for obj in bpy.context.scene.objects if obj.mmd_type == 'ROOT'), None)
+            if pmx_model is None:
+                return
+            pmx_armature = next((child for child in pmx_model.children if child.type == 'ARMATURE'), None)
+            if pmx_armature is None:
+                return
+            face_locator = next((child for child in pmx_armature.children if child.parent_type == 'BONE'), None)
+            self.face_locator = face_locator
 
 
 class TransferPmxToAbcProperties(bpy.types.PropertyGroup):
@@ -42,7 +42,7 @@ class TransferPmxToAbcProperties(bpy.types.PropertyGroup):
         name="修改器",
         description="将pmx物体拥有的修改器传递到abc物体上",
         default=True,
-        update=lambda self, context: update_param(self, context)
+        update=lambda self, context: update_vgs_flag(self, context)
     )
     gen_skin_uv_flag: bpy.props.BoolProperty(
         name="皮肤UV",
@@ -58,19 +58,29 @@ class TransferPmxToAbcProperties(bpy.types.PropertyGroup):
         name="三渲二",
         description="将三渲二预设应用到abc对应物体上",
         default=False,
-        update=lambda self, context: update_param(self, context)
+        update=lambda self, context: auto_fill(self, context)
     )
-
     face_locator: bpy.props.PointerProperty(
-        name="面部定位物体",
-        description="面部定位物体",
+        name="面部定位器",
+        description="面部定位器",
         type=bpy.types.Object,
     )
 
-    outline_width: bpy.props.FloatProperty(
-        name="描边权重",
-        description="描边权重，根据缩放比例填写，默认×12.5，对应导入时的0.08",
-        default=12.5
+    auto_face_location: bpy.props.BoolProperty(
+        name="自动面部识别",
+        description="自动面部识别",
+        default=True,
+    )
+
+    face_object: bpy.props.PointerProperty(
+        name="面部对象",
+        description="pmx模型面部所在对象",
+        type=bpy.types.Object
+    )
+
+    face_vg: bpy.props.StringProperty(
+        name="面部顶点组",
+        description="pmx模型面部顶点组"
     )
 
     @staticmethod
