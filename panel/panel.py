@@ -1,11 +1,11 @@
 import bpy
 
-from ..operaters.transfer_operators import TransferPmxToAbcOperator
+from ..operaters.transfer_operators import TransferPresetOperator
 
 
-class TransferPmxToAbcPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_transfer_pmx_to_abc"
-    bl_label = "通用材质传递 pmx -> abc"
+class TransferPresetPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_transfer_preset"
+    bl_label = "通用材质传递"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
@@ -13,35 +13,48 @@ class TransferPmxToAbcPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_transfer_pmx_to_abc
+        props = scene.mmd_kafei_tools_transfer_preset
 
         layout = self.layout
-        multi_material_slots_row = layout.row()
-        multi_material_slots_row.prop(props, "multi_material_slots_flag")
+        direction_row = self.layout.row()
+        direction_row.prop(props, "direction")
+        common_param_row = self.layout.row()
+        common_param_box = common_param_row.box()
+        direction = props.direction
+        if direction == 'PMX2PMX':
+            source_row = common_param_box.row()
+            source_row.prop(props, "source")
+            target_row = common_param_box.row()
+            target_row.prop(props, "target")
 
-        vgs_row = layout.row()
+        material_flag_row = common_param_box.row()
+        material_flag_row.prop(props, "material_flag")
+
+        vgs_row = common_param_box.row()
         vgs_row.prop(props, "vgs_flag")
 
-        modifiers_row = layout.row()
+        modifiers_row = common_param_box.row()
         modifiers_row.prop(props, "modifiers_flag")
         if props.modifiers_flag:
             vgs_row.enabled = False
         else:
             vgs_row.enabled = True
 
-        row = layout.row()
-        row.prop(props, "gen_skin_uv_flag")
+        gen_skin_uv_flag_row = common_param_box.row()
+        gen_skin_uv_flag_row.prop(props, "gen_skin_uv_flag")
 
         if props.gen_skin_uv_flag:
-            row = layout.row()
-            box = row.box()
-            box.prop(props, "skin_uv_name")
+            skin_uv_name_row = common_param_box.row()
+            skin_uv_name_box = skin_uv_name_row.box()
+            skin_uv_name_box.prop(props, "skin_uv_name")
 
-        row = layout.row()
-        row.prop(props, "toon_shading_flag")
+        if direction == 'PMX2ABC':
+            toon_shading_flag_row = common_param_box.row()
+            toon_shading_flag_row.prop(props, "toon_shading_flag")
+
         if props.toon_shading_flag:
-            row = layout.row()
-            box = row.box()
+            toon_shading_flag_row = common_param_box.row()
+            box = toon_shading_flag_row.box()
             box.prop(props, "face_locator")
             face_row = box.row()
 
@@ -53,11 +66,11 @@ class TransferPmxToAbcPanel(bpy.types.Panel):
                 # 顶点组太多了，让用户手动输入名称
                 face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
 
-            multi_material_slots_row.enabled = False
+            material_flag_row.enabled = False
             vgs_row.enabled = False
             modifiers_row.enabled = False
         else:
-            multi_material_slots_row.enabled = True
+            material_flag_row.enabled = True
             if props.modifiers_flag:
                 vgs_row.enabled = False
             else:
@@ -65,7 +78,7 @@ class TransferPmxToAbcPanel(bpy.types.Panel):
             modifiers_row.enabled = True
 
         row = layout.row()
-        row.operator(TransferPmxToAbcOperator.bl_idname, text=TransferPmxToAbcOperator.bl_label)
+        row.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
 
 
 class PrePostProcessingPanel(bpy.types.Panel):
@@ -222,4 +235,4 @@ class VertexWeightTransferPanel(bpy.types.Panel):
 
 
 if __name__ == "__main__":
-    bpy.utils.register_class(TransferPmxToAbcPanel)
+    bpy.utils.register_class(TransferPresetPanel)

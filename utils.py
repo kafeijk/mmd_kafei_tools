@@ -1,3 +1,6 @@
+import time
+from enum import Enum
+
 import bpy
 import re
 
@@ -9,6 +12,17 @@ PRECISION = 0.0001
 def find_pmx_root():
     """寻找pmx对应空物体"""
     return next((obj for obj in bpy.context.scene.objects if obj.mmd_type == 'ROOT'), None)
+
+
+def find_pmx_root_with_child(child):
+    """根据child寻找pmx对应空物体"""
+    if child is None:
+        return None
+    while child.parent:
+        child = child.parent
+    if child.mmd_type != 'ROOT':
+        return None
+    return child
 
 
 def find_pmx_armature(pmx_root):
