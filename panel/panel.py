@@ -2,6 +2,7 @@ import bpy
 
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperators
+from ..operaters.modify_sss_operators import ModifySssOperators
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -193,9 +194,9 @@ class ColorSpacePanel(bpy.types.Panel):
         layout.label(text="修改贴图色彩空间")
 
 
-class SubsurfacePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_subsurface"
-    bl_label = "修复皮肤发青问题"
+class ModifySssPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_modify_sss"
+    bl_label = "修复次表面发青问题"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
@@ -204,7 +205,9 @@ class SubsurfacePanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         layout = self.layout
-        layout.label(text="修复皮肤发青问题")
+        box = layout.box()
+        modify_sss_row = box.row()
+        modify_sss_row.operator(ModifySssOperators.bl_idname, text=ModifySssOperators.bl_label)
 
 
 class BoneSelectionPanel(bpy.types.Panel):
@@ -219,7 +222,6 @@ class BoneSelectionPanel(bpy.types.Panel):
         scene = context.scene
         layout = self.layout
         layout.label(text="选择指定骨骼")
-
 
 
 class TransferVgWeightPanel(bpy.types.Panel):
@@ -241,7 +243,6 @@ class TransferVgWeightPanel(bpy.types.Panel):
         target_vg_row.prop(props, "target_vg", icon='GROUP_VERTEX')
         operator_row = box.row()
         operator_row.operator(TransferVgWeightOperators.bl_idname, text=TransferVgWeightOperators.bl_label)
-
 
 
 if __name__ == "__main__":
