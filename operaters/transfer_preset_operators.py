@@ -11,7 +11,7 @@ from ..utils import *
 class TransferPresetOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.transfer_preset"  # 引用时的唯一标识符
     bl_label = "传递"  # 显示名称（F3搜索界面，不过貌似需要注册，和panel中显示的内容区别开）
-    bl_description = "将pmx模型的材质传递到abc模型上"
+    bl_description = "将源模型的材质传递到目标模型上"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
