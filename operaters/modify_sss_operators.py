@@ -17,7 +17,7 @@ def main(operator, context):
     # https://docs.blender.org/api/current/bpy.types.Object.html#bpy.types.Object.material_slots
     objs = bpy.context.selected_objects
     if len(objs) == 0:
-        operator.report(type={'ERROR'}, message=f'请选择至少一个网格物体！')
+        operator.report(type={'ERROR'}, message=f'请选择至少一个物体！')
         return
 
     material_set = set()

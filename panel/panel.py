@@ -3,6 +3,9 @@ import bpy
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperators
 from ..operaters.modify_sss_operators import ModifySssOperators
+from ..operaters.modify_colorspace_operators import ModifyColorspaceOperators
+
+
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -180,8 +183,8 @@ class ToolsPanel(bpy.types.Panel):
         layout = self.layout
 
 
-class ColorSpacePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_color_space"
+class ModifyColorspacePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_modify_colorspace"
     bl_label = "修改贴图色彩空间"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -190,8 +193,18 @@ class ColorSpacePanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_modify_colorspace
         layout = self.layout
-        layout.label(text="修改贴图色彩空间")
+        box = layout.box()
+
+        colorspace_row = box.row()
+        colorspace_row.prop(props, "colorspace")
+        keywords_row = box.row()
+        keywords_row.prop(props, "keywords")
+        selected_only_row = box.row()
+        selected_only_row.prop(props, "selected_only")
+        operator_row = box.row()
+        operator_row.operator(ModifyColorspaceOperators.bl_idname, text=ModifyColorspaceOperators.bl_label)
 
 
 class ModifySssPanel(bpy.types.Panel):
