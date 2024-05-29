@@ -1,6 +1,7 @@
 import bpy
 
-from ..operaters.transfer_operators import TransferPresetOperator
+from ..operaters.transfer_preset_operators import TransferPresetOperator
+from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperators
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -220,8 +221,9 @@ class BoneSelectionPanel(bpy.types.Panel):
         layout.label(text="选择指定骨骼")
 
 
-class VertexWeightTransferPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_vertex_weight_transfer"
+
+class TransferVgWeightPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_transfer_vg_weight"
     bl_label = "权重转移"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -230,8 +232,16 @@ class VertexWeightTransferPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_transfer_vg_weight
         layout = self.layout
-        layout.label(text="权重转移")
+        box = layout.box()
+        source_vg_row = box.row()
+        source_vg_row.prop(props, "source_vg", icon='GROUP_VERTEX')
+        target_vg_row = box.row()
+        target_vg_row.prop(props, "target_vg", icon='GROUP_VERTEX')
+        operator_row = box.row()
+        operator_row.operator(TransferVgWeightOperators.bl_idname, text=TransferVgWeightOperators.bl_label)
+
 
 
 if __name__ == "__main__":
