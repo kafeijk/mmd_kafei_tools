@@ -1,3 +1,4 @@
+import os
 import time
 from enum import Enum
 
@@ -5,8 +6,31 @@ import bpy
 import re
 
 ABC_NAME_PATTERN = re.compile(r'xform_(\d+)_material_(\d+)')
+# 最大重试次数
+MAX_RETRIES = 5
+# 导入pmx生成的txt文件pattern
+TXT_INFO_PATTERN = re.compile(r'(.*)(_e(\.\d{3})?)$')
+# 临时集合名称
+TMP_COLLECTION_NAME = "KAFEI临时集合"
 # 默认精度
 PRECISION = 0.0001
+# 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
+IMG_TYPE_EXT_MAP = {
+    "BMP": ".bmp",
+    "IRIS": ".rgb",
+    "PNG": ".png",
+    "JPEG": ".jpg",
+    "JPEG2000": ".jp2",
+    "TARGA": ".tga",
+    "TARGA_RAW": ".tga",
+    "CINEON": ".cin",
+    "DPX": ".dpx",
+    "OPEN_EXR_MULTILAYER": ".exr",
+    "OPEN_EXR": ".exr",
+    "HDR": ".hdr",
+    "TIFF": ".tif",
+    "WEBP": ".webp"
+}
 
 
 def find_pmx_root():
@@ -69,6 +93,11 @@ def show_object(obj):
     set_visibility(obj, False, False, False, False)
 
 
+def hide_object(obj):
+    """显示物体。在视图取消禁用选择，在视图中取消隐藏，在视图中取消禁用，在渲染中取消禁用"""
+    set_visibility(obj, True, True, True, True)
+
+
 def set_visibility(obj, hide_select_flag, hide_set_flag, hide_viewport_flag, hide_render_flag):
     """设置Blender物体的可见性相关属性"""
     # 是否可选
@@ -126,3 +155,132 @@ def move_to_target_collection_recursive(obj, target_collection):
     # 递归处理子对象
     for child in obj.children:
         move_to_target_collection_recursive(child, target_collection)
+
+
+def get_collection(collection_name):
+    """获取指定名称集合，没有则新建，然后激活"""
+    if collection_name in bpy.data.collections:
+        collection = bpy.data.collections[collection_name]
+    else:
+        collection = bpy.data.collections.new(collection_name)
+        bpy.context.scene.collection.children.link(collection)
+
+    bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection_name]
+    return collection
+
+
+def recursive_search_by_img(directory, suffix, ext, threshold):
+    """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型"""
+    file_list = []
+    pmx_count = 0
+    skip_count = 0
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.pmx'):
+                pmx_count += 1
+                file_path = os.path.join(root, file)
+                file_size = os.path.getsize(file_path)  # 获取文件大小（字节）
+                if file_size < threshold * 1024:
+                    skip_count += 1
+                    continue
+                # 获取 file 的名称（去掉扩展名）
+                file_name = os.path.splitext(file)[0]
+                # 构建图像名称
+                image_name = file_name + suffix + ext
+                # 构建图像路径
+                image_path = os.path.join(root, image_name)
+                # 如果图像在 pmx 目录中存在，则跳过，否则添加 pmx 文件路径到列表
+                if os.path.exists(image_path):
+                    skip_count += 1
+                    continue
+                file_list.append(os.path.join(root, file))
+    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{skip_count}")
+    return file_list
+
+
+def import_pmx(filepath):
+    """导入pmx文件"""
+    attempt = 0
+    while attempt < MAX_RETRIES:
+        try:
+            bpy.ops.mmd_tools.import_model('EXEC_DEFAULT',
+                                           filepath=filepath,
+                                           scale=0.08,
+                                           clean_model=True,
+                                           remove_doubles=False,
+                                           fix_IK_links=False,
+                                           apply_bone_fixed_axis=False,
+                                           rename_bones=True,
+                                           use_underscore=False,
+                                           dictionary="DISABLED",
+                                           use_mipmap=True,
+                                           sph_blend_factor=1,
+                                           spa_blend_factor=1
+                                           )
+            print(f"导入成功，文件:{filepath}，attempt:{attempt + 1}")
+            return True
+        except Exception as e:
+            print(f"导入失败，即将重试，文件:{filepath}，{e}")
+            attempt += 1
+            clean_scene()
+            time.sleep(1)  # 等待一秒后重试
+    else:
+        raise Exception(f'持续导入异常，请检查。文件路径:{filepath}')
+
+
+def clean_scene():
+    # 删除由导入pmx生成的文本（防止找不到脚本）
+    text_to_delete_list = []
+    for text in bpy.data.texts:
+        text_name = text.name
+        match = TXT_INFO_PATTERN.match(text_name)
+        if match is not None:
+            base_text_name = match.group(1)
+            if match.group(3) is not None:
+                base_text_name = base_text_name + match.group(3)
+            base_text = bpy.data.texts.get(base_text_name, None)
+            if base_text is not None:
+                text_to_delete_list.append(base_text)
+                text_to_delete_list.append(text)
+    for text_to_delete in text_to_delete_list:
+        bpy.data.texts.remove(text_to_delete, do_unlink=True)
+
+    # 删除临时集合内所有物体（pmx文件所在集合）
+    if TMP_COLLECTION_NAME in bpy.data.collections:
+        collection = bpy.data.collections[TMP_COLLECTION_NAME]
+        # 遍历集合中的所有对象
+        for obj in list(collection.objects):
+            # 从集合中移除对象
+            collection.objects.unlink(obj)
+            # 从场景中删除对象
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+    # 清理递归未使用数据块
+    bpy.ops.outliner.orphans_purge(do_recursive=True)
+
+
+def find_ancestor(obj):
+    ancestor = obj
+    while ancestor.parent is not None:
+        ancestor = ancestor.parent
+    return ancestor
+
+
+def find_children(obj, obj_type=None):
+    children = []
+    if not obj_type:
+        children.append(obj)
+    else:
+        if obj.type in obj_type:
+            children.append(obj)
+
+    for child in obj.children:
+        children.extend(find_children(child, obj_type))
+    return children
+
+
+def is_plugin_enabled(plugin_name):
+    for addon in bpy.context.preferences.addons:
+        if addon.module == plugin_name:
+            return True
+    return False

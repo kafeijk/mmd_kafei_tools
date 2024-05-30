@@ -1,7 +1,7 @@
 from ..utils import *
 
 
-class ModifyColorspaceOperators(bpy.types.Operator):
+class ModifyColorspaceOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.modify_colorspace"
     bl_label = "修改"
     bl_description = "修改贴图色彩空间"

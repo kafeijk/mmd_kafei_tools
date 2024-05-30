@@ -8,7 +8,7 @@ from mathutils import Vector
 from ..utils import *
 
 
-class TransferVgWeightOperators(bpy.types.Operator):
+class TransferVgWeightOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.transfer_vg_weight"  # 引用时的唯一标识符
     bl_label = "执行"  # 显示名称（F3搜索界面，不过貌似需要注册，和panel中显示的内容区别开）
     bl_description = "将源模型顶点组中顶点权重传递到目标模型上"

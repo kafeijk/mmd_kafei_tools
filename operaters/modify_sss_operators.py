@@ -1,7 +1,7 @@
 from ..utils import *
 
 
-class ModifySssOperators(bpy.types.Operator):
+class ModifySssOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.modify_sss"
     bl_label = "修复"
     bl_description = "修复因次表面而产生的如皮肤颜色发青问题"

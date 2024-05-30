@@ -1,9 +1,12 @@
 import bpy
 
 from ..operaters.transfer_preset_operators import TransferPresetOperator
-from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperators
-from ..operaters.modify_sss_operators import ModifySssOperators
-from ..operaters.modify_colorspace_operators import ModifyColorspaceOperators
+from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
+from ..operaters.modify_sss_operators import ModifySssOperator
+from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
+from ..operaters.render_preview_operators import LoadRenderPresetOperator
+from ..operaters.render_preview_operators import RenderPreviewOperator
+from ..operaters.render_preview_operators import GenPreviewCameraOperator
 
 
 
@@ -98,8 +101,8 @@ class PrePostProcessingPanel(bpy.types.Panel):
         layout = self.layout
 
 
-class PreviewPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_preview"
+class RenderPreviewPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_render_preview"
     bl_label = "渲染预览图"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -108,8 +111,34 @@ class PreviewPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_render_preview
         layout = self.layout
-        layout.label(text="渲染预览图")
+        box = layout.box()
+        type_row = box.row()
+        type_row.prop(props, "type")
+        scale_row = box.row()
+        scale_row.prop(props, "scale")
+        rotation_row = box.row()
+        rotation_row.prop(props, "rotation")
+        batch_row = box.row()
+        batch_row.prop(props, "batch")
+        batch = props.batch
+        if batch:
+            batch_box = box.box()
+            directory_row = batch_box.row()
+            directory_row.prop(props, "directory")
+            threshold_row = batch_box.row()
+            threshold_row.prop(props, "threshold")
+            suffix_row = batch_box.row()
+            suffix_row.prop(props, "suffix")
+            suffix_row = batch_box.row()
+            suffix_row.prop(props, "force_center")
+        load_render_preset_row = box.row()
+        load_render_preset_row.operator(LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
+        render_row = box.row()
+        render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
+        # render_preview_row = box.row()
+        render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
 
 
 class TexturePanel(bpy.types.Panel):
@@ -204,7 +233,7 @@ class ModifyColorspacePanel(bpy.types.Panel):
         selected_only_row = box.row()
         selected_only_row.prop(props, "selected_only")
         operator_row = box.row()
-        operator_row.operator(ModifyColorspaceOperators.bl_idname, text=ModifyColorspaceOperators.bl_label)
+        operator_row.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
 
 
 class ModifySssPanel(bpy.types.Panel):
@@ -220,7 +249,7 @@ class ModifySssPanel(bpy.types.Panel):
         layout = self.layout
         box = layout.box()
         modify_sss_row = box.row()
-        modify_sss_row.operator(ModifySssOperators.bl_idname, text=ModifySssOperators.bl_label)
+        modify_sss_row.operator(ModifySssOperator.bl_idname, text=ModifySssOperator.bl_label)
 
 
 class BoneSelectionPanel(bpy.types.Panel):
@@ -255,7 +284,7 @@ class TransferVgWeightPanel(bpy.types.Panel):
         target_vg_row = box.row()
         target_vg_row.prop(props, "target_vg", icon='GROUP_VERTEX')
         operator_row = box.row()
-        operator_row.operator(TransferVgWeightOperators.bl_idname, text=TransferVgWeightOperators.bl_label)
+        operator_row.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
 
 
 if __name__ == "__main__":
