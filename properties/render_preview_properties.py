@@ -1,6 +1,7 @@
 import math
 
 import bpy
+from bpy.app.handlers import persistent
 from mathutils import Euler
 
 
@@ -29,6 +30,11 @@ class RenderPreviewProperties(bpy.types.PropertyGroup):
         description="相机旋转角度",
         subtype="EULER",
         default=Euler((math.radians(90), 0, 0), 'XYZ')
+    )
+    auto_follow: bpy.props.BoolProperty(
+        name="自动",
+        description="相机旋转值跟随活动相机视角",
+        default=False
     )
     batch: bpy.props.BoolProperty(
         name="批量",
@@ -62,7 +68,18 @@ class RenderPreviewProperties(bpy.types.PropertyGroup):
     @staticmethod
     def register():
         bpy.types.Scene.mmd_kafei_tools_render_preview = bpy.props.PointerProperty(type=RenderPreviewProperties)
+        bpy.app.handlers.depsgraph_update_post.append(update_rotation)
 
     @staticmethod
     def unregister():
+        bpy.app.handlers.depsgraph_update_post.remove(update_rotation)
         del bpy.types.Scene.mmd_kafei_tools_render_preview
+
+
+@persistent
+def update_rotation(scene, depsgraph):
+    auto_follow = scene.mmd_kafei_tools_render_preview.auto_follow
+    active_camera = bpy.context.scene.camera
+    if auto_follow and active_camera:
+        # 暂时仅支持xyz
+        scene.mmd_kafei_tools_render_preview.rotation = active_camera.rotation_euler

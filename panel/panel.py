@@ -120,6 +120,7 @@ class RenderPreviewPanel(bpy.types.Panel):
         scale_row.prop(props, "scale")
         rotation_row = box.row()
         rotation_row.prop(props, "rotation")
+        rotation_row.prop(props, "auto_follow")
         batch_row = box.row()
         batch_row.prop(props, "batch")
         batch = props.batch
