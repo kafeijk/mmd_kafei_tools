@@ -8,6 +8,7 @@ from ..operaters.render_preview_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
 from ..operaters.gen_display_item_frame_operators import GenDisplayItemFrameOperator
+from ..operaters.select_bone_operators import SelectBoneOperator
 
 
 
@@ -268,9 +269,9 @@ class ModifySssPanel(bpy.types.Panel):
         modify_sss_row.operator(ModifySssOperator.bl_idname, text=ModifySssOperator.bl_label)
 
 
-class BoneSelectionPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_bone_selection"
-    bl_label = "选择指定骨骼"
+class SelectBonePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_select_bone"
+    bl_label = "选择指定用途骨骼"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
@@ -279,7 +280,13 @@ class BoneSelectionPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         layout = self.layout
-        layout.label(text="选择指定骨骼")
+        props = scene.mmd_kafei_tools_select_bone
+        box = layout.box()
+
+        category_row = box.row()
+        category_row.prop(props, "category")
+        operators_row = box.row()
+        operators_row.operator(SelectBoneOperator.bl_idname, text=SelectBoneOperator.bl_label)
 
 
 class TransferVgWeightPanel(bpy.types.Panel):
