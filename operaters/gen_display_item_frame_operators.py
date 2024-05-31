@@ -17,7 +17,8 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
     def main(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_gen_display_item_frame
-        self.check_props(props)
+        if not self.check_props(props):
+            return
         batch = props.batch
         directory = props.directory
         abs_path = bpy.path.abspath(directory)

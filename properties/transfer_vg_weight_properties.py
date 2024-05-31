@@ -1,7 +1,7 @@
 import bpy
 
 
-class TransferVgWeightProperties(bpy.types.PropertyGroup):
+class TransferVgWeightProperty(bpy.types.PropertyGroup):
     source_vg: bpy.props.StringProperty(
         name="源顶点组",
         description="源顶点组，必填项，不存在则跳过"
@@ -15,7 +15,7 @@ class TransferVgWeightProperties(bpy.types.PropertyGroup):
 
     @staticmethod
     def register():
-        bpy.types.Scene.mmd_kafei_tools_transfer_vg_weight = bpy.props.PointerProperty(type=TransferVgWeightProperties)
+        bpy.types.Scene.mmd_kafei_tools_transfer_vg_weight = bpy.props.PointerProperty(type=TransferVgWeightProperty)
 
     @staticmethod
     def unregister():

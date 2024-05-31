@@ -5,7 +5,7 @@ from bpy.app.handlers import persistent
 from mathutils import Euler
 
 
-class RenderPreviewProperties(bpy.types.PropertyGroup):
+class RenderPreviewProperty(bpy.types.PropertyGroup):
     # todo 相机角度预设暂时连接到说明文档上面，这里暂不提供相关功能
     type: bpy.props.EnumProperty(
         name="类型",
@@ -67,7 +67,7 @@ class RenderPreviewProperties(bpy.types.PropertyGroup):
 
     @staticmethod
     def register():
-        bpy.types.Scene.mmd_kafei_tools_render_preview = bpy.props.PointerProperty(type=RenderPreviewProperties)
+        bpy.types.Scene.mmd_kafei_tools_render_preview = bpy.props.PointerProperty(type=RenderPreviewProperty)
         bpy.app.handlers.depsgraph_update_post.append(update_rotation)
 
     @staticmethod

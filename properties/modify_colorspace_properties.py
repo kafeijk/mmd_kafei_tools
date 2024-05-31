@@ -25,7 +25,7 @@ def update_keywords(self, context):
     print(existing_keywords)
 
 
-class ModifyColorspaceProperties(bpy.types.PropertyGroup):
+class ModifyColorspaceProperty(bpy.types.PropertyGroup):
     def get_colorspace(self, context):
         # 限定常用色彩空间
         source_list = [
@@ -54,7 +54,7 @@ class ModifyColorspaceProperties(bpy.types.PropertyGroup):
     )
     keywords: bpy.props.StringProperty(
         name="关键词",
-        description="贴图名称关键词，英文逗号隔开",
+        description="贴图名称关键词，英文逗号隔开，没有填写代表所有图像都将被修改",
         default='diffuse'
     )
     selected_only: bpy.props.BoolProperty(
@@ -67,7 +67,7 @@ class ModifyColorspaceProperties(bpy.types.PropertyGroup):
 
     @staticmethod
     def register():
-        bpy.types.Scene.mmd_kafei_tools_modify_colorspace = bpy.props.PointerProperty(type=ModifyColorspaceProperties)
+        bpy.types.Scene.mmd_kafei_tools_modify_colorspace = bpy.props.PointerProperty(type=ModifyColorspaceProperty)
 
     @staticmethod
     def unregister():

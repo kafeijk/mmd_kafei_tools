@@ -28,7 +28,7 @@ def update_preset(self, context):
         self.toon_shading_flag = False
 
 
-class TransferPresetProperties(bpy.types.PropertyGroup):
+class TransferPresetProperty(bpy.types.PropertyGroup):
     source: bpy.props.PointerProperty(
         name="源物体",
         description="源物体",
@@ -109,7 +109,7 @@ class TransferPresetProperties(bpy.types.PropertyGroup):
 
     @staticmethod
     def register():
-        bpy.types.Scene.mmd_kafei_tools_transfer_preset = bpy.props.PointerProperty(type=TransferPresetProperties)
+        bpy.types.Scene.mmd_kafei_tools_transfer_preset = bpy.props.PointerProperty(type=TransferPresetProperty)
 
     @staticmethod
     def unregister():
