@@ -20,6 +20,7 @@ class TransferPresetPanel(bpy.types.Panel):
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
     bl_order = 0
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         scene = context.scene
