@@ -6,6 +6,7 @@ from ..utils import *
 class GenDisplayItemFrameOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.gen_display_item_frame"
     bl_label = "生成"
+    # todo 引导用户在空场景下执行，空场景下2个pmx要20s，非空场景测了下2个要120s，待后续调查
     bl_description = "生成显示枠，如果同一目录下（不含级联）存在多个符合条件的文件，只会处理修改时间最新的那个文件"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
