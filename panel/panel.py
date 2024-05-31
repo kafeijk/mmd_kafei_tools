@@ -7,6 +7,7 @@ from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
 from ..operaters.render_preview_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
+from ..operaters.gen_display_item_frame_operators import GenDisplayItemFrameOperator
 
 
 
@@ -132,8 +133,8 @@ class RenderPreviewPanel(bpy.types.Panel):
             threshold_row.prop(props, "threshold")
             suffix_row = batch_box.row()
             suffix_row.prop(props, "suffix")
-            suffix_row = batch_box.row()
-            suffix_row.prop(props, "force_center")
+            force_center_row = batch_box.row()
+            force_center_row.prop(props, "force_center")
         load_render_preset_row = box.row()
         load_render_preset_row.operator(LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
         render_row = box.row()
@@ -184,8 +185,8 @@ class BoneOrderPanel(bpy.types.Panel):
         layout.label(text="修改骨骼面板顺序")
 
 
-class DisplayItemFramePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_display_item_frame"
+class GenDisplayItemFramePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_gen_display_item_frame"
     bl_label = "生成显示枠"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -194,8 +195,22 @@ class DisplayItemFramePanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_gen_display_item_frame
         layout = self.layout
-        layout.label(text="修改显示枠")
+        box = layout.box()
+        batch_row = box.row()
+        batch_row.prop(props, "batch")
+        batch = props.batch
+        if batch:
+            batch_box = box.box()
+            directory_row = batch_box.row()
+            directory_row.prop(props, "directory")
+            threshold_row = batch_box.row()
+            threshold_row.prop(props, "threshold")
+            suffix_row = batch_box.row()
+            suffix_row.prop(props, "suffix")
+        gen_display_item_row = box.row()
+        gen_display_item_row.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
 
 
 class ToolsPanel(bpy.types.Panel):

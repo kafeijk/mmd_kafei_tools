@@ -183,7 +183,7 @@ class RenderPreviewOperator(bpy.types.Operator):
         force_center = props.force_center
         abs_path = bpy.path.abspath(directory)
         threshold = props.threshold
-        suffix = props.suffix.strip()
+        suffix = props.suffix
         output_format = bpy.context.scene.render.image_settings.file_format
         if batch:
             # 自动弹出控制台查看进度，貌似实现不了，让用户自主开启（windows外的系统不一定能自主开启）

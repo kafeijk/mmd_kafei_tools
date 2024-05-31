@@ -169,6 +169,35 @@ def get_collection(collection_name):
     return collection
 
 
+def recursive_search(directory, suffix, threshold):
+    """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型 todo 之后看看能不能更通用些"""
+    file_list = []
+    pmx_count = 0
+    skip_count = 0
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.pmx'):
+                pmx_count += 1
+                file_path = os.path.join(root, file)
+                file_size = os.path.getsize(file_path)  # 获取文件大小（字节）
+                if file_size < threshold * 1024:
+                    skip_count += 1
+                    continue
+                other_files = [f for f in os.listdir(root) if f.endswith('.pmx')]
+                if len(other_files) > 1:
+                    most_recent_file = max(other_files, key=lambda x: os.path.getmtime(os.path.join(root, x)))
+                    if most_recent_file != file:
+                        skip_count += 1
+                        continue
+                    elif suffix in os.path.splitext(most_recent_file)[0]:
+                        print(f"{os.path.splitext(most_recent_file)[0]}已经预处理完毕")
+                        skip_count += 1
+                        continue
+                file_list.append(file_path)
+    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{skip_count}")
+    return file_list
+
+
 def recursive_search_by_img(directory, suffix, ext, threshold):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型"""
     file_list = []
@@ -226,6 +255,34 @@ def import_pmx(filepath):
             time.sleep(1)  # 等待一秒后重试
     else:
         raise Exception(f'持续导入异常，请检查。文件路径:{filepath}')
+
+
+def export_pmx(filepath):
+    """导出pmx文件"""
+    attempt = 0
+    while attempt < MAX_RETRIES:
+        try:
+            bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT',
+                                         filepath=filepath,
+                                         scale=12.5,
+                                         copy_textures=False,
+                                         sort_materials=False,
+                                         disable_specular=False,
+                                         visible_meshes_only=False,
+                                         overwrite_bone_morphs_from_pose_library=False,
+                                         translate_in_presets=False,
+                                         sort_vertices='NONE',
+                                         log_level='DEBUG',
+                                         save_log=False
+                                         )
+            print(f"导出成功，文件:{filepath}，attempt:{attempt + 1}")
+            return True
+        except Exception as e:
+            print(f"导出失败，即将重试，文件:{filepath}，{e}")
+            attempt += 1
+            time.sleep(1)  # 等待一秒后重试
+    else:
+        raise Exception(f'持续导出异常，请检查。文件路径:{filepath}')
 
 
 def clean_scene():
