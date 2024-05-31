@@ -79,7 +79,6 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
                 self.report(type={'ERROR'}, message=f'请选择MMD模型')
                 return False
             pmx_root = find_ancestor(active_object)
-            print(pmx_root.mmd_type)
             if pmx_root.mmd_type != "ROOT":
                 self.report(type={'ERROR'}, message=f'请选择MMD模型')
                 return False
