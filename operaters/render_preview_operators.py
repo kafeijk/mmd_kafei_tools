@@ -321,8 +321,6 @@ def convert_materials(pmx_armature, force_center):
 
     # 将当前材质的不透明度恢复为材质转换前的不透明度
     for material_name, alpha in material_alpha_map.items():
-        if alpha == 1:
-            continue
         material = bpy.data.materials.get(material_name)
         node_tree = material.node_tree
         nodes = node_tree.nodes
@@ -330,6 +328,8 @@ def convert_materials(pmx_armature, force_center):
             if node.type == 'BSDF_PRINCIPLED':
                 specular_node = node.inputs['Specular']
                 specular_node.default_value = 0
+                if alpha == 1:
+                    continue
                 alpha_node = node.inputs['Alpha']
                 for link in material.node_tree.links:
                     if link.to_node == node and link.to_socket == alpha_node:
