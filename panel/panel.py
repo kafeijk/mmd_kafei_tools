@@ -115,15 +115,29 @@ class RenderPreviewPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_render_preview
+        align = props.align
         layout = self.layout
         box = layout.box()
-        type_row = box.row()
+
+        type_row = box.row(align=True)
         type_row.prop(props, "type")
+        rotation_row = box.row(align=True)
+        rotation_row.prop(props, "rotation_euler_x")
+        rotation_row_y = rotation_row.row(align=True)
+        rotation_row_y.prop(props, "rotation_euler_y")
+        rotation_row_y.enabled = not align  # Disable if align is True
+        rotation_row.prop(props, "rotation_euler_z")
+
+        auto_follow_row = rotation_row.row()
+        auto_follow_row.alignment = 'CENTER'
+        auto_follow_row.prop(props, "auto_follow")
+
         scale_row = box.row()
         scale_row.prop(props, "scale")
-        rotation_row = box.row()
-        rotation_row.prop(props, "rotation")
-        rotation_row.prop(props, "auto_follow")
+
+        align_row = box.row()
+        align_row.prop(props, "align")
+
         batch_row = box.row()
         batch_row.prop(props, "batch")
         batch = props.batch

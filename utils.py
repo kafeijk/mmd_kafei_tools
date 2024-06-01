@@ -113,6 +113,11 @@ def hide_object(obj):
 
 def set_visibility(obj, hide_select_flag, hide_set_flag, hide_viewport_flag, hide_render_flag):
     """设置Blender物体的可见性相关属性"""
+    # 如果不在当前视图层，则跳过，如"在视图层中排除该集合"的情况下
+    view_layer = bpy.context.view_layer
+    # 成员资格测试（Python 会调用对象的 __eq__ 方法。）
+    if obj.name not in view_layer.objects:
+        return
     # 是否可选
     obj.hide_select = hide_select_flag
     # 是否在视图中隐藏

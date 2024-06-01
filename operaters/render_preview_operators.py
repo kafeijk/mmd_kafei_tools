@@ -1,3 +1,7 @@
+import math
+
+import mathutils
+
 from ..utils import *
 
 
@@ -140,6 +144,11 @@ class LoadRenderPresetOperator(bpy.types.Operator):
 
             # 设置世界环境
             bpy.context.scene.world = target_world
+
+            # 隐藏场景中所有灯光
+            lights = [obj for obj in bpy.context.scene.objects if obj.type == 'LIGHT']
+            for light in lights:
+                set_visibility(light, False, True, False, True)
 
 
 class GenPreviewCameraOperator(bpy.types.Operator):
@@ -360,12 +369,31 @@ def camera_to_view_selected(props):
         children.update(find_children(ancestor))
     for child in children:
         select_and_activate(child)
+
+    align = props.align
+    # 随便选择一个ancestor
+    ancestor = next(iter(ancestors))
+    if align:
+        # 获取 ancestor 的坐标
+        ancestor_location = ancestor.location.copy()
+        # 将 ancestor 移动到 (0, 0, 0) 原点位置
+        ancestor.location = mathutils.Vector((0, 0, 0))
+        # 计算坐标差值
+        delta = ancestor_location - mathutils.Vector((0, 0, 0))
+
     # 修改相机参数
     camera.rotation_mode = 'XYZ'
-    camera.rotation_euler = props.rotation
-    camera.data.show_composition_thirds = True
+
+    camera.rotation_euler[0] = props.rotation_euler_x
+    if align:
+        camera.rotation_euler[1] = math.radians(0)
+    else:
+        camera.rotation_euler[1] = props.rotation_euler_y
+    camera.rotation_euler[2] = props.rotation_euler_z
+
     if abs(camera.data.passepartout_alpha - 0.5) < 0.0001:
         camera.data.passepartout_alpha = 1
+
     camera_type = props.type
     if camera_type == "PERSPECTIVE":
         camera.data.type = 'PERSP'
@@ -373,9 +401,21 @@ def camera_to_view_selected(props):
         camera.data.type = 'ORTHO'
     else:
         pass
-
     # 激活该相机
     bpy.context.scene.camera = camera
+
+    if align:
+        constraint = camera.constraints.new(type='LIMIT_LOCATION')
+        # 设置局部X轴的最小值和最大值
+        constraint.use_min_x = True
+        constraint.use_max_x = True
+        constraint.min_x = 0.0
+        constraint.max_x = 0.0
+        # 设置约束为局部空间
+        constraint.owner_space = 'LOCAL'
+        # 将这个约束放到首位
+        camera.constraints.move(len(camera.constraints) - 1, 0)
+
     # 对准选中物体
     bpy.ops.view3d.camera_to_view_selected()
     # 切换下视图（确保view_camera执行后肯定在相应视图）
@@ -384,6 +424,17 @@ def camera_to_view_selected(props):
     bpy.ops.view3d.view_camera()
     # 摄像机边界框 对应快捷键home
     bpy.ops.view3d.view_center_camera()
+
+    if align:
+        # 这里要选中后才能应用
+        # 如果存在约束，用户调整相机角度时会受到限制拖拽不动，所以这里应用掉
+        select_and_activate(camera)
+        constraint = camera.constraints[0]
+        bpy.ops.constraint.apply(constraint=constraint.name, owner='OBJECT')
+
+        # 将 ancestor 移动回原来的位置
+        ancestor.location = ancestor_location
+        camera.location += delta
 
     # 调整边距
     if camera_type == "PERSPECTIVE":
@@ -404,6 +455,7 @@ def camera_to_view_selected(props):
 def gen_preview_camera(props):
     # 在“预览相机”集合中生成一个相机
     # 检查是否已有名为“预览相机”的相机对象
+    # 即使场景中存在其它相机，也不把这个相机进行返回，因为不清楚这个相机的用途
     camera_name = "预览相机"
     custom_property_name = 'preview_camera'
     for camera in bpy.data.objects:
