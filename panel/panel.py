@@ -9,8 +9,7 @@ from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
 from ..operaters.gen_display_item_frame_operators import GenDisplayItemFrameOperator
 from ..operaters.select_bone_operators import SelectBoneOperator
-
-
+from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -159,9 +158,9 @@ class RenderPreviewPanel(bpy.types.Panel):
         render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
 
 
-class TexturePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_texture"
-    bl_label = "修改贴图位置"
+class ChangeTexLocPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_change_tex_loc"
+    bl_label = "修改贴图路径"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
@@ -169,8 +168,27 @@ class TexturePanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_change_tex_loc
         layout = self.layout
-        layout.label(text="修改贴图位置")
+        box = layout.box()
+        new_folder_row = box.row()
+        new_folder_row.prop(props, "new_folder")
+        batch_row = box.row()
+        batch_row.prop(props, "batch")
+        batch_row.enabled = False
+        batch = props.batch
+        if batch:
+            batch_box = box.box()
+            directory_row = batch_box.row()
+            directory_row.prop(props, "directory")
+            threshold_row = batch_box.row()
+            threshold_row.prop(props, "threshold")
+            suffix_row = batch_box.row()
+            suffix_row.prop(props, "suffix")
+            remove_empty_row = batch_box.row()
+            remove_empty_row.prop(props, "remove_empty")
+        change_tex_loc_row = box.row()
+        change_tex_loc_row.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
 class BonePositionPanel(bpy.types.Panel):
