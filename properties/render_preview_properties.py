@@ -5,6 +5,23 @@ from bpy.app.handlers import persistent
 from mathutils import Euler
 
 
+@persistent
+def update_rotation(scene, depsgraph):
+    active_camera = bpy.context.scene.camera
+    props = scene.mmd_kafei_tools_render_preview
+    auto_follow = props.auto_follow
+    align = props.align
+    if auto_follow and active_camera:
+        # 暂时仅支持xyz1
+        props.rotation_euler_x = active_camera.rotation_euler[0]
+        if align:
+            props.rotation_euler_y = math.radians(0)
+        else:
+            props.rotation_euler_y = active_camera.rotation_euler[1]
+
+        props.rotation_euler_z = active_camera.rotation_euler[2]
+
+
 class RenderPreviewProperty(bpy.types.PropertyGroup):
     # todo 相机角度预设暂时连接到说明文档上面，这里暂不提供相关功能
     type: bpy.props.EnumProperty(
@@ -113,20 +130,3 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     def unregister():
         bpy.app.handlers.depsgraph_update_post.remove(update_rotation)
         del bpy.types.Scene.mmd_kafei_tools_render_preview
-
-
-@persistent
-def update_rotation(scene, depsgraph):
-    active_camera = bpy.context.scene.camera
-    props = scene.mmd_kafei_tools_render_preview
-    auto_follow = props.auto_follow
-    align = props.align
-    if auto_follow and active_camera:
-        # 暂时仅支持xyz1
-        props.rotation_euler_x = active_camera.rotation_euler[0]
-        if align:
-            props.rotation_euler_y = math.radians(0)
-        else:
-            props.rotation_euler_y = active_camera.rotation_euler[1]
-
-        props.rotation_euler_z = active_camera.rotation_euler[2]
