@@ -606,6 +606,13 @@ def gen_skin_uv(operator, mapping, skin_uv_name):
         target_mesh = target.data
         new_uv = target_mesh.uv_layers.new(name=skin_uv_name)
         if new_uv:
+            if new_uv.name != skin_uv_name:  # uv创建成功，source中存在同名uv，需要将那个uv删掉，重新将new_uv命名为skin_uv_name
+                for uv_layer in target_mesh.uv_layers:
+                    if uv_layer.name == skin_uv_name:
+                        target_mesh.uv_layers.remove(uv_layer)
+                        break
+                new_uv.name = skin_uv_name
+
             new_uv.active = True
             new_uv.active_render = True
             # 只有成功创建UV的物体才会被添加进列表，否则后续操作会破坏其原始UV的布局
