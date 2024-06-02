@@ -293,7 +293,7 @@ def matching(sources, targets, direction):
         50w面 循环800w次 耗时10秒
     """
     start_time = time.time()
-    source_target_map = {}
+    source_targets_map = {}
     for source in sources:
         for target in targets:
             source_stats = get_mesh_stats(source)
@@ -321,8 +321,33 @@ def matching(sources, targets, direction):
                 if key in vertices:
                     match_count += 1
             if match_count / len(target.data.vertices) > 0.95:
-                source_target_map[source] = target
-    print(f"代码执行时间: {time.time() - start_time} 秒")
+                # target是个列表，如果大于1，则还要按照名称来匹配
+                if source_targets_map.get(source, None):
+                    source_targets_map[source].append(target)
+                else:
+                    source_targets_map[source] = [target]
+
+    # 遍历source_target_maps，如果key存在多个target（如发+、衣+等内容和发、衣校验的结果是一模一样的），则对这些内容进行二次校验
+    # 如果key和value的名称相同，才进行配对，放入source_target_map（PMX2PMX的情况下）
+    # 即使这样二次校验了，也只是尽可能的去配对，无法完全配对上
+    source_target_map = {}
+    for source, target_list in source_targets_map.items():
+        if direction == "PMX2ABC":
+            source_target_map[source] = target_list[0]
+        else:  # PMX2PMX
+            if len(target_list) > 1:
+                for target in target_list:
+                    source_match = PMX_NAME_PATTERN.match(source.name)
+                    target_match = PMX_NAME_PATTERN.match(target.name)
+                    source_name_normal = source_match.group('name') if source_match else source.name
+                    target_name_normal = target_match.group('name') if target_match else target.name
+                    if source_name_normal == target_name_normal:
+                        source_target_map[source] = target
+                if not source_target_map.get(source, None):
+                    source_target_map[source] = target_list[0]
+            elif target_list:
+                source_target_map[source] = target_list[0]
+    print(f"配对完成，用时: {time.time() - start_time} 秒")
     return source_target_map
 
 
@@ -340,11 +365,10 @@ def gen_key(vert, object_type):
 
 
 def main(operator, context):
-    # todo 重复执行时，默认重新执行，需清除之前的内容?
     # pmx -> abc 操作频率较高，仅用名称配对即可
     # pmx -> pmx 在换头类角色上材质/网格顺序内容变动的情况下 能够很好地适应。
-    # 三渲二仅支持pmx -> abc
     # 后者频率较低，使用强校验（顶点数量、位置要一致），但要尽可能配对更多的物体，如提供一个容忍度，大于这个数值的顶点数一致即可，以解决可能存在的未知问题
+    # 三渲二仅支持pmx -> abc
     scene = context.scene
 
     # 参数校验
@@ -470,12 +494,13 @@ def link_uv(operator, source_target_map, direction):
     for source, target in source_target_map.items():
         target_uvs_to_remove[target] = []
         source_uv_names = [uv.name for uv in source.data.uv_layers]
-        for uv_layer in target.data.uv_layers:
+        for index, uv_layer in enumerate(target.data.uv_layers):
             if uv_layer.name in source_uv_names:
-                target_uvs_to_remove[target].append(uv_layer)
+                target_uvs_to_remove[target].append(index)
     for target, uvs_to_remove in target_uvs_to_remove.items():
-        for uv_to_remove in uvs_to_remove:
-            target.data.uv_layers.remove(uv_to_remove)
+        # 逆序删除收集到的UV图层 uv_layers.remove顺序删除会有并发修改异常
+        for index in sorted(uvs_to_remove, reverse=True):
+            target.data.uv_layers.remove(target.data.uv_layers[index])
 
     for source, target in source_target_map.items():
         source_mesh = source.data

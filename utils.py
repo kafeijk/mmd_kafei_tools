@@ -6,6 +6,7 @@ import bpy
 import re
 
 ABC_NAME_PATTERN = re.compile(r'xform_(\d+)_material_(\d+)')
+PMX_NAME_PATTERN = re.compile(r'(?P<prefix>[0-9A-Z]{3}_)(?P<name>.*?)(?P<suffix>\.\d{3})?$')
 # 最大重试次数
 MAX_RETRIES = 5
 # 导入pmx生成的txt文件pattern
