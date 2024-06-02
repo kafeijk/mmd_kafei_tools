@@ -91,6 +91,106 @@ class TransferPresetPanel(bpy.types.Panel):
         row.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
 
 
+class ToolsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_tools"
+    bl_label = "工具"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'  # N面板
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_order = 1
+
+    # bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+
+
+class ModifyColorspacePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_modify_colorspace"
+    bl_label = "修改贴图色彩空间"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_tools"
+    bl_order = 1
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_modify_colorspace
+        layout = self.layout
+        box = layout.box()
+
+        colorspace_row = box.row()
+        colorspace_row.prop(props, "colorspace")
+        keywords_row = box.row()
+        keywords_row.prop(props, "keywords")
+        selected_only_row = box.row()
+        selected_only_row.prop(props, "selected_only")
+        operator_row = box.row()
+        operator_row.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
+
+
+class ModifySssPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_modify_sss"
+    bl_label = "修复次表面发青问题"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_tools"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+        box = layout.box()
+        modify_sss_row = box.row()
+        modify_sss_row.operator(ModifySssOperator.bl_idname, text=ModifySssOperator.bl_label)
+
+
+class TransferVgWeightPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_transfer_vg_weight"
+    bl_label = "权重转移"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_tools"
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_transfer_vg_weight
+        layout = self.layout
+        box = layout.box()
+        source_vg_row = box.row()
+        source_vg_row.prop(props, "source_vg", icon='GROUP_VERTEX')
+        target_vg_row = box.row()
+        target_vg_row.prop(props, "target_vg", icon='GROUP_VERTEX')
+        operator_row = box.row()
+        operator_row.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
+
+
+class SelectBonePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_select_bone"
+    bl_label = "选择指定用途骨骼"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_tools"
+    bl_order = 4
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+        props = scene.mmd_kafei_tools_select_bone
+        box = layout.box()
+
+        category_row = box.row()
+        category_row.prop(props, "category")
+        operators_row = box.row()
+        operators_row.operator(SelectBoneOperator.bl_idname, text=SelectBoneOperator.bl_label)
+
+
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
     bl_label = "预处理 / 后处理"
@@ -103,12 +203,76 @@ class PrePostProcessingPanel(bpy.types.Panel):
         layout = self.layout
 
 
+class ChangeTexLocPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_change_tex_loc"
+    bl_label = "修改贴图路径"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_order = 1
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_change_tex_loc
+        layout = self.layout
+        box = layout.box()
+        new_folder_row = box.row()
+        new_folder_row.prop(props, "new_folder")
+        batch_row = box.row()
+        batch_row.prop(props, "batch")
+        batch_row.enabled = False
+        batch = props.batch
+        if batch:
+            batch_box = box.box()
+            directory_row = batch_box.row()
+            directory_row.prop(props, "directory")
+            threshold_row = batch_box.row()
+            threshold_row.prop(props, "threshold")
+            suffix_row = batch_box.row()
+            suffix_row.prop(props, "suffix")
+            remove_empty_row = batch_box.row()
+            remove_empty_row.prop(props, "remove_empty")
+        change_tex_loc_row = box.row()
+        change_tex_loc_row.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
+
+
+class GenDisplayItemFramePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_gen_display_item_frame"
+    bl_label = "生成显示枠"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_gen_display_item_frame
+        layout = self.layout
+        box = layout.box()
+        batch_row = box.row()
+        batch_row.prop(props, "batch")
+        batch = props.batch
+        if batch:
+            batch_box = box.box()
+            directory_row = batch_box.row()
+            directory_row.prop(props, "directory")
+            threshold_row = batch_box.row()
+            threshold_row.prop(props, "threshold")
+            suffix_row = batch_box.row()
+            suffix_row.prop(props, "suffix")
+        gen_display_item_row = box.row()
+        gen_display_item_row.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
+
+
 class RenderPreviewPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_render_preview"
     bl_label = "渲染预览图"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -156,163 +320,6 @@ class RenderPreviewPanel(bpy.types.Panel):
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
         # render_preview_row = box.row()
         render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
-
-
-class ChangeTexLocPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_change_tex_loc"
-    bl_label = "修改贴图路径"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_change_tex_loc
-        layout = self.layout
-        box = layout.box()
-        new_folder_row = box.row()
-        new_folder_row.prop(props, "new_folder")
-        batch_row = box.row()
-        batch_row.prop(props, "batch")
-        batch_row.enabled = False
-        batch = props.batch
-        if batch:
-            batch_box = box.box()
-            directory_row = batch_box.row()
-            directory_row.prop(props, "directory")
-            threshold_row = batch_box.row()
-            threshold_row.prop(props, "threshold")
-            suffix_row = batch_box.row()
-            suffix_row.prop(props, "suffix")
-            remove_empty_row = batch_box.row()
-            remove_empty_row.prop(props, "remove_empty")
-        change_tex_loc_row = box.row()
-        change_tex_loc_row.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
-
-
-class GenDisplayItemFramePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_gen_display_item_frame"
-    bl_label = "生成显示枠"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_gen_display_item_frame
-        layout = self.layout
-        box = layout.box()
-        batch_row = box.row()
-        batch_row.prop(props, "batch")
-        batch = props.batch
-        if batch:
-            batch_box = box.box()
-            directory_row = batch_box.row()
-            directory_row.prop(props, "directory")
-            threshold_row = batch_box.row()
-            threshold_row.prop(props, "threshold")
-            suffix_row = batch_box.row()
-            suffix_row.prop(props, "suffix")
-        gen_display_item_row = box.row()
-        gen_display_item_row.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
-
-
-class ToolsPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_tools"
-    bl_label = "工具"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'  # N面板
-    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 1
-
-    # bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        layout = self.layout
-
-
-class ModifyColorspacePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_modify_colorspace"
-    bl_label = "修改贴图色彩空间"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_modify_colorspace
-        layout = self.layout
-        box = layout.box()
-
-        colorspace_row = box.row()
-        colorspace_row.prop(props, "colorspace")
-        keywords_row = box.row()
-        keywords_row.prop(props, "keywords")
-        selected_only_row = box.row()
-        selected_only_row.prop(props, "selected_only")
-        operator_row = box.row()
-        operator_row.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
-
-
-class ModifySssPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_modify_sss"
-    bl_label = "修复次表面发青问题"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        layout = self.layout
-        box = layout.box()
-        modify_sss_row = box.row()
-        modify_sss_row.operator(ModifySssOperator.bl_idname, text=ModifySssOperator.bl_label)
-
-
-class SelectBonePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_select_bone"
-    bl_label = "选择指定用途骨骼"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        layout = self.layout
-        props = scene.mmd_kafei_tools_select_bone
-        box = layout.box()
-
-        category_row = box.row()
-        category_row.prop(props, "category")
-        operators_row = box.row()
-        operators_row.operator(SelectBoneOperator.bl_idname, text=SelectBoneOperator.bl_label)
-
-
-class TransferVgWeightPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_transfer_vg_weight"
-    bl_label = "权重转移"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_transfer_vg_weight
-        layout = self.layout
-        box = layout.box()
-        source_vg_row = box.row()
-        source_vg_row.prop(props, "source_vg", icon='GROUP_VERTEX')
-        target_vg_row = box.row()
-        target_vg_row.prop(props, "target_vg", icon='GROUP_VERTEX')
-        operator_row = box.row()
-        operator_row.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
 
 
 if __name__ == "__main__":

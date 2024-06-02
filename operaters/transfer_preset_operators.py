@@ -833,8 +833,9 @@ def link_modifiers(mapping, direction):
             for prop in properties:
                 value = getattr(target_modifier, prop)
                 if isinstance(value, bpy.types.Object):
-                    if value.name == source.name:
-                        setattr(target_modifier, prop, target)
+                    target_ref = mapping.get(value, None)
+                    if target_ref:
+                        setattr(target_modifier, prop, target_ref)
 
         # 删除临时网格对象
         deselect_all_objects()
