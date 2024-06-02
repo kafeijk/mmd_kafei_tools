@@ -594,6 +594,15 @@ def gen_skin_uv(operator, mapping, skin_uv_name):
             if uv_layer.active_render:
                 obj_render_uv_map[target.name] = index
 
+    # 移除之前生成的uv对后续重复执行造成的影响
+    #   如果target没执行过材质传递，skin_uv_name可能从source传递过来
+    #   如果target执行过材质传递，skin_uv_name可能会重复生成导致UV数量达到上限
+    for _, target in mapping.items():
+        for uv_layer in target.data.uv_layers:
+            if uv_layer.name == skin_uv_name:
+                target.data.uv_layers.remove(uv_layer)
+                break
+
     # 待执行孤岛比例平均化的对象列表
     candidate_objs = []
     for _, target in mapping.items():
@@ -606,13 +615,6 @@ def gen_skin_uv(operator, mapping, skin_uv_name):
         target_mesh = target.data
         new_uv = target_mesh.uv_layers.new(name=skin_uv_name)
         if new_uv:
-            if new_uv.name != skin_uv_name:  # uv创建成功，source中存在同名uv，需要将那个uv删掉，重新将new_uv命名为skin_uv_name
-                for uv_layer in target_mesh.uv_layers:
-                    if uv_layer.name == skin_uv_name:
-                        target_mesh.uv_layers.remove(uv_layer)
-                        break
-                new_uv.name = skin_uv_name
-
             new_uv.active = True
             new_uv.active_render = True
             # 只有成功创建UV的物体才会被添加进列表，否则后续操作会破坏其原始UV的布局
