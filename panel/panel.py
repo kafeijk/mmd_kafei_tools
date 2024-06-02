@@ -191,34 +191,6 @@ class ChangeTexLocPanel(bpy.types.Panel):
         change_tex_loc_row.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
-class BonePositionPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_bone_position"
-    bl_label = "修改骨骼亲子指向"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        layout = self.layout
-        layout.label(text="修改骨骼亲子指向")
-
-
-class BoneOrderPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_bone_order"
-    bl_label = "修改骨骼面板顺序"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        layout = self.layout
-        layout.label(text="修改骨骼面板顺序")
-
-
 class GenDisplayItemFramePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_gen_display_item_frame"
     bl_label = "生成显示枠"
