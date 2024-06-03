@@ -319,6 +319,7 @@ class RenderPreviewPanel(bpy.types.Panel):
         scene = context.scene
         props = scene.mmd_kafei_tools_render_preview
         align = props.align
+        batch = props.batch
         layout = self.layout
         box = layout.box()
 
@@ -341,24 +342,15 @@ class RenderPreviewPanel(bpy.types.Panel):
         align_row = box.row()
         align_row.prop(props, "align")
 
-        batch_row = box.row()
-        batch_row.prop(props, "batch")
-        batch = props.batch
-        if batch:
-            batch_box = box.box()
-            directory_row = batch_box.row()
-            directory_row.prop(props, "directory")
-            threshold_row = batch_box.row()
-            threshold_row.prop(props, "threshold")
-            suffix_row = batch_box.row()
-            suffix_row.prop(props, "suffix")
+        batch_box = show_batch_props(box, batch)
+        if batch_box:
             force_center_row = batch_box.row()
             force_center_row.prop(props, "force_center")
+
         load_render_preset_row = box.row()
         load_render_preset_row.operator(LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
         render_row = box.row()
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
-        # render_preview_row = box.row()
         render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
 
 

@@ -402,6 +402,7 @@ def show_batch_props(box, batch):
     threshold_row.prop(batch, "threshold")
     suffix_row = batch_box.row()
     suffix_row.prop(batch, "suffix")
+    return batch_box
 
 
 def check_batch_props(operator, batch):

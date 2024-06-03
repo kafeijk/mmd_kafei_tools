@@ -22,7 +22,7 @@ class BatchProperty(bpy.types.PropertyGroup):
     )
     suffix: bpy.props.StringProperty(
         name="名称后缀",
-        description="在原有名称的基础上，添加的名称后缀，不填写则覆盖原文件",
+        description="在原有名称的基础上，添加的名称后缀",
         default='',
         maxlen=50,  # 防止用户随意输入
     )

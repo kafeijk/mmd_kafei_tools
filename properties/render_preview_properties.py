@@ -2,7 +2,7 @@ import math
 
 import bpy
 from bpy.app.handlers import persistent
-from mathutils import Euler
+from .batch_properties import BatchProperty
 
 
 @persistent
@@ -65,29 +65,6 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         description="相机旋转值跟随活动相机视角",
         default=False
     )
-    batch: bpy.props.BoolProperty(
-        name="批量",
-        description="是否批量执行渲染缩略图的操作",
-        default=False
-    )
-    directory: bpy.props.StringProperty(
-        name="模型目录",
-        description="pmx模型所在目录（可跨越层级）",
-        subtype='DIR_PATH',
-        default=''
-    )
-    threshold: bpy.props.FloatProperty(
-        name="文件大小阈值",
-        description="需要排除的pmx文件大小（单位kb），体积小于该值的文件不会被渲染",
-        default=0.0,
-        min=0.0
-    )
-    suffix: bpy.props.StringProperty(
-        name="预览图名称后缀",
-        description="在原有名称的基础上，添加的名称后缀，不填写则覆盖原文件",
-        default='_preview',
-        maxlen=50,  # 防止用户随意输入
-    )
     force_center: bpy.props.BoolProperty(
         name="强制居中",
         description="受隐藏部位的影响，某些角色渲染的结果可能不会居中。此选项可使角色强制居中，但会花费更多的时间",
@@ -120,6 +97,8 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
                     "开启时Y轴旋转失效，不适用于多角色",
         default=False,
     )
+    batch: bpy.props.PointerProperty(type=BatchProperty)
+
 
     @staticmethod
     def register():
