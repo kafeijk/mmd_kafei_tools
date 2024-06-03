@@ -24,8 +24,6 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
        abc描边宽度一般为pmx描边宽度的12.5倍，但是描边宽度实现方式不同（如几何节点、实体化），这里暂不处理
     """
     # 手动吸管输入
-    # todo located_obj让用户自己选？待定 不能让用户选located_obj，就算选，也应该让用户选择面部顶点组来准确定位，如果三点父级不在同一个松散块上，会存在问题的。
-
     locator = face_locator
     vg_name = locator.parent_bone
 
@@ -455,9 +453,31 @@ def main(operator, context):
     if toon_shading_flag and direction == 'PMX2ABC':
         process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
 
+    # 为abc创建父级物体
+    if direction == 'PMX2ABC':
+        create_abc_parent(source_root, source_target_map)
+
     # 恢复原有可见性
     for obj, visibility in visibility_map.items():
         set_visibility(obj, visibility[0], visibility[1], visibility[2], visibility[3])
+
+
+def create_abc_parent(source_root, source_target_map):
+    create_flag = True
+    for obj in source_target_map.values():
+        if obj.parent:
+            create_flag = False
+            break
+    if create_flag:
+        # 创建abc父级空物体
+        if 'pmx' in source_root.name.lower():
+            abc_root = bpy.data.objects.new(case_insensitive_replace("pmx", "abc", source_root.name), None)
+        else:
+            abc_root = bpy.data.objects.new(source_root.name + " abc", None)
+        bpy.context.collection.objects.link(abc_root)
+        # 设置父级
+        for target in source_target_map.values():
+            target.parent = abc_root
 
 
 def show_objects(display_list):
@@ -584,6 +604,15 @@ def gen_skin_uv(operator, mapping, skin_uv_name):
     if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
         bpy.ops.object.mode_set(mode='OBJECT')
 
+    # 移除之前生成的uv对后续重复执行造成的影响
+    #   如果target没执行过材质传递，skin_uv_name可能从source传递过来
+    #   如果target执行过材质传递，skin_uv_name可能会重复生成导致UV数量达到上限
+    for _, target in mapping.items():
+        for uv_layer in target.data.uv_layers:
+            if uv_layer.name == skin_uv_name:
+                target.data.uv_layers.remove(uv_layer)
+                break
+
     # 记录各物体原始的活动的uv及用于渲染的uv
     obj_active_uv_map = {}
     obj_render_uv_map = {}
@@ -593,15 +622,6 @@ def gen_skin_uv(operator, mapping, skin_uv_name):
                 obj_active_uv_map[target.name] = index
             if uv_layer.active_render:
                 obj_render_uv_map[target.name] = index
-
-    # 移除之前生成的uv对后续重复执行造成的影响
-    #   如果target没执行过材质传递，skin_uv_name可能从source传递过来
-    #   如果target执行过材质传递，skin_uv_name可能会重复生成导致UV数量达到上限
-    for _, target in mapping.items():
-        for uv_layer in target.data.uv_layers:
-            if uv_layer.name == skin_uv_name:
-                target.data.uv_layers.remove(uv_layer)
-                break
 
     # 待执行孤岛比例平均化的对象列表
     candidate_objs = []

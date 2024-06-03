@@ -449,3 +449,8 @@ def restore_selection(selected_objects, active_object):
     # 如果先选择非隐藏物体，再多选其它隐藏物体，selected_objects无法获取到隐藏物体，active_object是最先选择的非隐藏物体
     if active_object:
         select_and_activate(active_object)
+
+
+def case_insensitive_replace(pattern, replacement, string):
+    """忽略大小写替换"""
+    return re.sub(pattern, replacement, string, flags=re.IGNORECASE)
