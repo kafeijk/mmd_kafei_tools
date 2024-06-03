@@ -381,7 +381,7 @@ def batch_process(func, props):
         curr_time = time.time()
         import_pmx(filepath)
         pmx_root = bpy.context.active_object
-        func(pmx_root, props)
+        func(pmx_root, props, filepath)
         export_pmx(new_filepath)
         clean_scene()
         print(

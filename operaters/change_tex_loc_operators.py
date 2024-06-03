@@ -15,7 +15,6 @@ class ChangeTexLocOperator(bpy.types.Operator):
 
     def check_props(self, props):
         batch = props.batch
-        batch_flag = True   # 始终为True
         new_folder = props.new_folder
 
         count = len(bpy.data.objects)
@@ -29,22 +28,8 @@ class ChangeTexLocOperator(bpy.types.Operator):
             self.report(type={'ERROR'}, message=f'贴图文件夹名称不合法！')
             return False
 
-        if batch_flag:
-            if not check_batch_props(self, batch):
-                return False
-        else:
-            active_object = bpy.context.active_object
-            if not active_object:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型')
-                return False
-            pmx_root = find_ancestor(active_object)
-            if pmx_root.mmd_type != "ROOT":
-                self.report(type={'ERROR'}, message=f'请选择MMD模型')
-                return False
-            armature = find_pmx_armature(pmx_root)
-            if not armature:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型')
-                return False
+        if not check_batch_props(self, batch):
+            return False
         return True
 
     def main(self, context):
@@ -52,45 +37,21 @@ class ChangeTexLocOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_change_tex_loc
         if not self.check_props(props):
             return
-        new_folder = props.new_folder
-        remove_empty = props.remove_empty
+        batch_process(do_change_tex_loc, props)
 
-        batch = props.batch
-        batch_flag = True   # 始终为True
-        directory = batch.directory
-        abs_path = bpy.path.abspath(directory)
-        threshold = batch.threshold
-        suffix = batch.suffix
 
-        if batch_flag:
-            get_collection(TMP_COLLECTION_NAME)
-            start_time = time.time()
-            file_list = recursive_search(abs_path, suffix, threshold)
-            file_count = len(file_list)
-            for index, filepath in enumerate(file_list):
-                file_base_name = os.path.basename(filepath)
-                ext = os.path.splitext(filepath)[1]
-                new_filepath = os.path.splitext(filepath)[0] + suffix + ext
-                curr_time = time.time()
-                import_pmx(filepath)
-                pmx_root = bpy.context.active_object
-                # 修改纹理和球体纹理路径（sph）
-                change_texture_filepaths(filepath, new_folder)
-                # 修改卡通纹理路径（toon）
-                change_toon_texture_filepaths(filepath, new_folder)
-                # 移动pmx目录下所有图像文件到指定目录中
-                move_tex(filepath, new_folder)
-                # 循环内删除空文件夹，不含递归，将删除空文件夹的操作范围限定在pmx目录中
-                if remove_empty:
-                    delete_empty_folders(os.path.dirname(filepath))
-                select_and_activate(pmx_root)
-                export_pmx(new_filepath)
-                clean_scene()
-                print(
-                    f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{time.time() - curr_time}秒，总耗时: {time.time() - start_time} 秒")
-            # 删除空文件夹
-
-            print(f"目录\"{abs_path}\" 处理完成，总耗时: {time.time() - start_time} 秒")
+def do_change_tex_loc(pmx_root, props, filepath):
+    new_folder = props.new_folder
+    remove_empty = props.remove_empty
+    # 修改纹理和球体纹理路径（sph）
+    change_texture_filepaths(filepath, new_folder)
+    # 修改卡通纹理路径（toon）
+    change_toon_texture_filepaths(filepath, new_folder)
+    # 移动pmx目录下所有图像文件到指定目录中
+    move_tex(filepath, new_folder)
+    # 循环内删除空文件夹，不含递归，将删除空文件夹的操作范围限定在pmx目录中
+    if remove_empty:
+        delete_empty_folders(os.path.dirname(filepath))
 
 
 def change_texture_filepaths(pmx_file, new_folder):

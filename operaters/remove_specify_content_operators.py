@@ -126,7 +126,7 @@ class RemoveSpecifyContentOperator(bpy.types.Operator):
             mat.name = original_name
         modify_mmd_material(mat)
 
-    def do_remove(self, pmx_root, props):
+    def do_remove(self, pmx_root, props, filepath):
         pmx_armature = find_pmx_armature(pmx_root)
         pmx_objects = find_pmx_objects(pmx_armature)
         if not pmx_objects:
