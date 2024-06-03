@@ -332,6 +332,8 @@ def clean_scene():
             collection.objects.unlink(obj)
             # 从场景中删除对象
             bpy.data.objects.remove(obj, do_unlink=True)
+        # 删除临时集合
+        bpy.data.collections.remove(collection)
 
     # 清理递归未使用数据块
     bpy.ops.outliner.orphans_purge(do_recursive=True)
