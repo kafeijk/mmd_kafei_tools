@@ -19,9 +19,7 @@ class SelectBoneOperator(bpy.types.Operator):
             return
 
         # 获取激活的物体
-        active_object = bpy.context.active_object
-        pmx_root = find_ancestor(active_object)
-        armature = find_pmx_armature(pmx_root)
+        armature = bpy.context.active_object
 
         # 选中骨架并进入姿态模式
         deselect_all_objects()
@@ -39,14 +37,13 @@ class SelectBoneOperator(bpy.types.Operator):
     def check_props(self, props):
         active_object = bpy.context.active_object
         if not active_object:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型')
+            self.report(type={'ERROR'}, message=f'请选择骨架')
+            return False
+        if active_object.type != "ARMATURE":
+            self.report(type={'ERROR'}, message=f'请选择骨架')
             return False
         pmx_root = find_ancestor(active_object)
         if pmx_root.mmd_type != "ROOT":
-            self.report(type={'ERROR'}, message=f'请选择MMD模型')
-            return False
-        armature = find_pmx_armature(pmx_root)
-        if not armature:
             self.report(type={'ERROR'}, message=f'请选择MMD模型')
             return False
         return True

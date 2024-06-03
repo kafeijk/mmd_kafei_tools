@@ -444,7 +444,7 @@ def restore_selection(selected_objects, active_object):
     """ 恢复选中状态"""
     for selected_object in selected_objects:
         select_and_activate(selected_object)
-    # 如果物体是隐藏的，选择了它，selected_objects无法获取到隐藏物体，active_object可以获取到隐藏物体
+    # 如果物体是隐藏的，选择了它，selected_objects无法获取到隐藏物体，active_object也无法获取到隐藏物体（但是为什么控制台可以获取到呢）
     # 如果先选择隐藏物体，再多选其它非隐藏物体，selected_objects无法获取到隐藏物体，active_object是None
     # 如果先选择非隐藏物体，再多选其它隐藏物体，selected_objects无法获取到隐藏物体，active_object是最先选择的非隐藏物体
     if active_object:
