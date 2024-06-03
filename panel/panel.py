@@ -215,24 +215,23 @@ class ChangeTexLocPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_change_tex_loc
+        batch = props.batch
+
         layout = self.layout
         box = layout.box()
         new_folder_row = box.row()
         new_folder_row.prop(props, "new_folder")
-        batch_row = box.row()
-        batch_row.prop(props, "batch")
-        batch_row.enabled = False
-        batch = props.batch
-        if batch:
-            batch_box = box.box()
-            directory_row = batch_box.row()
-            directory_row.prop(props, "directory")
-            threshold_row = batch_box.row()
-            threshold_row.prop(props, "threshold")
-            suffix_row = batch_box.row()
-            suffix_row.prop(props, "suffix")
-            remove_empty_row = batch_box.row()
-            remove_empty_row.prop(props, "remove_empty")
+
+
+        batch_box = box.box()
+        directory_row = batch_box.row()
+        directory_row.prop(batch, "directory")
+        threshold_row = batch_box.row()
+        threshold_row.prop(batch, "threshold")
+        suffix_row = batch_box.row()
+        suffix_row.prop(batch, "suffix")
+        remove_empty_row = batch_box.row()
+        remove_empty_row.prop(props, "remove_empty")
         change_tex_loc_row = box.row()
         change_tex_loc_row.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
