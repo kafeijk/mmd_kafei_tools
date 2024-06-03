@@ -1,30 +1,25 @@
+from . import auto_load
+
+# https://docs.blender.org/manual/en/3.0/advanced/scripting/addon_tutorial.html
 bl_info = {
     "name": "mmd_kafei_tools",
     "description": "MMD实用工具",
     "author": "来杯咖啡再说",
-    "version": (0, 1, 0),
-    "blender": (3, 6, 4),
-    "location": "View3D > Sidebar > MMD Tools Panel",
+    "version": (0, 2, 0),
+    "blender": (3, 0, 0),  # 低于此版本的blender，插件不会显示在插件列表中
+    "location": "View3D > Sidebar > KafeiTools Panel",
     "category": "Object",
 }
 
-import bpy
-from .operators import TRANSFER_OT_preset_xiaoer
-from .operators import ModifyImageColorspace
-from .operators import ModifyHueSat
-from .panel import PresetTransferPanel
-
-classes = (TRANSFER_OT_preset_xiaoer, ModifyImageColorspace, ModifyHueSat, PresetTransferPanel)
+auto_load.init()
 
 
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
+    auto_load.register()
 
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+    auto_load.unregister()
 
 
 if __name__ == "__main__":
