@@ -48,6 +48,7 @@ PMX_MIXAMO_BONES = ['全ての親', 'センター',
 # 文件名非法字符
 INVALID_CHARS = '<>:"/\\|?*'
 
+
 def find_pmx_root():
     """寻找pmx对应空物体"""
     return next((obj for obj in bpy.context.scene.objects if obj.mmd_type == 'ROOT'), None)
@@ -361,3 +362,84 @@ def is_plugin_enabled(plugin_name):
         if addon.module == plugin_name:
             return True
     return False
+
+
+def batch_process(func, props):
+    batch = props.batch
+    directory = batch.directory
+    abs_path = bpy.path.abspath(directory)
+    threshold = batch.threshold
+    suffix = batch.suffix
+    get_collection(TMP_COLLECTION_NAME)
+    start_time = time.time()
+    file_list = recursive_search(abs_path, suffix, threshold)
+    file_count = len(file_list)
+    for index, filepath in enumerate(file_list):
+        file_base_name = os.path.basename(filepath)
+        ext = os.path.splitext(filepath)[1]
+        new_filepath = os.path.splitext(filepath)[0] + suffix + ext
+        curr_time = time.time()
+        import_pmx(filepath)
+        pmx_root = bpy.context.active_object
+        func(pmx_root, props)
+        export_pmx(new_filepath)
+        clean_scene()
+        print(
+            f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{time.time() - curr_time}秒，总耗时: {time.time() - start_time} 秒")
+    print(f"目录\"{abs_path}\" 处理完成，总耗时: {time.time() - start_time} 秒")
+
+
+def show_batch_props(box, batch):
+    batch_row = box.row()
+    batch_row.prop(batch, "flag")
+    batch_flag = batch.flag
+    if not batch_flag:
+        return
+    batch_box = box.box()
+    directory_row = batch_box.row()
+    directory_row.prop(batch, "directory")
+    threshold_row = batch_box.row()
+    threshold_row.prop(batch, "threshold")
+    suffix_row = batch_box.row()
+    suffix_row.prop(batch, "suffix")
+
+
+def check_batch_props(operator, batch):
+    suffix = batch.suffix
+    directory = batch.directory
+
+    if not is_plugin_enabled("mmd_tools"):
+        operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
+        return False
+
+    # 获取目录的全限定路径 这里用blender提供的方法获取，而不是os.path.abspath。没有必要将相对路径转为绝对路径，因为哪种路径是由用户决定的
+    # https://blender.stackexchange.com/questions/217574/how-do-i-display-the-absolute-file-or-directory-path-in-the-ui
+    # 如果用户随意填写，可能会解析成当前blender文件的同级路径，但不影响什么
+    abs_path = bpy.path.abspath(directory)
+    if not os.path.exists(abs_path):
+        operator.report(type={'ERROR'}, message=f'模型目录不存在！')
+        return False
+    # 获取目录所在盘符的根路径
+    drive, tail = os.path.splitdrive(abs_path)
+    drive_root = os.path.join(drive, os.sep)
+    # 校验目录是否是盘符根目录
+    if abs_path == drive_root:
+        operator.report(type={'ERROR'}, message=f'模型目录为盘符根目录，请更换为其它目录！')
+        return False
+
+    # 仅简单校验下后缀是否合法
+    if any(char in suffix for char in INVALID_CHARS):
+        operator.report(type={'ERROR'}, message=f'名称后缀不合法！')
+        return False
+    return True
+
+
+def restore_selection(selected_objects, active_object):
+    """ 恢复选中状态"""
+    for selected_object in selected_objects:
+        select_and_activate(selected_object)
+    # 如果物体是隐藏的，选择了它，selected_objects无法获取到隐藏物体，active_object可以获取到隐藏物体
+    # 如果先选择隐藏物体，再多选其它非隐藏物体，selected_objects无法获取到隐藏物体，active_object是None
+    # 如果先选择非隐藏物体，再多选其它隐藏物体，selected_objects无法获取到隐藏物体，active_object是最先选择的非隐藏物体
+    if active_object:
+        select_and_activate(active_object)

@@ -1,15 +1,15 @@
-import bpy
-
-from ..operaters.transfer_preset_operators import TransferPresetOperator
-from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
-from ..operaters.modify_sss_operators import ModifySssOperator
+from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
+from ..operaters.gen_display_item_frame_operators import GenDisplayItemFrameOperator
 from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
+from ..operaters.modify_sss_operators import ModifySssOperator
+from ..operaters.render_preview_operators import GenPreviewCameraOperator
 from ..operaters.render_preview_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
-from ..operaters.render_preview_operators import GenPreviewCameraOperator
-from ..operaters.gen_display_item_frame_operators import GenDisplayItemFrameOperator
 from ..operaters.select_bone_operators import SelectBoneOperator
-from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
+from ..operaters.transfer_preset_operators import TransferPresetOperator
+from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
+from ..operaters.remove_specify_content_operators import RemoveSpecifyContentOperator
+from ..utils import *
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -266,13 +266,53 @@ class GenDisplayItemFramePanel(bpy.types.Panel):
         gen_display_item_row.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
 
 
+class RemoveSpecifyContentPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_remove_specify_content"
+    bl_label = "移除指定内容"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+        props = scene.mmd_kafei_tools_remove_specify_content
+        batch = props.batch
+        box = layout.box()
+
+        content_type_row = box.row()
+        content_type_row.prop(props, "content_type")
+        content_type = props.content_type
+        if content_type == 'MATERIAL':
+            create_default_row = box.row()
+            create_default_row.prop(props, "create_default")
+        elif content_type == 'MODIFIER':
+            keep_first_row = box.row()
+            keep_first_row.prop(props, "keep_first")
+        elif content_type == 'VERTEX_GROUP':
+            # 无额外参数
+            pass
+        elif content_type == 'SHAPE_KEY':
+            keep_current_row = box.row()
+            keep_current_row.prop(props, "keep_current")
+        elif content_type == 'UV_MAP':
+            keep_first_row = box.row()
+            keep_first_row.prop(props, "keep_first")
+            show_batch_props(box, batch)
+
+        operator_row = box.row()
+        operator_row.operator(RemoveSpecifyContentOperator.bl_idname, text=RemoveSpecifyContentOperator.bl_label)
+
+
 class RenderPreviewPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_render_preview"
     bl_label = "渲染预览图"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 3
+    bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
