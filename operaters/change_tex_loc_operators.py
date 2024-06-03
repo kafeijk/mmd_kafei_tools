@@ -58,6 +58,9 @@ def change_texture_filepaths(pmx_file, new_folder):
     pmx_path = os.path.dirname(pmx_file)
     tex_folder = os.path.join(pmx_path, new_folder)
     for img in bpy.data.images:
+        ext = os.path.splitext(img.filepath)[1]
+        if ext.lower() == ".exr":  # 如果世界环境变紫，可能会对使用者造成困惑
+            continue
         directory, filename = os.path.split(img.filepath)
         new_filepath = os.path.join(tex_folder, filename)
         img.filepath = new_filepath
