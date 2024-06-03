@@ -249,19 +249,11 @@ class GenDisplayItemFramePanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_gen_display_item_frame
+        batch = props.batch
+
         layout = self.layout
         box = layout.box()
-        batch_row = box.row()
-        batch_row.prop(props, "batch")
-        batch = props.batch
-        if batch:
-            batch_box = box.box()
-            directory_row = batch_box.row()
-            directory_row.prop(props, "directory")
-            threshold_row = batch_box.row()
-            threshold_row.prop(props, "threshold")
-            suffix_row = batch_box.row()
-            suffix_row.prop(props, "suffix")
+        show_batch_props(box, batch)
         gen_display_item_row = box.row()
         gen_display_item_row.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
 

@@ -20,11 +20,12 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
         if not self.check_props(props):
             return
         batch = props.batch
-        directory = props.directory
+        batch_flag = batch.flag
+        directory = batch.directory
         abs_path = bpy.path.abspath(directory)
-        threshold = props.threshold
-        suffix = props.suffix
-        if batch:
+        threshold = batch.threshold
+        suffix = batch.suffix
+        if batch_flag:
             get_collection(TMP_COLLECTION_NAME)
             start_time = time.time()
             file_list = recursive_search(abs_path, suffix, threshold)
@@ -48,31 +49,10 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
             gen_display_frame(pmx_root)
 
     def check_props(self, props):
-        invalid_chars = '<>:"/\\|?*'
         batch = props.batch
-        suffix = props.suffix
-        if batch:
-            if not is_plugin_enabled("mmd_tools"):
-                self.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
-                return False
-            # 仅简单校验下后缀是否合法
-            if any(char in suffix for char in invalid_chars):
-                self.report(type={'ERROR'}, message=f'名称后缀不合法！')
-                return False
-            directory = props.directory
-            # 获取目录的全限定路径 这里用blender提供的方法获取，而不是os.path.abspath。没有必要将相对路径转为绝对路径，因为哪种路径是由用户决定的
-            # https://blender.stackexchange.com/questions/217574/how-do-i-display-the-absolute-file-or-directory-path-in-the-ui
-            # 如果用户随意填写，可能会解析成当前blender文件的同级路径，但不影响什么
-            abs_path = bpy.path.abspath(directory)
-            if not os.path.exists(abs_path):
-                self.report(type={'ERROR'}, message=f'模型目录不存在！')
-                return False
-            # 获取目录所在盘符的根路径
-            drive, tail = os.path.splitdrive(abs_path)
-            drive_root = os.path.join(drive, os.sep)
-            # 校验目录是否是盘符根目录
-            if abs_path == drive_root:
-                self.report(type={'ERROR'}, message=f'模型目录为盘符根目录，请更换为其它目录！')
+        batch_flag = batch.flag
+        if batch_flag:
+            if not check_batch_props(self, batch):
                 return False
         else:
             active_object = bpy.context.active_object
