@@ -21,32 +21,13 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
             return
         batch = props.batch
         batch_flag = batch.flag
-        directory = batch.directory
-        abs_path = bpy.path.abspath(directory)
-        threshold = batch.threshold
-        suffix = batch.suffix
         if batch_flag:
-            get_collection(TMP_COLLECTION_NAME)
-            start_time = time.time()
-            file_list = recursive_search(abs_path, suffix, threshold)
-            file_count = len(file_list)
-            for index, filepath in enumerate(file_list):
-                file_base_name = os.path.basename(filepath)
-                ext = os.path.splitext(filepath)[1]
-                new_filepath = os.path.splitext(filepath)[0] + suffix + ext
-                curr_time = time.time()
-                import_pmx(filepath)
-                pmx_root = bpy.context.active_object
-                gen_display_frame(pmx_root)
-                export_pmx(new_filepath)
-                clean_scene()
-                print(
-                    f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{time.time() - curr_time}秒，总耗时: {time.time() - start_time} 秒")
-            print(f"目录\"{abs_path}\" 渲染完成，总耗时: {time.time() - start_time} 秒")
+            batch_process(gen_display_frame, props, f_flag=False)
+
         else:
             active_object = bpy.context.active_object
             pmx_root = find_ancestor(active_object)
-            gen_display_frame(pmx_root)
+            gen_display_frame(pmx_root, props)
 
     def check_props(self, props):
         batch = props.batch
@@ -70,7 +51,7 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
         return True
 
 
-def gen_display_frame(pmx_root):
+def gen_display_frame(pmx_root, props):
     """生成显示枠"""
     mmd_root = pmx_root.mmd_root
     armature = find_pmx_armature(pmx_root)

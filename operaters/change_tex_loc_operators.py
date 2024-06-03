@@ -37,7 +37,7 @@ class ChangeTexLocOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_change_tex_loc
         if not self.check_props(props):
             return
-        batch_process(do_change_tex_loc, props)
+        batch_process(do_change_tex_loc, props, f_flag=True)
 
 
 def do_change_tex_loc(pmx_root, props, filepath):

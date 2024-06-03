@@ -44,7 +44,7 @@ class RemoveSpecifyContentOperator(bpy.types.Operator):
                 select_and_activate(selected_object)
             restore_selection(selected_objects, active_object)
         else:
-            batch_process(self.do_remove, props)
+            batch_process(self.do_remove, props, f_flag=False)
 
     def check_props(self, props):
         batch = props.batch
@@ -126,7 +126,7 @@ class RemoveSpecifyContentOperator(bpy.types.Operator):
             mat.name = original_name
         modify_mmd_material(mat)
 
-    def do_remove(self, pmx_root, props, filepath):
+    def do_remove(self, pmx_root, props):
         pmx_armature = find_pmx_armature(pmx_root)
         pmx_objects = find_pmx_objects(pmx_armature)
         if not pmx_objects:

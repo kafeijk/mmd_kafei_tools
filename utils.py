@@ -364,7 +364,7 @@ def is_plugin_enabled(plugin_name):
     return False
 
 
-def batch_process(func, props):
+def batch_process(func, props, f_flag=False):
     batch = props.batch
     directory = batch.directory
     abs_path = bpy.path.abspath(directory)
@@ -381,7 +381,10 @@ def batch_process(func, props):
         curr_time = time.time()
         import_pmx(filepath)
         pmx_root = bpy.context.active_object
-        func(pmx_root, props, filepath)
+        if f_flag:
+            func(pmx_root, props, filepath)
+        else:
+            func(pmx_root, props)
         export_pmx(new_filepath)
         clean_scene()
         print(
