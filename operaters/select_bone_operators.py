@@ -30,9 +30,9 @@ class SelectBoneOperator(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='POSE')
 
         category = props.category
-        if category == 'MIXAMO':
+        if category == 'BAKE':
             for bone in armature.pose.bones:
-                if bone.mmd_bone.name_j in PMX_MIXAMO_BONES:
+                if bone.mmd_bone.name_j in PMX_BAKE_BONES:
                     bone.bone.select = True
                     armature.data.bones.active = bone.bone
 

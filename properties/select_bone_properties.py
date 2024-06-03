@@ -6,9 +6,9 @@ class SelectBoneProperty(bpy.types.PropertyGroup):
         name="用途",
         description="骨骼用途",
         items=[
-            ("MIXAMO", "Mixamo烘焙VMD", "Mixamo烘焙VMD")
+            ("BAKE", "烘焙VMD", "烘焙VMD")
         ],
-        default="MIXAMO"
+        default="BAKE"
     )
 
     @staticmethod
