@@ -126,6 +126,12 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
         else:
             raise Exception(f"在PMX模型中未找到属于顶点组{vg_name}且权重为1的至少三个非重合顶点。")
 
+    select_and_activate(face_obj)
+    bpy.ops.object.mode_set(mode='EDIT')
+    # 取消所有选中的面、边和顶点
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+
     bm = bmesh.new()
     bm.from_mesh(face_obj.data)
     # 根据备选三点父级位置（source）获取备选三点父级位置（target）
