@@ -372,11 +372,11 @@ def batch_process(func, props, f_flag=False):
     abs_path = bpy.path.abspath(directory)
     threshold = batch.threshold
     suffix = batch.suffix
-    get_collection(TMP_COLLECTION_NAME)
     start_time = time.time()
     file_list = recursive_search(abs_path, suffix, threshold)
     file_count = len(file_list)
     for index, filepath in enumerate(file_list):
+        get_collection(TMP_COLLECTION_NAME)
         file_base_name = os.path.basename(filepath)
         ext = os.path.splitext(filepath)[1]
         new_filepath = os.path.splitext(filepath)[0] + suffix + ext
