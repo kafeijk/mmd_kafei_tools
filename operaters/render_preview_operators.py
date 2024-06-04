@@ -200,14 +200,14 @@ class RenderPreviewOperator(bpy.types.Operator):
             # 自动弹出控制台查看进度，貌似实现不了，让用户自主开启（windows外的系统不一定能自主开启）
             # 因为脚本执行时间很长，所以进度条也没什么用，就算有进度条也会被卡顿的转圈圈代替
 
-            # 获取临时集合
-            get_collection(TMP_COLLECTION_NAME)
             # 批量渲染
             start_time = time.time()
             # 同一文件夹下出现"角色的多个pmx差分"或者"角色武器放在一起"很常见，所以搜索到的每个符合条件的pmx文件都会被渲染
             file_list = recursive_search_by_img(abs_path, suffix, IMG_TYPE_EXT_MAP[output_format], threshold)
             file_count = len(file_list)
             for index, filepath in enumerate(file_list):
+                # 获取临时集合
+                get_collection(TMP_COLLECTION_NAME)
                 file_base_name = os.path.basename(filepath)
                 new_filepath = os.path.splitext(filepath)[0] + suffix + IMG_TYPE_EXT_MAP[output_format]
                 curr_time = time.time()
