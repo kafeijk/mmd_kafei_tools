@@ -9,6 +9,7 @@ from ..operaters.select_bone_operators import SelectBoneOperator
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
 from ..operaters.remove_specify_content_operators import RemoveSpecifyContentOperator
+from ..operaters.ssb_operators import AddSsbOperator
 from ..utils import *
 
 
@@ -234,13 +235,36 @@ class ChangeTexLocPanel(bpy.types.Panel):
         change_tex_loc_row.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
+class AddSsbPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_add_ssb"
+    bl_label = "追加次标准骨骼"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_add_ssb
+        batch = props.batch
+
+        layout = self.layout
+        box = layout.box()
+        model_row = box.row()
+        model_row.prop(props, "model")
+        show_batch_props(box, batch)
+        gen_display_item_row = box.row()
+        gen_display_item_row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)
+
+
 class GenDisplayItemFramePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_gen_display_item_frame"
     bl_label = "生成显示枠"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 2
+    bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -261,7 +285,7 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 3
+    bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -301,7 +325,7 @@ class RenderPreviewPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 4
+    bl_order = 5
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):

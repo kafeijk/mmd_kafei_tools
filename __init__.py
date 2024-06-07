@@ -5,7 +5,7 @@ bl_info = {
     "name": "mmd_kafei_tools",
     "description": "MMD实用工具",
     "author": "来杯咖啡再说",
-    "version": (0, 2, 0),
+    "version": (0, 3, 0),
     "blender": (3, 0, 0),  # 低于此版本的blender，插件不会显示在插件列表中
     "location": "View3D > Sidebar > KafeiTools Panel",
     "category": "Object",

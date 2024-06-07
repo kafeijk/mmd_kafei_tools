@@ -1,3 +1,4 @@
+import math
 import os
 import time
 from enum import Enum
@@ -34,19 +35,22 @@ IMG_TYPE_EXT_MAP = {
 }
 
 PMX_BAKE_BONES = ['全ての親', 'センター',
-                    '左足ＩＫ', '左つま先ＩＫ', '右足ＩＫ', '右つま先ＩＫ',
-                    '上半身', '上半身3', '上半身2', '首', '頭', '左目', '右目',
-                    '左肩', '左腕', '左腕捩', '左ひじ', '左手捩', '左手首',
-                    '右肩', '右腕', '右腕捩', '右ひじ', '右手捩', '右手首',
-                    '左親指０', '左親指１', '左親指２', '左人指１', '左人指２', '左人指３', '左中指１', '左中指２', '左中指３',
-                    '左薬指１', '左薬指２', '左薬指３', '左小指１', '左小指２', '左小指３',
-                    '右親指０', '右親指１', '右親指２', '右人指１', '右人指２', '右人指３', '右中指１', '右中指２', '右中指３',
-                    '右薬指１', '右薬指２', '右薬指３', '右小指１', '右小指２', '右小指３',
-                    '下半身',
+                  '左足ＩＫ', '左つま先ＩＫ', '右足ＩＫ', '右つま先ＩＫ',
+                  '上半身', '上半身3', '上半身2', '首', '頭', '左目', '右目',
+                  '左肩', '左腕', '左腕捩', '左ひじ', '左手捩', '左手首',
+                  '右肩', '右腕', '右腕捩', '右ひじ', '右手捩', '右手首',
+                  '左親指０', '左親指１', '左親指２', '左人指１', '左人指２', '左人指３', '左中指１', '左中指２', '左中指３',
+                  '左薬指１', '左薬指２', '左薬指３', '左小指１', '左小指２', '左小指３',
+                  '右親指０', '右親指１', '右親指２', '右人指１', '右人指２', '右人指３', '右中指１', '右中指２', '右中指３',
+                  '右薬指１', '右薬指２', '右薬指３', '右小指１', '右小指２', '右小指３',
+                  '下半身',
                   # 足骨 -> 足D骨
                   '左足D', '左ひざD', '左足首D', '左足先EX', '右足D', '右ひざD', '右足首D', '右足先EX']
 # 文件名非法字符
 INVALID_CHARS = '<>:"/\\|?*'
+
+__CONVERT_NAME_TO_L_REGEXP = re.compile('^(.*)左(.*)$')
+__CONVERT_NAME_TO_R_REGEXP = re.compile('^(.*)右(.*)$')
 
 
 def find_pmx_root():
@@ -454,3 +458,101 @@ def restore_selection(selected_objects, active_object):
 def case_insensitive_replace(pattern, replacement, string):
     """忽略大小写替换"""
     return re.sub(pattern, replacement, string, flags=re.IGNORECASE)
+
+
+## 日本語で左右を命名されている名前をblender方式のL(R)に変更する
+def convertNameToLR(name, use_underscore=False):
+    m = __CONVERT_NAME_TO_L_REGEXP.match(name)
+    delimiter = '_' if use_underscore else '.'
+    if m:
+        name = m.group(1) + m.group(2) + delimiter + 'L'
+    m = __CONVERT_NAME_TO_R_REGEXP.match(name)
+    if m:
+        name = m.group(1) + m.group(2) + delimiter + 'R'
+    return name
+
+
+def set_tail(armature, parent_name, child_name):
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    parent = armature.data.edit_bones.get(parent_name, None)
+    if not parent:
+        return
+    child = armature.data.edit_bones.get(child_name, None)
+    if not child:
+        return
+    if abs(child.head[0]) < 0.00001 and abs(child.head[1]) < 0.00001 and abs(child.head[2]) < 0.00001:
+        # 确保全亲骨不会因为指向(0,0,0)而被移除
+        parent.tail = (0, 0, 0.08)
+        child.use_connect = False
+    else:
+        parent.tail = child.head
+        child.use_connect = True
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+
+def move_after_target_vg(obj, target_index):
+    """将活动顶点组移动到指定索引的顶点组的后面"""
+    delta = obj.vertex_groups.active_index - (min(target_index, len(obj.vertex_groups) - 1))
+    if delta > 0:
+        direction = 'UP'
+        delta_fix = abs(delta) - 1
+    else:
+        direction = 'DOWN'
+        delta_fix = abs(delta)
+    for i in range(delta_fix):
+        bpy.ops.object.vertex_group_move(direction=direction)
+
+
+def get_target_bone(armature, edit_bone):
+    # a connected child bone is preferred
+    for child in edit_bone.children:
+        if (
+                child.use_connect
+                or bool(child.get('mmd_bone_use_connect'))
+                or (
+                all(armature.pose.bones[child.name].lock_location)
+                and math.isclose(0.0, (child.head - edit_bone.tail).length))
+        ):
+            return child
+    return None
+
+
+def set_target_bone(bone, root_bone):
+    """设置骨骼末端指向，参数均为edit_bone"""
+    bone.tail = root_bone.head
+    root_bone.bone.use_connect = True
+
+
+def create_frame(mmd_root, name):
+    frames = mmd_root.display_item_frames
+    frame, index = ItemOp.add_after(frames, max(1, mmd_root.active_display_item_frame))
+    frame.name = name
+    mmd_root.active_display_item_frame = index
+    return frame
+
+
+class ItemOp:
+    @staticmethod
+    def add_after(items, index):
+        index_end = len(items)
+        index = max(0, min(index_end, index + 1))
+        items.add()
+        items.move(index_end, index)
+        return items[index], index
+
+
+def add_item(frame, item_type, item_name, morph_type=None, order=None):
+    items = frame.data
+    item, index = ItemOp.add_after(items, frame.active_item)
+    item.type = item_type
+    item.name = item_name
+    if morph_type:
+        item.morph_type = morph_type
+    frame.active_item = index
+    if order is not None:  # order为0时应判断为True
+        items.move(index, order)
+        frame.active_item = order
+    return item
