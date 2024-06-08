@@ -41,7 +41,9 @@ class AddSsbOperator(bpy.types.Operator):
         pmx_objects = find_pmx_objects(pmx_armature)
         gen_bone_name_map(pmx_armature)
         # 根据勾选的选项追加次标准骨骼
+        show_object(pmx_armature)
         create_root_bone(pmx_armature)
+        create_view_center_bone(pmx_armature)
 
 
 def create_root_bone(armature):
@@ -78,16 +80,8 @@ def create_root_bone(armature):
     # 但其它情况的话也无需拦截（按材质分开很普遍，这种情况通常也可以正常指向。后续可提供一个修复指向的功能）
     # todo 对每个物体首位的顶点组计数，取最多的那个顶点组作为首位？
     objs = find_pmx_objects(armature)
-    first_vg = ''
-    for obj in objs:
-        for vg in obj.vertex_groups:
-            if vg and vg.name and name_b != vg.name and armature.pose.bones.get(vg.name, None):
-                first_vg = vg.name
-                break
-        if first_vg:
-            break
-    first_bone = armature.pose.bones.get(first_vg)
-    set_tail(armature, name_b, first_vg)
+    first_bone = get_first_bone(armature, name_b, objs)
+    set_tail(armature, name_b, first_bone.name)
     # 设置面板顺序
     for obj in objs:
         select_and_activate(obj)
@@ -107,6 +101,64 @@ def create_root_bone(armature):
             set_target_bone(edit_bone, edit_bones[root_bone.name])
     # 设置显示枠
     set_root_frame(armature, root_bone, first_bone)
+
+
+def create_view_center_bone(armature):
+    name_j = '操作中心'
+    name_e = 'view cnt'
+    name_b = convertNameToLR(name_j)
+
+    # 如果已经包含全亲骨则直接返回
+    if name_j in jp_bl_map.keys():
+        print(f'“{armature}”已包含“{name_j}”，已跳过')
+        return
+    # 创建操作中心骨骼
+    view_center_bone = create_bone(armature, name_b)
+    jp_bl_map[name_j] = name_b
+    bl_jp_map[name_b] = name_j
+    # 设置骨骼名称
+    mmd_bone = armature.pose.bones.get(name_b).mmd_bone
+    mmd_bone.name_j = name_j
+    mmd_bone.name_e = name_e
+    # 设置是否可见
+    set_visible(armature, name_b, True)
+    # 设置是否可移动
+    set_movable(armature, name_b, True)
+    # 设置是否可旋转
+    set_rotatable(armature, name_b, True)
+    # 设置是否可操作
+    set_controllable(armature, name_b, True)
+    # 设置面板顺序
+    objs = find_pmx_objects(armature)
+    for obj in objs:
+        select_and_activate(obj)
+        set_bone_panel_order(obj, name_b, 0)
+    # 设置末端指向
+    first_bone = get_first_bone(armature, name_b, objs)
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
+    for edit_bone in edit_bones:
+        target_bone = get_target_bone(armature, edit_bone)
+        if target_bone == first_bone:
+            # 如果骨骼的末端指向first_bone，则将其改为末端指向view_center_bone
+            set_target_bone(edit_bone, edit_bones[view_center_bone.name])
+    # 设置显示枠（流程同全亲骨）
+    set_root_frame(armature, view_center_bone, first_bone)
+
+def get_first_bone(armature, name, objs):
+    """获取（排除自身后）排在首位的顶点组对应的骨骼"""
+    first_vg = ''
+    for obj in objs:
+        for vg in obj.vertex_groups:
+            if vg and vg.name and name != vg.name and armature.pose.bones.get(vg.name, None):
+                first_vg = vg.name
+                break
+        if first_vg:
+            break
+    first_bone = armature.pose.bones.get(first_vg)
+    return first_bone
 
 
 def gen_bone_name_map(pmx_armature):
