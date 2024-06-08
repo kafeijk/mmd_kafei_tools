@@ -1,5 +1,4 @@
-import math
-import shutil
+from mathutils import Vector
 
 from ..utils import *
 
@@ -41,7 +40,9 @@ class AddSsbOperator(bpy.types.Operator):
         pmx_objects = find_pmx_objects(pmx_armature)
         gen_bone_name_map(pmx_armature)
         # 根据勾选的选项追加次标准骨骼
+        # todo PE中不管骨骼是否存在，不管前提条件骨骼是否存在，都只是提示没有能追加的骨骼，这里收集没追加成功的信息然后提醒下是不是更好（但是不管怎样流程都是能走通的）
         show_object(pmx_armature)
+        create_groove_bone(pmx_armature,props)
         create_root_bone(pmx_armature)
         create_view_center_bone(pmx_armature)
 
@@ -59,7 +60,7 @@ def create_root_bone(armature):
     root_bone = create_bone(armature, name_b)
     jp_bl_map[name_j] = name_b
     bl_jp_map[name_b] = name_j
-    # 设置骨骼名称
+    # 设置MMD骨骼名称
     mmd_bone = armature.pose.bones.get(name_b).mmd_bone
     mmd_bone.name_j = name_j
     mmd_bone.name_e = name_e
@@ -103,6 +104,88 @@ def create_root_bone(armature):
     set_root_frame(armature, root_bone, first_bone)
 
 
+
+def create_groove_bone(armature, props):
+    name_j = 'グルーブ'
+    name_e = 'groove'
+    name_b = convertNameToLR(name_j)
+    # 如果已经包含全亲骨则直接返回
+    if name_j in jp_bl_map.keys():
+        print(f'“{armature}”已包含“{name_j}”，已跳过')
+        return
+    if 'センター' not in jp_bl_map.keys():
+        print(f'“{armature}”缺失“センター”，グルーブ添加失败')
+        return
+    # 创建グルーブ骨骼
+    groove_bone = create_bone(armature, name_b)
+    jp_bl_map[name_j] = name_b
+    bl_jp_map[name_b] = name_j
+    # 设置MMD骨骼名称
+    mmd_bone = armature.pose.bones.get(name_b).mmd_bone
+    mmd_bone.name_j = name_j
+    mmd_bone.name_e = name_e
+    # 设置是否可见
+    set_visible(armature, name_b, True)
+    # 设置是否可移动
+    set_movable(armature, name_b, True)
+    # 设置是否可旋转
+    set_rotatable(armature, name_b, True)
+    # 设置是否可操作
+    set_controllable(armature, name_b, True)
+    # 设置グルーブ骨骼head位置
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    canter_bone = armature.data.edit_bones.get("センター", None)
+    scale = props.scale
+    groove_edit_bone = armature.data.edit_bones.get(name_b)
+    groove_edit_bone.head = canter_bone.head + get_loc_by_xzy((0, 0.2, 0), scale)
+    # 设置グルーブ骨骼父级
+    groove_edit_bone.parent = canter_bone
+    # 设置グルーブ骨骼tail位置
+    groove_edit_bone.tail = groove_edit_bone.head + get_loc_by_xzy((0, 1.4, 0), scale)
+    # 设置面板顺序
+    bpy.ops.object.mode_set(mode='OBJECT')
+    objs = find_pmx_objects(armature)
+    for obj in objs:
+        select_and_activate(obj)
+        for index, vg in enumerate(obj.vertex_groups):
+            if vg.name != "センター":
+                continue
+            set_bone_panel_order(obj, name_b, index + 1)
+        break
+    # 修改指向
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    canter_bone = armature.data.edit_bones.get("センター", None)
+    edit_bones = armature.data.edit_bones
+    center_saki = "センター先"
+    # todo 模式的更换貌似会使edit_bone失效，然后就闪退了....之后应该调整顺序避免频繁修改上下文
+    groove_edit_bone = armature.data.edit_bones.get(name_b)
+    for edit_bone in edit_bones:
+        if edit_bone.parent == canter_bone and edit_bone.name != center_saki:
+            edit_bone.parent = groove_edit_bone
+    # # 设置显示枠 todo 后续都改为名称传递，上下文变化用edit bone或pose bone传递都不合适
+    set_groove_frame(armature, name_j)
+
+def get_loc_by_xzy(loc, scale):
+    """获取pmx模型在blender中的位置"""
+    vector = Vector(loc).xzy if all(math.isfinite(n) for n in loc) else Vector((0, 0, 0))
+    return vector * scale
+
+
+def set_groove_frame(armature, groove_name):
+    pmx_root = find_pmx_root_with_child(armature)
+    mmd_root = pmx_root.mmd_root
+    found_frame, found_item = find_bone_item(pmx_root, groove_name)
+    if found_frame and found_item:
+        frames = mmd_root.display_item_frames
+        add_item(frames[found_frame], 'BONE', bl_jp_map[groove_name], order=found_item + 1)
+    else:
+        frame = create_center_frame(pmx_root)
+        add_item(frame, 'BONE', bl_jp_map[groove_name], order=0)
+
 def create_view_center_bone(armature):
     name_j = '操作中心'
     name_e = 'view cnt'
@@ -116,7 +199,7 @@ def create_view_center_bone(armature):
     view_center_bone = create_bone(armature, name_b)
     jp_bl_map[name_j] = name_b
     bl_jp_map[name_b] = name_j
-    # 设置骨骼名称
+    # 设置MMD骨骼名称
     mmd_bone = armature.pose.bones.get(name_b).mmd_bone
     mmd_bone.name_j = name_j
     mmd_bone.name_e = name_e
@@ -146,6 +229,7 @@ def create_view_center_bone(armature):
             set_target_bone(edit_bone, edit_bones[view_center_bone.name])
     # 设置显示枠（流程同全亲骨）
     set_root_frame(armature, view_center_bone, first_bone)
+
 
 def get_first_bone(armature, name, objs):
     """获取（排除自身后）排在首位的顶点组对应的骨骼"""
@@ -243,7 +327,8 @@ def set_bone_panel_order(obj, vg_name, index):
 
 def set_root_frame(armature, root_bone, first_bone):
     pmx_root = find_pmx_root_with_child(armature)
-    if first_bone and not find_bone_item(pmx_root, first_bone):
+    found_frame, found_item = find_bone_item(pmx_root, first_bone.name)
+    if first_bone and not found_frame and not found_item:
         # 创建センター显示枠
         frame = create_center_frame(pmx_root)
         # 创建first_bone元素并将其移动到第0位
@@ -274,11 +359,11 @@ def create_center_frame(pmx_root):
     frames.move(mmd_root.active_display_item_frame, 2)
     return frame
 
-def find_bone_item(pmx_root, bone):
+
+def find_bone_item(pmx_root, bone_name):
     mmd_root = pmx_root.mmd_root
     for i, frame in enumerate(mmd_root.display_item_frames):
         for j, item in enumerate(frame.data):
-            if bl_jp_map[bone.name] == item:
-                return True
-    return False
-
+            if bl_jp_map[bone_name] == item:
+                return i, j
+    return None, None

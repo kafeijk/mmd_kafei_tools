@@ -253,6 +253,8 @@ class AddSsbPanel(bpy.types.Panel):
         box = layout.box()
         model_row = box.row()
         model_row.prop(props, "model")
+        scale_row = box.row()
+        scale_row.prop(props, "scale")
         show_batch_props(box, batch)
         gen_display_item_row = box.row()
         gen_display_item_row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)
