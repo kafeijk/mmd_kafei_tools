@@ -6,6 +6,8 @@ from enum import Enum
 import bpy
 import re
 
+from mathutils import Vector
+
 ABC_NAME_PATTERN = re.compile(r'xform_(\d+)_material_(\d+)')
 PMX_NAME_PATTERN = re.compile(r'(?P<prefix>[0-9A-Z]{3}_)(?P<name>.*?)(?P<suffix>\.\d{3})?$')
 # 最大重试次数
@@ -556,3 +558,40 @@ def add_item(frame, item_type, item_name, morph_type=None, order=None):
         items.move(index, order)
         frame.active_item = order
     return item
+
+
+class FnBone(object):
+    @classmethod
+    def update_auto_bone_roll(cls, edit_bone):
+        # make a triangle face (p1,p2,p3)
+        p1 = edit_bone.head.copy()
+        p2 = edit_bone.tail.copy()
+        p3 = p2.copy()
+        # translate p3 in xz plane
+        # the normal vector of the face tracks -Y direction
+        xz = Vector((p2.x - p1.x, p2.z - p1.z))
+        xz.normalize()
+        theta = math.atan2(xz.y, xz.x)
+        norm = edit_bone.vector.length
+        p3.z += norm * math.cos(theta)
+        p3.x -= norm * math.sin(theta)
+        # calculate the normal vector of the face
+        y = (p2 - p1).normalized()
+        z_tmp = (p3 - p1).normalized()
+        x = y.cross(z_tmp)  # normal vector
+        # z = x.cross(y)
+        cls.update_bone_roll(edit_bone, y.xzy, x.xzy)
+
+    @classmethod
+    def update_bone_roll(cls, edit_bone, mmd_local_axis_x, mmd_local_axis_z):
+        axes = cls.get_axes(mmd_local_axis_x, mmd_local_axis_z)
+        idx, val = max([(i, edit_bone.vector.dot(v)) for i, v in enumerate(axes)], key=lambda x: abs(x[1]))
+        edit_bone.align_roll(axes[(idx - 1) % 3 if val < 0 else (idx + 1) % 3])
+
+    @staticmethod
+    def get_axes(mmd_local_axis_x, mmd_local_axis_z):
+        x_axis = Vector(mmd_local_axis_x).normalized().xzy
+        z_axis = Vector(mmd_local_axis_z).normalized().xzy
+        y_axis = z_axis.cross(x_axis).normalized()
+        z_axis = x_axis.cross(y_axis).normalized()  # correction
+        return (x_axis, y_axis, z_axis)
