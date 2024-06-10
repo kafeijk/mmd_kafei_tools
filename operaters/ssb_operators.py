@@ -45,8 +45,110 @@ class AddSsbOperator(bpy.types.Operator):
         create_upper_body2_bone(pmx_armature, props)
         create_dummy_bone(pmx_armature, props)
         create_groove_bone(pmx_armature, props)
+        create_shoulder_p_bone(pmx_armature, props)
         create_root_bone(pmx_armature)
-        create_view_center_bone(pmx_armature)
+        create_view_center_bone(pmx_armature, props)
+
+
+def create_shoulder_p_bone(armature, props):
+    scale = props.scale
+    shoulder_infos = [
+        ("左肩P", "左肩C", "shoulderP_L", "左肩", "左腕"),
+        ("右肩P", "右肩C", "shoulderP_R", "右肩", "右腕")
+    ]
+    for shoulder_info in shoulder_infos:
+        # 基本名称信息
+        shoulder_p_name_j = shoulder_info[0]
+        shoulder_c_name_j = shoulder_info[1]
+        shoulder_p_name_e = shoulder_info[2]
+        shoulder_p_name_b = convertNameToLR(shoulder_info[0])
+        shoulder_c_name_b = convertNameToLR(shoulder_info[1])
+        shoulder_name_j = shoulder_info[3]
+        arm_name_j = shoulder_info[4]
+        shoulder_name_b = convertNameToLR(shoulder_info[3])
+        arm_name_b = convertNameToLR(shoulder_info[4])
+        if shoulder_p_name_j in jp_bl_map.keys():
+            print(f'“{armature.name}”已包含“{shoulder_p_name_j}”，已跳过')
+            return
+        if shoulder_name_j not in jp_bl_map.keys() and arm_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{shoulder_name_j}/{arm_name_j}”，肩P添加失败')
+            return
+        # 创建肩P骨
+        create_bone_with_mmd_info(armature, shoulder_p_name_b, shoulder_p_name_j, shoulder_p_name_e)
+        set_visible(armature, shoulder_p_name_b, True)
+        set_movable(armature, shoulder_p_name_b, False)
+        set_rotatable(armature, shoulder_p_name_b, True)
+        set_controllable(armature, shoulder_p_name_b, True)
+        # 创建肩c骨
+        create_bone_with_mmd_info(armature, shoulder_c_name_b, shoulder_c_name_j, '')
+        # 肩c骨可见性暂时设置为True
+        set_visible(armature, shoulder_c_name_b, True)
+        set_movable(armature, shoulder_c_name_b, False)
+        set_rotatable(armature, shoulder_c_name_b, True)
+        set_controllable(armature, shoulder_c_name_b, True)
+        # 设置面板顺序
+        objs = find_pmx_objects(armature)
+        for obj in objs:
+            select_and_activate(obj)
+            # 设置肩P骨面板顺序
+            for index, vg in enumerate(obj.vertex_groups):
+                if vg.name != shoulder_name_b:
+                    continue
+                set_bone_panel_order(obj, shoulder_p_name_b, index)
+            # 设置肩C骨面板顺序
+            for index, vg in enumerate(obj.vertex_groups):
+                if vg.name != shoulder_name_b:
+                    continue
+                set_bone_panel_order(obj, shoulder_c_name_b, index + 1)
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        edit_bones = armature.data.edit_bones
+        shoulder_p_bone = edit_bones.get(shoulder_p_name_b)
+        shoulder_c_bone = edit_bones.get(shoulder_c_name_b)
+        shoulder_bone = edit_bones.get(shoulder_name_b)
+        arm_bone = edit_bones.get(arm_name_b)
+        # 设置肩P骨head tail parent 旋转轴
+        shoulder_p_bone.head = shoulder_bone.head
+        shoulder_p_bone.tail = shoulder_p_bone.head + Vector((0, 0, 1)) * scale
+        shoulder_p_bone.parent = shoulder_bone.parent
+        FnBone.update_auto_bone_roll(shoulder_p_bone)
+        # 设置肩C骨head tail parent
+        shoulder_c_bone.head = arm_bone.head
+        shoulder_c_bone.tail = shoulder_c_bone.head + Vector((0, 0, 1)) * scale
+        shoulder_c_bone.parent = shoulder_bone
+        # 设置肩 腕 parent
+        shoulder_bone.parent = shoulder_p_bone
+        arm_bone.parent = shoulder_c_bone
+        # 设置赋予相关属性，然后重新装配骨骼（这部分属性一旦修改就dirty了，利用设置的tag调用mmd插件的骨骼装配）
+        if armature.mode != 'POSE':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='POSE')
+        pose_bones = armature.pose.bones
+        # 设置赋予相关信息
+        mmd_bone = pose_bones[shoulder_c_name_b].mmd_bone
+        mmd_bone.has_additional_rotation = True
+        mmd_bone.additional_transform_influence = -1
+        mmd_bone.additional_transform_bone = shoulder_p_name_b
+        # 设置尖端骨骼
+        pose_bones[shoulder_p_name_b].mmd_bone.is_tip = True
+        pose_bones[shoulder_c_name_b].mmd_bone.is_tip = True
+        # 装配骨骼
+        pose_bones[shoulder_c_name_b].bone.select = True
+        bpy.ops.mmd_tools.apply_additional_transform()
+        pose_bones[shoulder_c_name_b].bone.select = False
+        # 恢复肩c骨可见性为False
+        set_visible(armature, shoulder_c_name_b, False)
+
+
+def create_bone_with_mmd_info(armature, shoulder_p_name_b, shoulder_p_name_j, shoulder_p_name_e):
+    create_bone(armature, shoulder_p_name_b)
+    jp_bl_map[shoulder_p_name_j] = shoulder_p_name_b
+    bl_jp_map[shoulder_p_name_b] = shoulder_p_name_j
+    # 设置MMD骨骼名称
+    mmd_bone = armature.pose.bones.get(shoulder_p_name_b).mmd_bone
+    mmd_bone.name_j = shoulder_p_name_j
+    mmd_bone.name_e = shoulder_p_name_e
 
 
 def create_upper_body2_bone(armature, props):
@@ -168,9 +270,10 @@ def create_upper_body2_bone(armature, props):
     # 如果刚体关联的是上半身，则改为上半身2
     pmx_root = find_pmx_root_with_child(armature)
     rigid_group = find_rigid_group(pmx_root)
-    for rigid_body in rigid_group.children:
-        if rigid_body.mmd_rigid.bone == spine:
-            rigid_body.mmd_rigid.bone = name_b
+    if rigid_group:
+        for rigid_body in rigid_group.children:
+            if rigid_body.mmd_rigid.bone == spine:
+                rigid_body.mmd_rigid.bone = name_b
     # 设置显示枠
     add_frame_after(armature, name_b, jp_bl_map[spine])
 
@@ -424,7 +527,8 @@ def set_groove_frame(armature, groove_name):
         add_item(frame, 'BONE', groove_name, order=0)
 
 
-def create_view_center_bone(armature):
+def create_view_center_bone(armature, props):
+    scale = props.scale
     name_j = '操作中心'
     name_e = 'view cnt'
     name_b = convertNameToLR(name_j)
@@ -465,6 +569,8 @@ def create_view_center_bone(armature):
         if target_bone == first_bone:
             # 如果骨骼的末端指向first_bone，则将其改为末端指向view_center_bone
             set_target_bone(edit_bone, edit_bones[view_center_bone.name])
+    # 设置操作中心 tail
+    edit_bones[view_center_bone.name].tail = edit_bones[view_center_bone.name].tail * scale
     # 设置显示枠（流程同全亲骨）
     set_root_frame(armature, view_center_bone, first_bone)
 
