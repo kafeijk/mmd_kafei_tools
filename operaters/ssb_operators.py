@@ -43,12 +43,136 @@ class AddSsbOperator(bpy.types.Operator):
         # todo PE中不管骨骼是否存在，不管前提条件骨骼是否存在，都只是提示没有能追加的骨骼，这里收集没追加成功的信息然后提醒下是不是更好（但是不管怎样流程都是能走通的）
         show_object(pmx_armature)
         create_upper_body2_bone(pmx_armature, props)
+        create_waist_bone(pmx_armature, props)
         create_ik_p_bone(pmx_armature)
         create_dummy_bone(pmx_armature, props)
         create_groove_bone(pmx_armature, props)
         create_shoulder_p_bone(pmx_armature, props)
         create_root_bone(pmx_armature)
         create_view_center_bone(pmx_armature, props)
+
+
+def create_waist_bone(armature, props):
+    scale = props.scale
+    waist_name_j = "腰"
+    waist_name_e = "Waist Bone"
+    waist_name_b = convertNameToLR(waist_name_j)
+    under_body_name_j = "下半身"
+    right_leg_name_j = "右足"
+    left_leg_name_j = "左足"
+    if left_leg_name_j not in jp_bl_map.keys():
+        print(f'“{armature.name}”缺失“{left_leg_name_j}”，腰骨骼添加失败')  # PE中没有对左足进行校验，直接抛异常且创建失败
+        return
+    if waist_name_j in jp_bl_map.keys():
+        print(f'“{armature.name}”已包含“{waist_name_j}”，已跳过')
+        return
+    if under_body_name_j not in jp_bl_map.keys() or right_leg_name_j not in jp_bl_map.keys():
+        print(f'“{armature.name}”缺失“{under_body_name_j}/{right_leg_name_j}”，腰骨骼添加失败')
+        return
+    if not armature.pose.bones.get(jp_bl_map[under_body_name_j]).parent:
+        print(f'“{armature.name}”缺失“{under_body_name_j}”亲骨，腰骨骼添加失败')
+        return
+    # 创建腰骨骼
+    create_bone_with_mmd_info(armature, waist_name_b, waist_name_j, waist_name_e)
+    set_visible(armature, waist_name_b, True)
+    set_movable(armature, waist_name_b, False)
+    set_rotatable(armature, waist_name_b, True)
+    set_controllable(armature, waist_name_b, True)
+    # 设置腰骨骼父级 head tail
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
+    waist_bone = edit_bones.get(waist_name_b)
+    under_body_bone = edit_bones.get(jp_bl_map[under_body_name_j])
+    right_leg_bone = edit_bones.get(jp_bl_map[right_leg_name_j])
+    waist_bone.parent = under_body_bone.parent
+    waist_bone.head = Vector(
+        (0, under_body_bone.head.z * 0.02, under_body_bone.head.z * 0.4 + right_leg_bone.head.z * 0.6))
+    waist_bone.tail = waist_bone.head + Vector((under_body_bone.head - waist_bone.head) * 0.8)
+    # 设置腰骨骼的变形阶层为下半身亲骨的变形阶层
+    under_body_parent_pose_bone = armature.pose.bones.get(jp_bl_map[under_body_name_j]).parent
+    armature.pose.bones.get(
+        waist_name_b).mmd_bone.transform_order = under_body_parent_pose_bone.mmd_bone.transform_order
+    # 如果骨骼的父级是下半身的parent且名称不是センター先，则将其亲骨改为腰骨
+    center_saki = "センター先"
+    for edit_bone in edit_bones:
+        if edit_bone.parent == under_body_bone.parent and edit_bone.name != center_saki:
+            edit_bone.parent = waist_bone
+    # 设置腰骨骼面板顺序
+    objs = find_pmx_objects(armature)
+    for obj in objs:
+        select_and_activate(obj)
+        for index, vg in enumerate(obj.vertex_groups):
+            if vg.name != jp_bl_map[under_body_name_j]:
+                continue
+            set_bone_panel_order(obj, jp_bl_map[under_body_name_j], index + 1)
+        break
+    # 设置显示枠
+    flag = add_item_after(armature, waist_name_b, under_body_parent_pose_bone.name)
+    if not flag:
+        pmx_root = find_pmx_root_with_child(armature)
+        frame = create_center_frame(pmx_root)
+        do_add_item(frame, 'BONE', waist_name_b)
+    waist_c_infos = [
+        ("腰キャンセル右", "右足"),
+        ("腰キャンセル左", "左足"),
+    ]
+    for info in waist_c_infos:
+        waist_c_name_j = info[0]
+        waist_c_name_b = convertNameToLR(waist_c_name_j)
+        foot_name_j = info[1]
+        foot_name_b = convertNameToLR(foot_name_j)
+        if waist_c_name_j in jp_bl_map.keys():
+            print(f'“{armature.name}”已包含“{waist_c_name_j}”，已跳过')
+            return
+        # 创建腰取消骨骼
+        create_bone_with_mmd_info(armature, waist_c_name_b, waist_c_name_j, '')
+        # 暂时设置可见
+        set_visible(armature, waist_c_name_b, True)
+        set_movable(armature, waist_c_name_b, False)
+        set_rotatable(armature, waist_c_name_b, True)
+        set_controllable(armature, waist_c_name_b, True)
+        # 设置腰骨骼父级 head tail
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        edit_bones = armature.data.edit_bones
+        waist_c_bone = edit_bones.get(waist_c_name_b)
+        foot_bone = edit_bones.get(foot_name_b)
+        waist_c_bone.head = foot_bone.head
+        waist_c_bone.tail = waist_c_bone.head + Vector((0, 0, 1)) * scale
+        waist_c_bone.parent = foot_bone.parent
+        foot_bone.parent = waist_c_bone
+        # 设置赋予相关属性，然后重新装配骨骼（这部分属性一旦修改就dirty了，利用设置的tag调用mmd插件的骨骼装配）
+        if armature.mode != 'POSE':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='POSE')
+        pose_bones = armature.pose.bones
+        # 设置赋予相关信息
+        mmd_bone = pose_bones[waist_c_name_b].mmd_bone
+        mmd_bone.has_additional_rotation = True
+        mmd_bone.additional_transform_influence = -1
+        mmd_bone.additional_transform_bone = waist_name_b
+        # 设置尖端骨骼
+        pose_bones[waist_c_name_b].mmd_bone.is_tip = True
+        pose_bones[waist_c_name_b].mmd_bone.is_tip = True
+        # 装配骨骼
+        pose_bones[waist_c_name_b].bone.select = True
+        bpy.ops.mmd_tools.apply_additional_transform()
+        pose_bones[waist_c_name_b].bone.select = False
+        # 恢复肩c骨可见性为False
+        set_visible(armature, waist_c_name_b, False)
+        # 设置腰骨骼面板顺序
+        objs = find_pmx_objects(armature)
+        for obj in objs:
+            select_and_activate(obj)
+            for index, vg in enumerate(obj.vertex_groups):
+                if vg.name != foot_name_b:
+                    continue
+                set_bone_panel_order(obj, waist_c_name_b, index)
+            break
+
 
 def create_ik_p_bone(armature):
     ik_p_infos = [

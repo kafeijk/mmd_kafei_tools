@@ -573,19 +573,24 @@ def add_item(armature, assignee, base, offset):
     if found_frame is not None and found_item is not None:
         frames = mmd_root.display_item_frames
         do_add_item(frames[found_frame], 'BONE', assignee, order=found_item + offset)
+        return True
+    return False
 
 
 def add_item_after(armature, assignee, base):
-    add_item(armature, assignee, base, offset=1)
+    return add_item(armature, assignee, base, offset=1)
 
 
 def add_item_before(armature, assignee, base):
-    add_item(armature, assignee, base, offset=0)
+    return add_item(armature, assignee, base, offset=0)
 
 
 def find_bone_item(pmx_root, bone_name):
     mmd_root = pmx_root.mmd_root
     for i, frame in enumerate(mmd_root.display_item_frames):
+        # 不含 root 和 表情
+        if i < 2:
+            continue
         for j, item in enumerate(frame.data):
             if bone_name == item.name:
                 return i, j
