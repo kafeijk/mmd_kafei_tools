@@ -85,6 +85,11 @@ def find_abc_objects():
     return abc_objects
 
 
+def find_rigid_group(root):
+    """寻找刚体对象"""
+    return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'RIGID_GRP_OBJ', root.children), None)
+
+
 def sort_pmx_objects(objects):
     objects.sort(key=lambda obj: obj.name)
 
