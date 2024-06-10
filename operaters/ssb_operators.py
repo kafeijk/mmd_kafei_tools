@@ -43,12 +43,58 @@ class AddSsbOperator(bpy.types.Operator):
         # todo PE中不管骨骼是否存在，不管前提条件骨骼是否存在，都只是提示没有能追加的骨骼，这里收集没追加成功的信息然后提醒下是不是更好（但是不管怎样流程都是能走通的）
         show_object(pmx_armature)
         create_upper_body2_bone(pmx_armature, props)
+        create_ik_p_bone(pmx_armature)
         create_dummy_bone(pmx_armature, props)
         create_groove_bone(pmx_armature, props)
         create_shoulder_p_bone(pmx_armature, props)
         create_root_bone(pmx_armature)
         create_view_center_bone(pmx_armature, props)
 
+def create_ik_p_bone(armature):
+    ik_p_infos = [
+        ("右足IK親", "leg IKP_R", "右足ＩＫ"),
+        ("左足IK親", "leg IKP_L", "左足ＩＫ")
+    ]
+    for info in ik_p_infos:
+        ik_p_name_j = info[0]
+        ik_p_name_e = info[1]
+        ik_p_name_b = convertNameToLR(info[0])
+        ik_name_j = info[2]
+        ik_name_b = jp_bl_map[ik_name_j]
+        if ik_p_name_j in jp_bl_map.keys():
+            print(f'“{armature.name}”已包含“{ik_p_name_j}”，已跳过')
+            return
+        if ik_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{ik_name_j}”，肩P添加失败')
+            return
+        create_bone_with_mmd_info(armature, ik_p_name_b, ik_p_name_j, ik_p_name_e)
+        set_visible(armature, ik_p_name_b, True)
+        set_movable(armature, ik_p_name_b, True)
+        set_rotatable(armature, ik_p_name_b, True)
+        set_controllable(armature, ik_p_name_b, True)
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        edit_bones = armature.data.edit_bones
+        ik_p_bone = edit_bones.get(ik_p_name_b)
+        ik_bone = edit_bones.get(ik_name_b)
+        # 设置ik亲骨 head tail
+        ik_p_bone.head = ik_bone.head * Vector((1, 1, 0))
+        ik_p_bone.tail = ik_bone.head
+        # 设置父级
+        ik_p_bone.parent = ik_bone.parent
+        ik_bone.parent = ik_p_bone
+        # 设置显示枠
+        add_item_before(armature, ik_p_name_b, ik_name_b)
+        # 设置骨骼面板顺序
+        objs = find_pmx_objects(armature)
+        for obj in objs:
+            select_and_activate(obj)
+            for index, vg in enumerate(obj.vertex_groups):
+                if vg.name != ik_name_b:
+                    continue
+                set_bone_panel_order(obj, ik_p_name_b, index)
+            break
 
 def create_shoulder_p_bone(armature, props):
     scale = props.scale
@@ -305,7 +351,7 @@ def add_frame_after(armature, assignee, base):
 
     if found_frame is not None and found_item is not None:
         frames = mmd_root.display_item_frames
-        add_item(frames[found_frame], 'BONE', assignee, order=found_item + 1)
+        do_add_item(frames[found_frame], 'BONE', assignee, order=found_item + 1)
 
 
 def create_root_bone(armature):
@@ -441,7 +487,7 @@ def set_dummy_frame(armature, dummy_name, wrist_name):
     found_frame, found_item = find_bone_item(pmx_root, wrist_name)
     if found_frame and found_item:
         frames = mmd_root.display_item_frames
-        add_item(frames[found_frame], 'BONE', dummy_name, order=found_item + 1)
+        do_add_item(frames[found_frame], 'BONE', dummy_name, order=found_item + 1)
 
 
 def create_groove_bone(armature, props):
@@ -521,10 +567,10 @@ def set_groove_frame(armature, groove_name):
     found_frame, found_item = find_bone_item(pmx_root, groove_name)
     if found_frame and found_item:
         frames = mmd_root.display_item_frames
-        add_item(frames[found_frame], 'BONE', groove_name, order=found_item + 1)
+        do_add_item(frames[found_frame], 'BONE', groove_name, order=found_item + 1)
     else:
         frame = create_center_frame(pmx_root)
-        add_item(frame, 'BONE', groove_name, order=0)
+        do_add_item(frame, 'BONE', groove_name, order=0)
 
 
 def create_view_center_bone(armature, props):
@@ -676,7 +722,7 @@ def set_root_frame(armature, root_bone, first_bone):
         # 创建センター显示枠
         frame = create_center_frame(pmx_root)
         # 创建first_bone元素并将其移动到第0位
-        add_item(frame, 'BONE', first_bone.name, order=0)
+        do_add_item(frame, 'BONE', first_bone.name, order=0)
     mmd_root = pmx_root.mmd_root
     frames = mmd_root.display_item_frames
     if frames:
@@ -686,7 +732,7 @@ def set_root_frame(armature, root_bone, first_bone):
         first_frame.data.clear()
         first_frame.active_item = 0
         # 创建root_bone元素并将其移动到第0位
-        add_item(first_frame, 'BONE', root_bone.name, order=0)
+        do_add_item(first_frame, 'BONE', root_bone.name, order=0)
 
 
 def create_center_frame(pmx_root):
@@ -703,11 +749,3 @@ def create_center_frame(pmx_root):
     frames.move(mmd_root.active_display_item_frame, 2)
     return frame
 
-
-def find_bone_item(pmx_root, bone_name):
-    mmd_root = pmx_root.mmd_root
-    for i, frame in enumerate(mmd_root.display_item_frames):
-        for j, item in enumerate(frame.data):
-            if bone_name == item.name:
-                return i, j
-    return None, None

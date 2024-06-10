@@ -551,7 +551,7 @@ class ItemOp:
         return items[index], index
 
 
-def add_item(frame, item_type, item_name, morph_type=None, order=None):
+def do_add_item(frame, item_type, item_name, morph_type=None, order=None):
     items = frame.data
     item, index = ItemOp.add_after(items, frame.active_item)
     item.type = item_type
@@ -565,8 +565,34 @@ def add_item(frame, item_type, item_name, morph_type=None, order=None):
     return item
 
 
-class FnBone(object):
+def add_item(armature, assignee, base, offset):
+    pmx_root = find_pmx_root_with_child(armature)
+    mmd_root = pmx_root.mmd_root
+    found_frame, found_item = find_bone_item(pmx_root, base)
 
+    if found_frame is not None and found_item is not None:
+        frames = mmd_root.display_item_frames
+        do_add_item(frames[found_frame], 'BONE', assignee, order=found_item + offset)
+
+
+def add_item_after(armature, assignee, base):
+    add_item(armature, assignee, base, offset=1)
+
+
+def add_item_before(armature, assignee, base):
+    add_item(armature, assignee, base, offset=0)
+
+
+def find_bone_item(pmx_root, bone_name):
+    mmd_root = pmx_root.mmd_root
+    for i, frame in enumerate(mmd_root.display_item_frames):
+        for j, item in enumerate(frame.data):
+            if bone_name == item.name:
+                return i, j
+    return None, None
+
+
+class FnBone(object):
     AUTO_LOCAL_AXIS_ARMS = ('左肩', '左腕', '左ひじ', '左手首', '右腕', '右肩', '右ひじ', '右手首')
     AUTO_LOCAL_AXIS_FINGERS = ('親指', '人指', '中指', '薬指', '小指')
     AUTO_LOCAL_AXIS_SEMI_STANDARD_ARMS = (
