@@ -637,3 +637,16 @@ class FnBone(object):
         y_axis = z_axis.cross(x_axis).normalized()
         z_axis = x_axis.cross(y_axis).normalized()  # correction
         return (x_axis, y_axis, z_axis)
+
+
+matmul = (lambda a, b: a * b) if bpy.app.version < (2, 80, 0) else (lambda a, b: a.__matmul__(b))
+
+
+def to_pmx_axis(armature, scale, axis, bone_name):
+    """todo 调研代码逻辑。不是很懂"""
+    world_mat = armature.matrix_world
+    pmx_matrix = world_mat * scale
+    pmx_matrix_rot = pmx_matrix.to_3x3()
+    pose_bone = armature.pose.bones.get(bone_name)
+    m = matmul(pose_bone.matrix, pose_bone.bone.matrix_local.inverted()).to_3x3()
+    return matmul(matmul(pmx_matrix_rot, m), Vector(axis).xzy).normalized()

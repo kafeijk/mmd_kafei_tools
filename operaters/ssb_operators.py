@@ -42,6 +42,8 @@ class AddSsbOperator(bpy.types.Operator):
         # 根据勾选的选项追加次标准骨骼
         # todo PE中不管骨骼是否存在，不管前提条件骨骼是否存在，都只是提示没有能追加的骨骼，这里收集没追加成功的信息然后提醒下是不是更好（但是不管怎样流程都是能走通的）
         show_object(pmx_armature)
+        create_arm_twist_bone(pmx_armature, props)
+        create_wrist_twist_bone(pmx_armature, props)
         create_upper_body2_bone(pmx_armature, props)
         create_waist_bone(pmx_armature, props)
         create_ik_p_bone(pmx_armature)
@@ -50,6 +52,213 @@ class AddSsbOperator(bpy.types.Operator):
         create_shoulder_p_bone(pmx_armature, props)
         create_root_bone(pmx_armature)
         create_view_center_bone(pmx_armature, props)
+
+
+def create_arm_twist_bone(armature, props):
+    arm_twist_infos = [
+        ("右腕捩", "arm twist_R", "右腕", "右ひじ"),
+        ("左腕捩", "arm twist_L", "左腕", "左ひじ")
+    ]
+    for info in arm_twist_infos:
+        create_twist_bone(armature, props, info, True)
+
+
+def create_wrist_twist_bone(armature, props):
+    arm_twist_infos = [
+        ("右手捩", "wrist twist_R", "右ひじ", "右手首"),
+        ("左手捩", "wrist twist_L", "左ひじ", "左手首")
+    ]
+    for info in arm_twist_infos:
+        create_twist_bone(armature, props, info, False)
+
+
+def create_twist_bone(armature, props, info, has_elbow_offset):
+    scale = props.scale
+    twist_name_j = info[0]
+    twist_name_e = info[1]
+    twist_name_b = convertNameToLR(info[0])
+    twist_parent_name_j = info[2]
+    twist_parent_name_b = jp_bl_map[twist_parent_name_j]
+    twist_child_name_j = info[3]
+    twist_child_name_b = jp_bl_map[twist_child_name_j]
+    if twist_name_j in jp_bl_map.keys():
+        print(f'“{armature.name}”已包含“{twist_name_j}”，已跳过')
+        return
+    if not armature.pose.bones.get(twist_parent_name_b).parent:
+        print(f'“{armature.name}”缺失“{twist_parent_name_j}”，腕弯曲骨骼添加失败')
+        return
+    if not armature.pose.bones.get(twist_child_name_b).parent:
+        print(f'“{armature.name}”缺失“{twist_child_name_j}”，腕弯曲骨骼添加失败')
+        return
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
+    twist_child_bone = edit_bones.get(twist_child_name_b)
+    twist_child_bone_head_vector = twist_child_bone.head.copy()
+    objs = find_pmx_objects(armature)
+    if has_elbow_offset:
+        v_count = 0.0
+        loc_y_sum = 0.0
+        for obj in objs:
+            for vertex in obj.data.vertices:
+                if is_vertex_dedicated_by_bone(obj, vertex, twist_parent_name_b, threshold=0.6):
+                    loc_y_sum += vertex.co.y / scale
+                    v_count = v_count + 1.0
+        if v_count > 0.0:
+            offset = (loc_y_sum / v_count * scale - twist_child_bone.head.y) * 0.75
+            twist_child_bone_head_vector.y += offset
+
+    # 创建捩骨
+    create_bone_with_mmd_info(armature, twist_name_b, twist_name_j, twist_name_e)
+    set_visible(armature, twist_name_b, True)
+    set_movable(armature, twist_name_b, False)
+    twist_pb = armature.pose.bones.get(twist_name_b, None)
+    twist_pb.mmd_bone.is_tip = True
+    # 设置锁定旋转，如果是tip且未应用固定轴时需特殊处理
+    twist_pb.lock_rotation = (True, False, True)
+    set_controllable(armature, twist_name_b, True)
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
+    twist_bone = edit_bones.get(twist_name_b)
+    twist_parent_bone = edit_bones.get(twist_parent_name_b)
+    twist_parent_bone_head = twist_parent_bone.head.copy()
+    twist_child_bone = edit_bones.get(twist_child_name_b)
+    twist_child_bone_head = twist_child_bone.head.copy()
+    twist_bone.parent = twist_parent_bone
+    twist_bone_head = Vector(twist_parent_bone_head * 0.4 + twist_child_bone_head_vector * 0.6).copy()
+    twist_bone.head = twist_bone_head
+    # 设置轴限制相关参数（mmd坐标系）,默认不会应用
+    armature.pose.bones.get(twist_name_b).mmd_bone.enabled_fixed_axis = True
+    tmp_axis = twist_child_bone_head_vector - twist_parent_bone_head
+    # todo 如果开启自动补正旋转轴，fixed_axis的值在小数点后第5位存在误差，需后续多测试看下
+    # 由于用MEIKO时数值不一致，但是用Miku_Hatsune时数值一致，暂定为误差
+    # todo 默认不会装配只设置，后续看要不要提供用户参数
+    # fixed_axis计算长度时，需要考虑缩放
+    # 计算点积时，仅考虑fixed_axis的方向，fixed_axis的大小应为1，以便在最大值和最小值之间插值（值取决于在方向上的延伸即后者，而非fixed_axis的长度）
+    fixed_axis = to_pmx_axis(armature, scale, tmp_axis, twist_name_b)
+    armature.pose.bones.get(twist_name_b).mmd_bone.fixed_axis = fixed_axis
+    twist_bone.tail = twist_bone.head + fixed_axis.xzy.normalized() * scale
+    FnBone.update_auto_bone_roll(twist_bone)
+    twist_child_bone.parent = twist_bone
+    for obj in objs:
+        select_and_activate(obj)
+        for index, vg in enumerate(obj.vertex_groups):
+            if vg.name != twist_parent_name_b:
+                continue
+            set_bone_panel_order(obj, twist_name_b, index + 1)
+        break
+    twist_parent_bone_dedicated_vertices = {}
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
+    twist_bone = edit_bones.get(twist_name_b)
+    twist_parent_bone_dot = Vector(twist_parent_bone_head - twist_bone_head).dot(fixed_axis.xzy) * 0.8
+    twist_child_bone_dot = Vector(twist_child_bone_head - twist_bone_head).dot(fixed_axis.xzy) * 0.8
+    for obj in objs:
+        for vertex in obj.data.vertices:
+            v_twist_bone_dot = Vector(Vector(vertex.co) - twist_bone.head).dot(fixed_axis.xzy)
+            if is_vertex_dedicated_by_bone(obj, vertex, twist_parent_name_b, threshold=0.97):
+                print(v_twist_bone_dot)
+                twist_parent_bone_dot = min(twist_parent_bone_dot, v_twist_bone_dot)
+                twist_child_bone_dot = max(twist_child_bone_dot, v_twist_bone_dot)
+                twist_parent_bone_dedicated_vertices[vertex] = obj
+            elif v_twist_bone_dot > 0.0:
+                for group in vertex.groups:
+                    if obj.vertex_groups[group.group].name == twist_parent_name_b:
+                        name_b_group_index = obj.vertex_groups.find(twist_name_b)
+                        if name_b_group_index != -1:
+                            obj.vertex_groups[name_b_group_index].add([vertex.index], group.weight, 'ADD')
+                        # 移除操作放到最后
+                        obj.vertex_groups[group.group].remove([vertex.index])
+                        break
+    part_twists = []
+    for i in range(3):
+        coefficient = (i + 1) / 4.0
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        part_twist_name_j = twist_name_j + str(i + 1)
+        part_twist_name_b = convertNameToLR(part_twist_name_j)
+        part_twists.append(part_twist_name_b)
+        # 查找part捩骨是否存在，存在则移除
+        if part_twist_name_j in jp_bl_map:
+            remove_bone(armature, objs, part_twist_name_b)
+        # 创建剩余捩骨
+        create_bone_with_mmd_info(armature, part_twist_name_b, part_twist_name_j, "")
+        # 设置可见性暂时为True
+        set_visible(armature, part_twist_name_b, True)
+        set_movable(armature, part_twist_name_b, False)
+        set_rotatable(armature, part_twist_name_b, True)
+        set_controllable(armature, part_twist_name_b, True)
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        edit_bones = armature.data.edit_bones
+        part_twist_bone = edit_bones[part_twist_name_b]
+        part_twist_bone.head = twist_bone_head + fixed_axis.xzy * (
+                (1 - coefficient) * twist_parent_bone_dot + coefficient * twist_child_bone_dot)
+        part_twist_bone.tail = part_twist_bone.head + Vector((0, 0, 1)) * scale
+        twist_parent_bone = edit_bones.get(twist_parent_name_b)
+        part_twist_bone.parent = twist_parent_bone
+        # 设置赋予相关信息
+        if armature.mode != 'POSE':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='POSE')
+        pose_bones = armature.pose.bones
+        mmd_bone = pose_bones[part_twist_name_b].mmd_bone
+        mmd_bone.has_additional_rotation = True
+        mmd_bone.additional_transform_influence = coefficient
+        mmd_bone.additional_transform_bone = twist_name_b
+        # 设置尖端骨骼
+        pose_bones[part_twist_name_b].mmd_bone.is_tip = True
+        # 装配骨骼
+        pose_bones[part_twist_name_b].bone.select = True
+        bpy.ops.mmd_tools.apply_additional_transform()
+        pose_bones[part_twist_name_b].bone.select = False
+        # 恢复可见性为False
+        set_visible(armature, part_twist_name_b, False)
+        # 设置腰骨骼面板顺序
+        objs = find_pmx_objects(armature)
+        for obj in objs:
+            select_and_activate(obj)
+            for index, vg in enumerate(obj.vertex_groups):
+                if i == 0:
+                    if vg.name != twist_name_b:
+                        continue
+                    set_bone_panel_order(obj, part_twist_name_b, index + 1)
+                else:
+                    if vg.name != jp_bl_map[twist_name_j + str(i)]:
+                        continue
+                    set_bone_panel_order(obj, part_twist_name_b, index + 1)
+            break
+    for vertex, obj in twist_parent_bone_dedicated_vertices.items():
+        vertex_twist_bone_dot = Vector(Vector(vertex.co) - twist_bone_head).dot(fixed_axis.xzy)
+        delta = ((vertex_twist_bone_dot - twist_parent_bone_dot) / (twist_child_bone_dot - twist_parent_bone_dot)) * 4.0
+        weight = (int(100.0 * delta) % 100) / 100.0
+        for group in vertex.groups:
+            obj.vertex_groups[group.group].remove([vertex.index])
+        if int(delta) == 0:
+            obj.vertex_groups[part_twists[0]].add([vertex.index], weight, 'ADD')
+            obj.vertex_groups[twist_parent_name_b].add([vertex.index], 1.0 - weight, 'ADD')
+        elif int(delta) == 1:
+            obj.vertex_groups[part_twists[1]].add([vertex.index], weight, 'ADD')
+            obj.vertex_groups[part_twists[0]].add([vertex.index], 1.0 - weight, 'ADD')
+        elif int(delta) == 2:
+            obj.vertex_groups[part_twists[2]].add([vertex.index], weight, 'ADD')
+            obj.vertex_groups[part_twists[1]].add([vertex.index], 1.0 - weight, 'ADD')
+        elif int(delta) == 3:
+            obj.vertex_groups[twist_name_b].add([vertex.index], weight, 'ADD')
+            obj.vertex_groups[part_twists[2]].add([vertex.index], 1.0 - weight, 'ADD')
+        elif int(delta) == 4:
+            obj.vertex_groups[twist_child_name_b].add([vertex.index], weight, 'ADD')
+            obj.vertex_groups[twist_name_b].add([vertex.index], 1.0 - weight, 'ADD')
+        else:
+            pass
+    add_item_after(armature, twist_name_b, twist_parent_name_b)
 
 
 def create_waist_bone(armature, props):
@@ -174,6 +383,25 @@ def create_waist_bone(armature, props):
             break
 
 
+def remove_bone(armature, objs, bone_name):
+    pose_bone = armature.pose.bones.get(bone_name)
+    pmx_root = find_pmx_root_with_child(armature)
+    mmd_root = pmx_root.mmd_root
+    frames = mmd_root.display_item_frames
+    found_frame, found_item = find_bone_item(pmx_root, bone_name)
+    # 移除显示枠
+    if found_frame is not None and found_item is not None:
+        frames[found_frame].data.remove(found_item)
+    # 移除骨骼面板
+    for obj in objs:
+        vertex_group = obj.vertex_groups.get(bone_name)
+        if vertex_group is not None:
+            obj.vertex_groups.remove(vertex_group)
+    # 移除骨骼
+    edit_bone = armature.data.edit_bones.get(bone_name)
+    armature.data.edit_bones.remove(edit_bone)
+
+
 def create_ik_p_bone(armature):
     ik_p_infos = [
         ("右足IK親", "leg IKP_R", "右足ＩＫ"),
@@ -219,6 +447,7 @@ def create_ik_p_bone(armature):
                     continue
                 set_bone_panel_order(obj, ik_p_name_b, index)
             break
+
 
 def create_shoulder_p_bone(armature, props):
     scale = props.scale
@@ -872,4 +1101,3 @@ def create_center_frame(pmx_root):
     frames = mmd_root.display_item_frames
     frames.move(mmd_root.active_display_item_frame, 2)
     return frame
-
