@@ -49,6 +49,7 @@ class AddSsbOperator(bpy.types.Operator):
         create_upper_body2_bone(pmx_armature, props)
         create_waist_bone(pmx_armature, props)
         create_ik_p_bone(pmx_armature)
+        create_ex_bone(pmx_armature, props)
         create_dummy_bone(pmx_armature, props)
         create_groove_bone(pmx_armature, props)
         create_shoulder_p_bone(pmx_armature, props)
@@ -56,6 +57,187 @@ class AddSsbOperator(bpy.types.Operator):
         create_root_bone(pmx_armature)
         create_view_center_bone(pmx_armature, props)
         print(f"追加次标准骨骼耗时：{time.time() - start_time}")
+
+
+def create_ex_bone(armature, props):
+    scale = props.scale
+    ex_infos = [
+        ("左足先EX", "toe2_L", "左足", "左ひざ", "左足首", "左つま先ＩＫ"),
+        ("右足先EX", "toe2_R", "右足", "右ひざ", "右足首", "右つま先ＩＫ")
+    ]
+    for info in ex_infos:
+        ex_name_j = info[0]
+        ex_name_e = info[1]
+        ex_name_b = convertNameToLR(ex_name_j)
+        leg_name_j = info[2]
+        leg_name_b = jp_bl_map[leg_name_j]
+        knee_name_j = info[3]
+        knee_name_b = jp_bl_map[knee_name_j]
+        ankle_name_j = info[4]
+        ankle_name_b = jp_bl_map[ankle_name_j]
+        toe_ik_name_j = info[5]
+        toe_ik_name_b = jp_bl_map[toe_ik_name_j]
+        controllable = True
+
+        if ex_name_j in jp_bl_map.keys():
+            print(f'“{armature.name}”已包含“{ex_name_j}”，已跳过')
+            return
+        if leg_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{leg_name_j}”，足先EX骨骼添加失败')
+            return
+        if knee_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{knee_name_j}”，足先EX骨骼添加失败')
+            return
+        if ankle_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{ankle_name_j}”，足先EX骨骼添加失败')
+            return
+        if toe_ik_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{toe_ik_name_j}”，足先EX骨骼添加失败')
+            return
+        # 创建D骨以及EX骨
+        leg_d_name_b = create_d_bone(armature, scale, leg_name_j, controllable)
+        knee_d_name_b = create_d_bone(armature, scale, knee_name_j, controllable)
+        ankle_d_name_b = create_d_bone(armature, scale, ankle_name_j, controllable)
+        create_bone_with_mmd_info(armature, ex_name_b, ex_name_j, ex_name_e)
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.armature.select_all(action='DESELECT')
+        edit_bones = armature.data.edit_bones
+        leg_d_bone = edit_bones[leg_d_name_b]
+        knee_d_bone = edit_bones[knee_d_name_b]
+        ankle_d_bone = edit_bones[ankle_d_name_b]
+        ankle_bone = edit_bones[ankle_name_b]
+        toe_ik_d_bone = edit_bones[toe_ik_name_b]
+        ex_bone = edit_bones[ex_name_b]
+        set_visible(armature, ex_name_b, True)
+        set_movable(armature, ex_name_b, False)
+        set_rotatable(armature, ex_name_b, True)
+        set_controllable(armature, ex_name_b, True)
+        ex_bone.head = (1 - 2.0 / 3.0) * ankle_d_bone.head + 2.0 / 3.0 * toe_ik_d_bone.head
+        ex_bone.tail = ex_bone.head + Vector((0, -1 * scale, 0))
+        pose_bones = armature.pose.bones
+        # 设置EX骨变形阶层
+        pose_bones.get(ex_name_b).mmd_bone.transform_order = pose_bones.get(ankle_d_name_b).mmd_bone.transform_order
+        # 设置父级关系
+        knee_d_bone.parent = leg_d_bone
+        ankle_d_bone.parent = knee_d_bone
+        ex_bone.parent = ankle_d_bone
+        bpy.ops.mmd_tools.apply_additional_transform()
+        objs = find_pmx_objects(armature)
+        # 设置面板顺序
+        for obj in objs:
+            select_and_activate(obj)
+            vgs = obj.vertex_groups
+            for vg_name in [leg_d_name_b, knee_d_name_b, ankle_d_name_b, ex_name_b]:
+                if vg_name not in vgs:
+                    vg = vgs.new(name=vg_name)
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        edit_bones = armature.data.edit_bones
+        ankle_bone = edit_bones[ankle_name_b]
+        ex_bone = edit_bones[ex_name_b]
+        for obj in objs:
+            for vertex in obj.data.vertices:
+                if is_vertex_dedicated_by_bone(obj, vertex, ankle_name_b, threshold=0.97):
+                    ankle_y = ankle_bone.head.y
+                    ex_y = ex_bone.head.y
+                    center = (vertex.co.y - ankle_y) / (ex_y - ankle_y)
+                    weight = np.clip((center - 0.75) * 2.0, 0.0, 1.0)
+                    for group in vertex.groups:
+                        obj.vertex_groups[group.group].remove([vertex.index])
+                    obj.vertex_groups[ex_name_b].add([vertex.index], weight, 'ADD')
+                    obj.vertex_groups[ankle_name_b].add([vertex.index], 1 - weight, 'ADD')
+        for obj in objs:
+            for vertex in obj.data.vertices:
+                for vg in vertex.groups:
+                    group_name = obj.vertex_groups[vg.group].name
+                    weight = vg.weight
+                    if group_name == leg_name_b:
+                        obj.vertex_groups[leg_name_b].remove([vertex.index])
+                        obj.vertex_groups[leg_d_name_b].add([vertex.index], weight, 'ADD')
+                    if group_name == knee_name_b:
+                        obj.vertex_groups[knee_name_b].remove([vertex.index])
+                        obj.vertex_groups[knee_d_name_b].add([vertex.index], weight, 'ADD')
+                    if group_name == ankle_name_b:
+                        obj.vertex_groups[ankle_name_b].remove([vertex.index])
+                        obj.vertex_groups[ankle_d_name_b].add([vertex.index], weight, 'ADD')
+        # 足骨刚体移动到足D骨
+        pmx_root = find_pmx_root_with_child(armature)
+        rigid_group = find_rigid_group(pmx_root)
+        if rigid_group:
+            for rigid_body in rigid_group.children:
+                if rigid_body.mmd_rigid.bone == leg_name_b:
+                    rigid_body.mmd_rigid.bone = leg_d_name_b
+                if rigid_body.mmd_rigid.bone == knee_name_b:
+                    rigid_body.mmd_rigid.bone = knee_d_name_b
+                if rigid_body.mmd_rigid.bone == ankle_name_b:
+                    rigid_body.mmd_rigid.bone = ankle_d_name_b
+        add_item_after(armature, ex_name_b, ankle_name_b)
+        add_item_after(armature, ankle_d_name_b, ankle_name_b)
+        add_item_after(armature, knee_d_name_b, knee_name_b)
+        add_item_after(armature, leg_d_name_b, leg_name_b)
+
+
+def create_d_bone(armature, scale, bone_name_j, controllable):
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.armature.select_all(action='DESELECT')
+    edit_bones = armature.data.edit_bones
+    bone_name_b = convertNameToLR(bone_name_j)
+    source_bone = edit_bones[bone_name_b]
+    source_mmd_bone = armature.pose.bones.get(bone_name_b).mmd_bone
+    source_name_j = source_mmd_bone.name_j
+    source_name_e = source_mmd_bone.name_e
+    new_name_j = source_name_j + "D"
+    new_name_e = source_name_e + "D"
+    new_name_b = convertNameToLR(new_name_j)
+    create_bone_with_mmd_info(armature, new_name_b, new_name_j, new_name_e)
+    jp_bl_map[new_name_j] = new_name_b
+    bl_jp_map[new_name_b] = new_name_j
+    if armature.mode != 'EDIT':
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.armature.select_all(action='DESELECT')
+    edit_bones = armature.data.edit_bones
+    source_bone = edit_bones[bone_name_b]
+    new_bone = edit_bones[new_name_b]
+    new_mmd_bone = armature.pose.bones.get(new_name_b).mmd_bone
+    new_mmd_bone.name_j = new_name_j
+    new_mmd_bone.name_e = new_name_e
+    new_bone.head = source_bone.head
+    new_bone.tail = new_bone.head + Vector((0, 0, 1)) * scale
+    new_bone.parent = source_bone.parent
+    movable = all(loc is False for loc in armature.pose.bones.get(bone_name_b).lock_location)
+    rotatable = all(loc is False for loc in armature.pose.bones.get(bone_name_b).lock_rotation)
+    set_movable(armature, new_name_b, movable)
+    set_rotatable(armature, new_name_b, rotatable)
+    set_visible(armature, new_name_b, controllable)
+    set_controllable(armature, new_name_b, controllable)
+    # 设置赋予信息
+    new_mmd_bone.has_additional_rotation = True
+    new_mmd_bone.additional_transform_influence = 1
+    new_mmd_bone.additional_transform_bone = bone_name_b
+    new_mmd_bone.is_tip = True
+    # 设置变形阶层
+    source_mmd_bone = armature.pose.bones.get(bone_name_b).mmd_bone
+    new_mmd_bone.transform_order = source_mmd_bone.transform_order + 1
+    # 设置剩余内容 原逻辑足D骨是从足骨上面拷贝而来的，但是在blender中进行拷贝的话
+    # 1：选中edit bone进行复制，但是复制后需要切换上下文才能获取pose_bone的bone属性
+    # 2：mmd属性中有一个叫ik_rotation_constraint，如果一起拷贝过来，会很碍事
+    # 所以这里通过新建骨骼并传递指定参数的方式来模拟拷贝（但后面这几项参数几乎用不上，仅做拷贝）
+    new_mmd_bone.transform_after_dynamics = source_mmd_bone.transform_after_dynamics
+    # 默认不会应用固定轴
+    new_mmd_bone.enabled_fixed_axis = source_mmd_bone.enabled_fixed_axis
+    new_mmd_bone.fixed_axis = source_mmd_bone.fixed_axis
+    new_mmd_bone.enabled_local_axes = source_mmd_bone.enabled_local_axes
+    new_mmd_bone.local_axis_x = source_mmd_bone.local_axis_x
+    new_mmd_bone.local_axis_z = source_mmd_bone.local_axis_z
+    if new_mmd_bone.enabled_local_axes:
+        bpy.ops.mmd_tools.bone_local_axes_setup(type='APPLY')
+    return new_name_b
 
 
 def create_thumb0_bone(armature, props):
@@ -473,6 +655,7 @@ def create_waist_bone(armature, props):
     under_body_bone = edit_bones.get(jp_bl_map[under_body_name_j])
     right_leg_bone = edit_bones.get(jp_bl_map[right_leg_name_j])
     waist_bone.parent = under_body_bone.parent
+    waist_bone_parent_name_b = waist_bone.parent.name
     waist_bone.head = Vector(
         (0, under_body_bone.head.z * 0.02, under_body_bone.head.z * 0.4 + right_leg_bone.head.z * 0.6))
     waist_bone.tail = waist_bone.head + Vector((under_body_bone.head - waist_bone.head) * 0.8)
@@ -490,9 +673,9 @@ def create_waist_bone(armature, props):
     for obj in objs:
         select_and_activate(obj)
         for index, vg in enumerate(obj.vertex_groups):
-            if vg.name != jp_bl_map[under_body_name_j]:
+            if vg.name != waist_bone_parent_name_b:
                 continue
-            set_bone_panel_order(obj, jp_bl_map[under_body_name_j], index + 1)
+            set_bone_panel_order(obj, waist_name_b, index + 1)
         break
     # 设置显示枠
     flag = add_item_after(armature, waist_name_b, under_body_parent_pose_bone.name)
