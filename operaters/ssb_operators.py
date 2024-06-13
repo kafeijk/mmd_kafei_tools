@@ -1,3 +1,4 @@
+import numpy as np
 from mathutils import Vector
 
 from ..utils import *
@@ -41,6 +42,7 @@ class AddSsbOperator(bpy.types.Operator):
         gen_bone_name_map(pmx_armature)
         # 根据勾选的选项追加次标准骨骼
         # todo PE中不管骨骼是否存在，不管前提条件骨骼是否存在，都只是提示没有能追加的骨骼，这里收集没追加成功的信息然后提醒下是不是更好（但是不管怎样流程都是能走通的）
+        start_time = time.time()
         show_object(pmx_armature)
         create_arm_twist_bone(pmx_armature, props)
         create_wrist_twist_bone(pmx_armature, props)
@@ -50,8 +52,183 @@ class AddSsbOperator(bpy.types.Operator):
         create_dummy_bone(pmx_armature, props)
         create_groove_bone(pmx_armature, props)
         create_shoulder_p_bone(pmx_armature, props)
+        create_thumb0_bone(pmx_armature, props)
         create_root_bone(pmx_armature)
         create_view_center_bone(pmx_armature, props)
+        print(f"追加次标准骨骼耗时：{time.time() - start_time}")
+
+
+def create_thumb0_bone(armature, props):
+    def callback1(v):
+        return Vector((-v.y, v.x, 0))
+
+    def callback2(v):
+        return Vector((v.y, -v.x, 0))
+
+    thumb0_infos = [
+        ("右親指０", "thumb0_R", "右手首", "右親指１", "右親指２", "右人指１", Vector((1, -1, 0)).normalized().xzy,
+         callback1),
+        ("左親指０", "thumb0_L", "左手首", "左親指１", "左親指２", "左人指１", Vector((-1, -1, 0)).normalized().xzy,
+         callback2)
+    ]
+    scale = props.scale
+    for index, info in enumerate(thumb0_infos):
+        thumb0_name_j = info[0]
+        thumb0_name_e = info[1]
+        thumb0_name_b = convertNameToLR(thumb0_name_j)
+        wrist_name_j = info[2]
+        wrist_name_b = convertNameToLR(wrist_name_j)
+        thumb1_name_j = info[3]
+        thumb1_name_b = convertNameToLR(thumb1_name_j)
+        thumb2_name_j = info[4]
+        thumb2_name_b = convertNameToLR(thumb2_name_j)
+        fore1_name_j = info[5]
+        fore1_name_b = convertNameToLR(fore1_name_j)
+        direction = info[6]
+        if thumb0_name_j in jp_bl_map.keys():
+            print(f'“{armature.name}”已包含“{thumb0_name_j}”，已跳过')
+            return
+        if wrist_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{wrist_name_j}”，大拇指0骨骼添加失败')
+            return
+        if thumb1_name_j not in jp_bl_map.keys():
+            print(f'“{armature.name}”缺失“{thumb1_name_j}”，大拇指0骨骼添加失败')
+            return
+        # 创建亲指0
+        create_bone_with_mmd_info(armature, thumb0_name_b, thumb0_name_j, thumb0_name_e)
+        # 设置面板顺序
+        objs = find_pmx_objects(armature)
+        for obj in objs:
+            select_and_activate(obj)
+            for index, vg in enumerate(obj.vertex_groups):
+                if vg.name != thumb1_name_b:
+                    continue
+                set_bone_panel_order(obj, thumb0_name_b, index)
+            break
+        set_visible(armature, thumb0_name_b, True)
+        set_movable(armature, thumb0_name_b, False)
+        set_rotatable(armature, thumb0_name_b, True)
+        set_controllable(armature, thumb0_name_b, True)
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        edit_bones = armature.data.edit_bones
+        thumb0_bone = edit_bones.get(thumb0_name_b)
+        thumb1_bone = edit_bones.get(thumb1_name_b)
+        thumb2_bone = edit_bones.get(thumb2_name_b)
+        fore1_bone = edit_bones.get(fore1_name_b)
+        wrist_bone = edit_bones.get(wrist_name_b)
+        thumb0_bone.head = (1 - 2.0 / 3.0) * wrist_bone.head + (2.0 / 3.0) * thumb1_bone.head
+        thumb0_bone.parent = wrist_bone
+        thumb1_bone.parent = thumb0_bone
+        thumb0_bone.tail = thumb1_bone.head
+        # 亲指1和亲指0之间的距离
+        length = Vector(thumb1_bone.head - thumb0_bone.head).length
+        objs = find_pmx_objects(armature)
+        for obj in objs:
+            for vertex in obj.data.vertices:
+                if not contains_bone(obj, vertex, [wrist_name_b, thumb1_name_b]):
+                    continue
+                # 顶点 与 亲指0和亲指1中点 的距离（向量）
+                distance = Vector(vertex.co) - Vector((thumb0_bone.head + thumb1_bone.head) * 0.5)
+                # distance 在 direction 上面的投影长度（及方向）
+                projection = distance.dot(direction) * direction
+                # 计算权重
+                weight = Vector(distance - projection).length
+                weight /= length * 1.4
+                if weight < 1.0:
+                    # 将权重限定在0-1之间
+                    weight = np.clip((1.0 - weight) * 1.3, 0.0, 1.0)
+                    # 如果顶点受手首影响（阈值0.97）
+                    if is_vertex_dedicated_by_bone(obj, vertex, wrist_name_b, threshold=0.97):
+                        for group in vertex.groups:
+                            obj.vertex_groups[group.group].remove([vertex.index])
+                        obj.vertex_groups[thumb0_name_b].add([vertex.index], weight, 'ADD')
+                        obj.vertex_groups[wrist_name_b].add([vertex.index], 1 - weight, 'ADD')
+                    # 如果顶点受亲指1影响（阈值0.97）
+                    elif is_vertex_dedicated_by_bone(obj, vertex, thumb1_name_b, threshold=0.97):
+                        for group in vertex.groups:
+                            obj.vertex_groups[group.group].remove([vertex.index])
+                        obj.vertex_groups[thumb0_name_b].add([vertex.index], weight, 'ADD')
+                        obj.vertex_groups[thumb1_name_b].add([vertex.index], 1 - weight, 'ADD')
+                    # 其他情况分配权重
+                    else:
+                        vg_count = 0
+                        vgs = [vg for vg in vertex.groups if
+                               obj.vertex_groups[vg.group].name in bl_jp_map.keys() and
+                               obj.vertex_groups[vg.group].name not in ('mmd_edge_scale', 'mmd_vertex_order')]
+                        for vg in vgs:
+                            vg_count += 1
+                            if vg_count > 4:
+                                break
+                            group_name = obj.vertex_groups[vg.group].name
+                            if group_name == wrist_name_b:
+                                bone_weight = vg.weight
+                                # 将顶点在手首上的权重转移到亲指0上面
+                                obj.vertex_groups[wrist_name_b].remove([vertex.index])
+                                obj.vertex_groups[thumb0_name_b].add([vertex.index], bone_weight, 'ADD')
+                                if bone_weight < weight:
+                                    obj.vertex_groups[thumb0_name_b].remove([vertex.index])
+                                    obj.vertex_groups[thumb0_name_b].add([vertex.index], weight, 'ADD')
+                                    weight_sum = 0
+                                    for other_vg in vgs:
+                                        if vg.group == other_vg.group:
+                                            continue
+                                        weight_sum = other_vg.weight
+                                    if weight_sum > 0:
+                                        for other_vg in vgs:
+                                            if vg.group == other_vg.group:
+                                                continue
+                                            other_vg_name = obj.vertex_groups[other_vg.group].name
+                                            other_group_weight = other_vg.weight
+                                            obj.vertex_groups[other_vg_name].remove([vertex.index])
+                                            obj.vertex_groups[other_vg_name].add([vertex.index], other_group_weight * (
+                                                    1 - weight) / weight_sum, 'ADD')
+
+        add_item_before(armature, thumb0_name_b, thumb1_name_b)
+        # 设定親指Local轴
+        if any(name not in jp_bl_map.keys() for name in [thumb0_name_j, thumb1_name_j, thumb2_name_j, fore1_name_j]):
+            print(
+                f'“{armature.name}”缺失“{thumb0_name_j}”/“{thumb1_name_j}”/“{thumb2_name_j}”/“{fore1_name_j}”，设定親指Local轴失败')
+            return
+        # todo 在设置本地轴z轴的时候，blender中显示的是一个值，PE中显示的是另一个值，在设置固定轴的时候，这个值能通过to_pmx_axis修正（未大量测试）
+        # todo 但是这里却不能，虽然暂时无法修正为和PE中一模一样，但是使用上没问题
+        set_local_axes(armature, thumb0_name_b,
+                       Vector(thumb1_bone.head - thumb0_bone.head).normalized().xzy,
+                       to_pmx_axis(armature, scale, Vector(thumb0_bone.head - fore1_bone.head).normalized(),
+                                   thumb0_name_b))
+        # mmd坐标系
+        axis_z = info[7](Vector(thumb2_bone.head - thumb1_bone.head).xzy)
+        axis_z.z = -axis_z.length * 0.2
+        set_local_axes(armature, thumb1_name_b,
+                       Vector(thumb2_bone.head - thumb1_bone.head).normalized().xzy,
+                       axis_z)
+        # 获取親指先
+        target_bone = get_target_bone(armature, thumb2_bone)
+        if target_bone:
+            thumb2_target_head = target_bone.head
+        else:
+            thumb2_target_head = thumb2_bone.tail
+        set_local_axes(armature, thumb2_name_b,
+                       Vector(thumb2_target_head - thumb2_bone.head).normalized().xzy,
+                       axis_z)
+    bpy.ops.mmd_tools.bone_local_axes_setup(type='APPLY')
+
+
+def set_local_axes(armature, bone_name, x, z):
+    pose_bone = armature.pose.bones.get(bone_name)
+    mmd_bone = pose_bone.mmd_bone
+    mmd_bone.enabled_local_axes = True
+    mmd_bone.local_axis_x = x
+    mmd_bone.local_axis_z = z
+
+
+def contains_bone(obj, vertex, names):
+    for group in vertex.groups:
+        group_name = obj.vertex_groups[group.group].name
+        if group_name in names:
+            return True
+    return False
 
 
 def create_arm_twist_bone(armature, props):
