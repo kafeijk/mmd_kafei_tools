@@ -222,7 +222,7 @@ def check_transfer_preset_props(operator, props):
             return False
         abc_objects = find_abc_objects()
         if len(abc_objects) == 0:
-            operator.report(type={'ERROR'}, message=f'没有找到abc文件对应的网格对！象')
+            operator.report(type={'ERROR'}, message=f'没有找到abc文件对应的网格对象！')
             return False
 
         toon_shading_flag = props.toon_shading_flag
@@ -380,6 +380,8 @@ def main(operator, context):
     direction = props.direction
     if check_transfer_preset_props(operator, props) is False:
         return
+    toon_shading_flag = props.toon_shading_flag
+    face_locator = props.face_locator
 
     source_root = None
     source_armature = None
@@ -392,6 +394,9 @@ def main(operator, context):
         source_root = find_pmx_root()
         source_armature = find_pmx_armature(source_root)
         source_objects = find_pmx_objects(source_armature)
+        # 排除MESH类型面部定位器对后续流程的影响
+        if toon_shading_flag and face_locator.type == 'MESH':
+            source_objects.remove(face_locator)
         target_objects = find_abc_objects()
         sort_pmx_objects(source_objects)
         sort_abc_objects(target_objects)
@@ -412,6 +417,13 @@ def main(operator, context):
         target_armature = find_pmx_armature(target_root)
         target_objects = find_pmx_objects(target_armature)
         source_target_map = matching(source_objects, target_objects, direction)
+
+    # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
+    if len(source_target_map) == 0:
+        if toon_shading_flag:
+            raise RuntimeError(f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
+        else:
+            raise RuntimeError(f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
 
     # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
     # 记录源物体和目标物体的可见性
@@ -449,12 +461,9 @@ def main(operator, context):
     if modifiers_flag:
         link_modifiers(source_target_map, direction)
 
-    toon_shading_flag = props.toon_shading_flag
-    face_locator = props.face_locator
     face_object = props.face_object
     face_vg = props.face_vg
     auto_face_location = props.auto_face_location
-
     # 三渲二面部定位器处理
     if toon_shading_flag and direction == 'PMX2ABC':
         process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
