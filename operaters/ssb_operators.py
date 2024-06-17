@@ -1,5 +1,6 @@
+from enum import auto
+
 import numpy as np
-from mathutils import Vector
 
 from ..utils import *
 
@@ -7,6 +8,159 @@ from ..utils import *
 jp_bl_map = {}
 # Blender名称到日文名称的映射
 bl_jp_map = {}
+
+
+class SsbStatus(Enum):
+    SUCCESS = auto()
+    FAILED = auto()
+    SKIPPED = auto()
+
+
+class SsbResult:
+    def __init__(self, status, result=None, message=""):
+        self.status = status
+        self.result = result
+        self.message = message
+
+
+class SelectAllSsbOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_all_ssb"
+    bl_label = "全部选择"
+    bl_description = "全部选择"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        self.main(context)
+        return {'FINISHED'}
+
+    def main(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_add_ssb
+        base_props = props.base
+
+        # 获取base_props对象的所有属性名
+        all_props = dir(base_props)
+
+        # 如果所有值都为True，则将所有值都设置为False；只要有一个值不为True，则将所有值设置为True；不含enable属性
+        set_to_true = False
+        for prop_name in all_props:
+            if "enable" not in prop_name and isinstance(getattr(base_props, prop_name), bool):
+                # 如果有任何一个属性不为True，则将所有符合条件的属性都设置为True
+                if not getattr(base_props, prop_name):
+                    set_to_true = True
+                    break
+                # 否则将所有符合条件的属性设置为False
+                else:
+                    set_to_true = False
+        for prop_name in all_props:
+            if "enable" not in prop_name and isinstance(getattr(base_props, prop_name), bool):
+                setattr(base_props, prop_name, set_to_true)
+
+
+def pre_set_panel_order(armature):
+    """通过与临时物体合并的方式预先创建顶点组（对应PE中的骨骼面板）"""
+    objs = find_pmx_objects(armature)
+    if has_all_ssb(armature):
+        return
+
+    # pmx模型的首个Mesh对象
+    pmx_obj = objs[0]
+    # 创建临时物体
+    collection = pmx_obj.users_collection[0]
+    tmp_obj = create_tmp_obj(armature, collection)
+
+    # 设置面板中位于前面的顶点组
+    for name_j in SSB_ORDER_TOP_LIST:
+        if convertNameToLR(name_j) not in tmp_obj.vertex_groups:
+            tmp_obj.vertex_groups.new(name=convertNameToLR(name_j))
+    # 设置面板中位于中间的顶点组
+    for vg in pmx_obj.vertex_groups:
+        vg_name_b = vg.name
+        # 顶点组如果不在当前骨架中则跳过
+        if vg_name_b not in bl_jp_map.keys():
+            continue
+        vg_name_j = bl_jp_map[vg.name]
+        if vg_name_j in SSB_ORDER_MAP.keys():
+            items = SSB_ORDER_MAP[vg_name_j]
+            for item_name_j in items:
+                item_name_b = convertNameToLR(item_name_j)
+                if item_name_b not in tmp_obj.vertex_groups:
+                    tmp_obj.vertex_groups.new(name=item_name_b)
+        else:
+            if vg_name_b not in tmp_obj.vertex_groups:
+                tmp_obj.vertex_groups.new(name=vg_name_b)
+    # 设置面板中位于底部的顶点组
+    for name_j in SSB_ORDER_BOTTOM_LIST:
+        if convertNameToLR(name_j) not in tmp_obj.vertex_groups:
+            tmp_obj.vertex_groups.new(name=convertNameToLR(name_j))
+
+    # 为物体添加顶点组
+    # 通常情况下，只需要为第一个物体预先设置顶点组即可
+    # 但是如果后续逻辑涉及到权重转换，或者是使用者修改了物体的顺序时，都可能会产生问题
+    # 稳妥起见，为所有物体都设置上相应的顶点组
+    for obj in objs:
+        deselect_all_objects()
+        obj_name = obj.name
+        current_tmp_obj = copy_obj(tmp_obj)
+        select_and_activate(obj)
+        select_and_activate(current_tmp_obj)
+        bpy.ops.object.join()
+        current_obj = bpy.context.active_object
+        current_obj.name = obj_name
+
+    # 从集合中移除对象
+    collection.objects.unlink(tmp_obj)
+    # 从场景中删除对象
+    bpy.data.objects.remove(tmp_obj, do_unlink=True)
+
+
+def has_all_ssb(armature):
+    count = 0
+    for pb in armature.pose.bones:
+        if bl_jp_map[pb.name] in SSB_NAMES:
+            count += 1
+    if count == len(SSB_NAMES):
+        return True
+    return False
+
+
+def create_tmp_obj(armature, collection):
+    # 新建Mesh并删除所有顶点
+    bpy.ops.object.mode_set(mode='OBJECT')
+    deselect_all_objects()
+    bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=True)
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.delete(type='VERT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+    tmp_obj = bpy.context.active_object
+    tmp_obj.name = "tmp_plane"
+    # 设置parent为armature
+    tmp_obj.parent = armature
+    move_to_target_collection_recursive(tmp_obj, collection)
+    return tmp_obj
+
+
+def post_set_panel_order(armature):
+    """移除名称为ssb且骨架中不含该骨骼的顶点组"""
+    objs = find_pmx_objects(armature)
+    # 当前所有骨骼名称
+    pb_names = {pb.name for pb in armature.pose.bones}
+    # 移除多余的顶点组
+    for obj in objs:
+        vgs = obj.vertex_groups
+        for i in range(len(vgs) - 1, -1, -1):
+            vg_name = vgs[i].name
+            if vg_name in SSB_NAMES and vg_name not in pb_names:
+                vgs.remove(vgs[i])
+
+
+def copy_obj(obj):
+    new_mesh = obj.data.copy()
+    new_obj = obj.copy()
+    new_obj.data = new_mesh
+    col = obj.users_collection[0]
+    col.objects.link(new_obj)
+    return new_obj
 
 
 class AddSsbOperator(bpy.types.Operator):
@@ -21,83 +175,229 @@ class AddSsbOperator(bpy.types.Operator):
 
     def check_props(self, props):
         model = props.model
-        if not model:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
-            return False
-        pmx_root = find_pmx_root_with_child(model)
-        if not pmx_root:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
-            return False
+        batch = props.batch
+        batch_flag = batch.flag
+        if not batch_flag:
+            if not model:
+                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+                return False
+            pmx_root = find_pmx_root_with_child(model)
+            if not pmx_root:
+                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+                return False
+            pmx_armature = find_pmx_armature(pmx_root)
+            if not pmx_armature:
+                self.report(type={'ERROR'}, message=f'模型骨架不存在！')
+                return False
+            objs = find_pmx_objects(pmx_armature)
+            if len(objs) == 0:
+                self.report(type={'ERROR'}, message=f'模型网格对象不存在！')
+                return False
+        else:
+            if not check_batch_props(self, batch):
+                return False
         return True
 
     def main(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_add_ssb
+        start_time = time.time()
+
+        # 参数校验
         if not self.check_props(props):
             return
+
+        batch = props.batch
+        batch_flag = batch.flag
         model = props.model
         pmx_root = find_pmx_root_with_child(model)
-        pmx_armature = find_pmx_armature(pmx_root)
-        pmx_objects = find_pmx_objects(pmx_armature)
-        gen_bone_name_map(pmx_armature)
+
+        if batch_flag:
+            batch_process(self.create_ssb, props)
+        else:
+            results = self.create_ssb(pmx_root, props)
+            armature = find_pmx_armature(pmx_root)
+            duration = time.time() - start_time
+            self.show_msg(armature, props, results, duration)
+
+    def create_ssb(self, pmx_root, props):
+        # 获取模型数据
+        armature = find_pmx_armature(pmx_root)
+        # 显示根节点与骨架，避免引起上下文异常
+        show_object(pmx_root)
+        show_object(armature)
+        deselect_all_objects()
+        select_and_activate(armature)
+        # 根据当前骨架生成骨骼名称映射
+        gen_bone_name_map(armature)
+        # 在mmd插件中，模型的PE骨骼面板顺序是根据blender顶点组来决定的
+        # 但是在blender中，移动顶点组是一项非常耗时的操作
+        # 顶点组所在的集合类型并不像其它集合那样，拥有移动到指定位置的函数。需要我们模拟界面点击的方式一个一个循环移动到指定位置
+        # 这里通过新建一个Mesh，并为其预先添加顶点组，然后用这个Mesh和原模型合并的方式来达到设置骨骼面板的目的
+        pre_set_panel_order(armature)
         # 根据勾选的选项追加次标准骨骼
-        # todo PE中不管骨骼是否存在，不管前提条件骨骼是否存在，都只是提示没有能追加的骨骼，这里收集没追加成功的信息然后提醒下是不是更好（但是不管怎样流程都是能走通的）
-        start_time = time.time()
-        show_object(pmx_armature)
-        create_arm_twist_bone(pmx_armature, props)
-        create_wrist_twist_bone(pmx_armature, props)
-        create_upper_body2_bone(pmx_armature, props)
-        create_waist_bone(pmx_armature, props)
-        create_ik_p_bone(pmx_armature)
-        create_ex_bone(pmx_armature, props)
-        create_dummy_bone(pmx_armature, props)
-        create_groove_bone(pmx_armature, props)
-        create_shoulder_p_bone(pmx_armature, props)
-        create_thumb0_bone(pmx_armature, props)
-        create_root_bone(pmx_armature)
-        create_view_center_bone(pmx_armature, props)
-        print(f"追加次标准骨骼耗时：{time.time() - start_time}")
+        # todo 增加用户提供的参数
+        # todo 先对参数进行校验，得出需要对哪些内容进行添加（但是不管怎样流程都是能走通的）
+        # todo 给出反馈，已经存在的不需要给出反馈，如果全部正常添加则给出正常反馈，一旦有一些内容添加不成功用警告（没有能追加的骨骼 改为 哪些骨骼因某种原因添加不成功）
+        # todo 需要有添加是否成功的 result
+        # 进入编辑模式，并确保添加ssb期间不涉及模式切换
+        if armature.mode != 'EDIT':
+            select_and_activate(armature)
+            bpy.ops.object.mode_set(mode='EDIT')
+        # 接收返回结果的列表
+        results = []
+        # 腕弯曲骨骼
+        create_arm_twist_bone(armature, props, results)
+        # 手弯曲骨骼
+        create_wrist_twist_bone(armature, props, results)
+        # 上半身2
+        create_upper_body2_bone(armature, props, results)
+        # 腰骨骼
+        create_waist_bone(armature, props, results)
+        # 足IK親
+        create_ik_p_bone(armature, props, results)
+        # 足先EX
+        create_ex_bone(armature, props, results)
+        # 手持骨
+        create_dummy_bone(armature, props, results)
+        # グルーブ骨
+        create_groove_bone(armature, props, results)
+        # 肩P
+        create_shoulder_p_bone(armature, props, results)
+        # 大拇指０骨骼
+        create_thumb0_bone(armature, props, results)
+        # 全ての親
+        create_root_bone(armature, props, results)
+        # 操作中心
+        create_view_center_bone(armature, props, results)
+        # 移除名称为ssb且骨架中不含该骨骼的顶点组
+        post_set_panel_order(armature)
+        # 返回物体模式
+        bpy.ops.object.mode_set(mode='OBJECT')
+        deselect_all_objects()
+        select_and_activate(armature)
+        return results
+
+    def show_msg(self, armature, props, results, duration):
+        success_results = [result for result in results if result.status == SsbStatus.SUCCESS]
+        failed_results = [result for result in results if result.status == SsbStatus.FAILED]
+        success_msg = ''
+        if len(success_results) > 0:
+            success_msg += "以下骨骼追加完毕了：\n"
+        for success_result in success_results:
+            names = success_result.result
+            success_msg = success_msg + str(names) + "\n"
+
+        failed_msg = ''
+        for failed_result in failed_results:
+            names = failed_result.result
+            failed_msg = failed_result.message
+            if failed_msg:
+                failed_msg = failed_msg + failed_msg + '\n'
+            else:
+                failed_msg = failed_msg + f"{names[0]}所需的{names[1:]}不存在" + "\n"
+
+        if success_msg or failed_msg:
+            if success_msg:
+                self.report({'INFO'}, success_msg.rstrip())
+            if failed_msg:
+                self.report({'WARNING'}, failed_msg.rstrip())
+            if failed_msg:
+                self.report({'WARNING'}, f'追加次标准骨骼结束，耗时{duration:.2f}秒，点击查看报告↑↑↑')
+            else:
+                self.report({'INFO'}, f'追加次标准骨骼结束，耗时{duration:.2f}秒，点击查看报告↑↑↑')
+        else:
+            missing_bones = []
+            ssb_list = get_ssb_to_add(props)
+            pb_names = {bl_jp_map[pb.name] for pb in armature.pose.bones}
+            for ssb_name in ssb_list:
+                if ssb_name not in pb_names:
+                    missing_bones.append(ssb_name)
+            if len(missing_bones) == 0:
+                self.report({'INFO'}, "所有次标准骨骼追加完成")
+            else:
+                self.report({'WARNING'}, f"缺失骨骼：{missing_bones}")
+                self.report({'WARNING'}, "没有能追加的骨骼，请尝试“强制”选项。点击查看缺失骨骼↑↑↑")
 
 
-def create_ex_bone(armature, props):
+def get_ssb_to_add(props):
+    """根据用户参数，获取本次应当添加的次标准骨骼"""
+    base_props = props.base
+    bones = []
+    if base_props.root_checked:
+        bones.append('全ての親')
+    if base_props.arm_twist_checked:
+        bones.extend(["右腕捩", "右腕捩1", "右腕捩2", "右腕捩3"])
+        bones.extend(["左腕捩", "左腕捩1", "左腕捩2", "左腕捩3"])
+    if base_props.wrist_twist_checked:
+        bones.extend(["右手捩", "右手捩1", "右手捩2", "右手捩3"])
+        bones.extend(["左手捩", "左手捩1", "左手捩2", "左手捩3"])
+    if base_props.upper_body2_checked:
+        bones.append('上半身2')
+    if base_props.groove_checked:
+        bones.append('グルーブ')
+    if base_props.waist_checked:
+        bones.extend(["腰", "腰キャンセル右", "腰キャンセル左"])
+    if base_props.waist_checked:
+        bones.extend(["右足IK親", "左足IK親"])
+    if base_props.view_center_checked:
+        bones.append("操作中心")
+    if base_props.ex_checked:
+        bones.extend(["右足D", "右ひざD", "右足首D", "右足先EX", "左足D", "左ひざD", "左足首D", "左足先EX"])
+    if base_props.groove_checked:
+        bones.extend(["右ダミー", "左ダミー"])
+    if base_props.shoulder_p_checked:
+        bones.extend(["右肩P", "右肩C", "左肩P", "左肩C"])
+    if base_props.thumb0_checked:
+        bones.extend(["右親指０", "右親指１"])
+    return bones
+
+
+def create_ex_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.ex_checked:
+        return
+
     scale = props.scale
     ex_infos = [
         ("左足先EX", "toe2_L", "左足", "左ひざ", "左足首", "左つま先ＩＫ"),
         ("右足先EX", "toe2_R", "右足", "右ひざ", "右足首", "右つま先ＩＫ")
     ]
     for info in ex_infos:
+        # 基本名称信息
         ex_name_j = info[0]
         ex_name_e = info[1]
         ex_name_b = convertNameToLR(ex_name_j)
         leg_name_j = info[2]
-        leg_name_b = jp_bl_map[leg_name_j]
         knee_name_j = info[3]
-        knee_name_b = jp_bl_map[knee_name_j]
         ankle_name_j = info[4]
-        ankle_name_b = jp_bl_map[ankle_name_j]
         toe_ik_name_j = info[5]
-        toe_ik_name_b = jp_bl_map[toe_ik_name_j]
-        controllable = True
+        # todo 源码中controllable初始为False且并未看见被修改为True的逻辑，但实际上应该是取决于传入的参数
+        controllable = base_props.enable_leg_d_controllable_checked
 
+        # 先决条件校验
         if ex_name_j in jp_bl_map.keys():
-            print(f'“{armature.name}”已包含“{ex_name_j}”，已跳过')
-            return
-        if leg_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{leg_name_j}”，足先EX骨骼添加失败')
-            return
-        if knee_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{knee_name_j}”，足先EX骨骼添加失败')
-            return
-        if ankle_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{ankle_name_j}”，足先EX骨骼添加失败')
-            return
-        if toe_ik_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{toe_ik_name_j}”，足先EX骨骼添加失败')
-            return
+            results.append(SsbResult(status=SsbStatus.SKIPPED, result=[ex_name_j]))
+            continue
+        required_bones = [leg_name_j, knee_name_j, ankle_name_j, toe_ik_name_j]
+        if any(name not in jp_bl_map for name in required_bones):
+            not_found_list = [ex_name_j]
+            for bone_name in required_bones:
+                if bone_name not in jp_bl_map:
+                    not_found_list.append(bone_name)
+            results.append(SsbResult(status=SsbStatus.FAILED, result=not_found_list))
+            continue
+
+        # 基本名称信息（blender）
+        leg_name_b = jp_bl_map[leg_name_j]
+        knee_name_b = jp_bl_map[knee_name_j]
+        ankle_name_b = jp_bl_map[ankle_name_j]
+        toe_ik_name_b = jp_bl_map[toe_ik_name_j]
+
         # 创建D骨以及EX骨
-        leg_d_name_b = create_d_bone(armature, scale, leg_name_j, controllable)
-        knee_d_name_b = create_d_bone(armature, scale, knee_name_j, controllable)
-        ankle_d_name_b = create_d_bone(armature, scale, ankle_name_j, controllable)
+        leg_d_name_j, leg_d_name_b = create_d_bone(armature, scale, leg_name_j, controllable)
+        knee_d_name_j, knee_d_name_b = create_d_bone(armature, scale, knee_name_j, controllable)
+        ankle_d_name_j, ankle_d_name_b = create_d_bone(armature, scale, ankle_name_j, controllable)
         create_bone_with_mmd_info(armature, ex_name_b, ex_name_j, ex_name_e)
         if armature.mode != 'EDIT':
             select_and_activate(armature)
@@ -125,13 +425,6 @@ def create_ex_bone(armature, props):
         ex_bone.parent = ankle_d_bone
         bpy.ops.mmd_tools.apply_additional_transform()
         objs = find_pmx_objects(armature)
-        # 设置面板顺序
-        for obj in objs:
-            select_and_activate(obj)
-            vgs = obj.vertex_groups
-            for vg_name in [leg_d_name_b, knee_d_name_b, ankle_d_name_b, ex_name_b]:
-                if vg_name not in vgs:
-                    vg = vgs.new(name=vg_name)
         if armature.mode != 'EDIT':
             select_and_activate(armature)
             bpy.ops.object.mode_set(mode='EDIT')
@@ -174,10 +467,14 @@ def create_ex_bone(armature, props):
                     rigid_body.mmd_rigid.bone = knee_d_name_b
                 if rigid_body.mmd_rigid.bone == ankle_name_b:
                     rigid_body.mmd_rigid.bone = ankle_d_name_b
-        add_item_after(armature, ex_name_b, ankle_name_b)
-        add_item_after(armature, ankle_d_name_b, ankle_name_b)
-        add_item_after(armature, knee_d_name_b, knee_name_b)
-        add_item_after(armature, leg_d_name_b, leg_name_b)
+        if base_props.enable_gen_frame_checked:
+            add_item_after(armature, ex_name_b, ankle_name_b)
+            if controllable:
+                add_item_after(armature, ankle_d_name_b, ankle_name_b)
+                add_item_after(armature, knee_d_name_b, knee_name_b)
+                add_item_after(armature, leg_d_name_b, leg_name_b)
+        results.append(
+            SsbResult(status=SsbStatus.SUCCESS, result=[ex_name_j, leg_d_name_j, knee_d_name_j, ankle_d_name_j]))
 
 
 def create_d_bone(armature, scale, bone_name_j, controllable):
@@ -236,11 +533,16 @@ def create_d_bone(armature, scale, bone_name_j, controllable):
     new_mmd_bone.local_axis_x = source_mmd_bone.local_axis_x
     new_mmd_bone.local_axis_z = source_mmd_bone.local_axis_z
     if new_mmd_bone.enabled_local_axes:
+        bpy.context.view_layer.objects.active = armature
         bpy.ops.mmd_tools.bone_local_axes_setup(type='APPLY')
-    return new_name_b
+    return new_name_j, new_name_b
 
 
-def create_thumb0_bone(armature, props):
+def create_thumb0_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.thumb0_checked:
+        return
+
     def callback1(v):
         return Vector((-v.y, v.x, 0))
 
@@ -255,38 +557,37 @@ def create_thumb0_bone(armature, props):
     ]
     scale = props.scale
     for index, info in enumerate(thumb0_infos):
+        # 基本名称信息
         thumb0_name_j = info[0]
         thumb0_name_e = info[1]
         thumb0_name_b = convertNameToLR(thumb0_name_j)
         wrist_name_j = info[2]
-        wrist_name_b = convertNameToLR(wrist_name_j)
         thumb1_name_j = info[3]
-        thumb1_name_b = convertNameToLR(thumb1_name_j)
         thumb2_name_j = info[4]
-        thumb2_name_b = convertNameToLR(thumb2_name_j)
         fore1_name_j = info[5]
-        fore1_name_b = convertNameToLR(fore1_name_j)
         direction = info[6]
+
+        # 先决条件校验
         if thumb0_name_j in jp_bl_map.keys():
-            print(f'“{armature.name}”已包含“{thumb0_name_j}”，已跳过')
-            return
-        if wrist_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{wrist_name_j}”，大拇指0骨骼添加失败')
-            return
-        if thumb1_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{thumb1_name_j}”，大拇指0骨骼添加失败')
-            return
+            results.append(SsbResult(status=SsbStatus.SKIPPED, result=[thumb0_name_j]))
+            continue
+        required_bones = [wrist_name_j, thumb1_name_j]
+        if any(name not in jp_bl_map for name in required_bones):
+            not_found_list = [thumb0_name_j]
+            for bone_name in required_bones:
+                if bone_name not in jp_bl_map:
+                    not_found_list.append(bone_name)
+            results.append(SsbResult(status=SsbStatus.FAILED, result=not_found_list))
+            continue
+
+        # 基本名称信息（blender）
+        wrist_name_b = jp_bl_map[wrist_name_j]
+        thumb1_name_b = jp_bl_map[thumb1_name_j]
+        thumb2_name_b = jp_bl_map[thumb2_name_j]
+        fore1_name_b = jp_bl_map[fore1_name_j]
+
         # 创建亲指0
         create_bone_with_mmd_info(armature, thumb0_name_b, thumb0_name_j, thumb0_name_e)
-        # 设置面板顺序
-        objs = find_pmx_objects(armature)
-        for obj in objs:
-            select_and_activate(obj)
-            for index, vg in enumerate(obj.vertex_groups):
-                if vg.name != thumb1_name_b:
-                    continue
-                set_bone_panel_order(obj, thumb0_name_b, index)
-            break
         set_visible(armature, thumb0_name_b, True)
         set_movable(armature, thumb0_name_b, False)
         set_rotatable(armature, thumb0_name_b, True)
@@ -366,13 +667,22 @@ def create_thumb0_bone(armature, props):
                                             obj.vertex_groups[other_vg_name].remove([vertex.index])
                                             obj.vertex_groups[other_vg_name].add([vertex.index], other_group_weight * (
                                                     1 - weight) / weight_sum, 'ADD')
-
-        add_item_before(armature, thumb0_name_b, thumb1_name_b)
+        # 设置显示枠
+        if base_props.enable_gen_frame_checked:
+            add_item_before(armature, thumb0_name_b, thumb1_name_b)
+        results.append(SsbResult(status=SsbStatus.SUCCESS, result=[thumb0_name_j]))
         # 设定親指Local轴
-        if any(name not in jp_bl_map.keys() for name in [thumb0_name_j, thumb1_name_j, thumb2_name_j, fore1_name_j]):
-            print(
-                f'“{armature.name}”缺失“{thumb0_name_j}”/“{thumb1_name_j}”/“{thumb2_name_j}”/“{fore1_name_j}”，设定親指Local轴失败')
-            return
+        if not base_props.enable_thumb_local_axes_checked:
+            continue
+        required_bones = [thumb0_name_j, thumb1_name_j, thumb2_name_j, fore1_name_j]
+        if any(name not in jp_bl_map for name in required_bones):
+            not_found_list = []
+            for bone_name in required_bones:
+                if bone_name not in jp_bl_map:
+                    not_found_list.append(bone_name)
+            results.append(SsbResult(status=SsbStatus.FAILED, message=f'设定親指Local轴所需的{not_found_list}不存在'))
+            continue
+
         # todo 在设置本地轴z轴的时候，blender中显示的是一个值，PE中显示的是另一个值，在设置固定轴的时候，这个值能通过to_pmx_axis修正（未大量测试）
         # todo 但是这里却不能，虽然暂时无法修正为和PE中一模一样，但是使用上没问题
         set_local_axes(armature, thumb0_name_b,
@@ -394,6 +704,8 @@ def create_thumb0_bone(armature, props):
         set_local_axes(armature, thumb2_name_b,
                        Vector(thumb2_target_head - thumb2_bone.head).normalized().xzy,
                        axis_z)
+
+    bpy.context.view_layer.objects.active = armature
     bpy.ops.mmd_tools.bone_local_axes_setup(type='APPLY')
 
 
@@ -413,50 +725,67 @@ def contains_bone(obj, vertex, names):
     return False
 
 
-def create_arm_twist_bone(armature, props):
+def create_arm_twist_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.arm_twist_checked:
+        return
+
     arm_twist_infos = [
         ("右腕捩", "arm twist_R", "右腕", "右ひじ"),
         ("左腕捩", "arm twist_L", "左腕", "左ひじ")
     ]
     for info in arm_twist_infos:
-        create_twist_bone(armature, props, info, True)
+        result = create_twist_bone(armature, props, info, True)
+        results.append(result)
 
 
-def create_wrist_twist_bone(armature, props):
+def create_wrist_twist_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.wrist_twist_checked:
+        return
+
     arm_twist_infos = [
         ("右手捩", "wrist twist_R", "右ひじ", "右手首"),
         ("左手捩", "wrist twist_L", "左ひじ", "左手首")
     ]
     for info in arm_twist_infos:
-        create_twist_bone(armature, props, info, False)
+        result = create_twist_bone(armature, props, info, False)
+        results.append(result)
 
 
 def create_twist_bone(armature, props, info, has_elbow_offset):
+    base_props = props.base
     scale = props.scale
+
+    # 基本名称信息
     twist_name_j = info[0]
     twist_name_e = info[1]
     twist_name_b = convertNameToLR(info[0])
     twist_parent_name_j = info[2]
-    twist_parent_name_b = jp_bl_map[twist_parent_name_j]
     twist_child_name_j = info[3]
-    twist_child_name_b = jp_bl_map[twist_child_name_j]
+
+    # 先决条件校验
     if twist_name_j in jp_bl_map.keys():
-        print(f'“{armature.name}”已包含“{twist_name_j}”，已跳过')
-        return
-    if not armature.pose.bones.get(twist_parent_name_b).parent:
-        print(f'“{armature.name}”缺失“{twist_parent_name_j}”，腕弯曲骨骼添加失败')
-        return
-    if not armature.pose.bones.get(twist_child_name_b).parent:
-        print(f'“{armature.name}”缺失“{twist_child_name_j}”，腕弯曲骨骼添加失败')
-        return
-    if armature.mode != 'EDIT':
-        select_and_activate(armature)
-        bpy.ops.object.mode_set(mode='EDIT')
+        return SsbResult(status=SsbStatus.SKIPPED, result=[twist_name_j])
+    required_bones = [twist_parent_name_j, twist_child_name_j]
+    if any(name not in jp_bl_map for name in required_bones):
+        not_found_list = [twist_name_j]
+        for bone_name in required_bones:
+            if bone_name not in jp_bl_map:
+                not_found_list.append(bone_name)
+        return SsbResult(status=SsbStatus.FAILED, result=not_found_list)
+
+    # 基本名称信息（blender）
+    twist_parent_name_b = jp_bl_map[twist_parent_name_j]
+    twist_child_name_b = jp_bl_map[twist_child_name_j]
+
     edit_bones = armature.data.edit_bones
     twist_child_bone = edit_bones.get(twist_child_name_b)
     twist_child_bone_head_vector = twist_child_bone.head.copy()
     objs = find_pmx_objects(armature)
-    if has_elbow_offset:
+
+    # 自动补正旋转轴（修正腕捩所在位置）
+    if has_elbow_offset and base_props.enable_elbow_offset_checked:
         v_count = 0.0
         loc_y_sum = 0.0
         for obj in objs:
@@ -477,6 +806,7 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
     # 设置锁定旋转，如果是tip且未应用固定轴时需特殊处理
     twist_pb.lock_rotation = (True, False, True)
     set_controllable(armature, twist_name_b, True)
+    # 获取捩骨
     if armature.mode != 'EDIT':
         select_and_activate(armature)
         bpy.ops.object.mode_set(mode='EDIT')
@@ -502,26 +832,14 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
     twist_bone.tail = twist_bone.head + fixed_axis.xzy.normalized() * scale
     FnBone.update_auto_bone_roll(twist_bone)
     twist_child_bone.parent = twist_bone
-    for obj in objs:
-        select_and_activate(obj)
-        for index, vg in enumerate(obj.vertex_groups):
-            if vg.name != twist_parent_name_b:
-                continue
-            set_bone_panel_order(obj, twist_name_b, index + 1)
-        break
     twist_parent_bone_dedicated_vertices = {}
-    if armature.mode != 'EDIT':
-        select_and_activate(armature)
-        bpy.ops.object.mode_set(mode='EDIT')
-    edit_bones = armature.data.edit_bones
-    twist_bone = edit_bones.get(twist_name_b)
+
     twist_parent_bone_dot = Vector(twist_parent_bone_head - twist_bone_head).dot(fixed_axis.xzy) * 0.8
     twist_child_bone_dot = Vector(twist_child_bone_head - twist_bone_head).dot(fixed_axis.xzy) * 0.8
     for obj in objs:
         for vertex in obj.data.vertices:
             v_twist_bone_dot = Vector(Vector(vertex.co) - twist_bone.head).dot(fixed_axis.xzy)
             if is_vertex_dedicated_by_bone(obj, vertex, twist_parent_name_b, threshold=0.97):
-                print(v_twist_bone_dot)
                 twist_parent_bone_dot = min(twist_parent_bone_dot, v_twist_bone_dot)
                 twist_child_bone_dot = max(twist_child_bone_dot, v_twist_bone_dot)
                 twist_parent_bone_dedicated_vertices[vertex] = obj
@@ -535,12 +853,15 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
                         obj.vertex_groups[group.group].remove([vertex.index])
                         break
     part_twists = []
+    part_twist_name_j_list = []
     for i in range(3):
         coefficient = (i + 1) / 4.0
+        # 基本名称信息
         if armature.mode != 'EDIT':
             select_and_activate(armature)
             bpy.ops.object.mode_set(mode='EDIT')
         part_twist_name_j = twist_name_j + str(i + 1)
+        part_twist_name_j_list.append(part_twist_name_j)
         part_twist_name_b = convertNameToLR(part_twist_name_j)
         part_twists.append(part_twist_name_b)
         # 查找part捩骨是否存在，存在则移除
@@ -564,9 +885,6 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
         twist_parent_bone = edit_bones.get(twist_parent_name_b)
         part_twist_bone.parent = twist_parent_bone
         # 设置赋予相关信息
-        if armature.mode != 'POSE':
-            select_and_activate(armature)
-            bpy.ops.object.mode_set(mode='POSE')
         pose_bones = armature.pose.bones
         mmd_bone = pose_bones[part_twist_name_b].mmd_bone
         mmd_bone.has_additional_rotation = True
@@ -576,24 +894,11 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
         pose_bones[part_twist_name_b].mmd_bone.is_tip = True
         # 装配骨骼
         pose_bones[part_twist_name_b].bone.select = True
+        bpy.context.view_layer.objects.active = armature
         bpy.ops.mmd_tools.apply_additional_transform()
         pose_bones[part_twist_name_b].bone.select = False
         # 恢复可见性为False
         set_visible(armature, part_twist_name_b, False)
-        # 设置腰骨骼面板顺序
-        objs = find_pmx_objects(armature)
-        for obj in objs:
-            select_and_activate(obj)
-            for index, vg in enumerate(obj.vertex_groups):
-                if i == 0:
-                    if vg.name != twist_name_b:
-                        continue
-                    set_bone_panel_order(obj, part_twist_name_b, index + 1)
-                else:
-                    if vg.name != jp_bl_map[twist_name_j + str(i)]:
-                        continue
-                    set_bone_panel_order(obj, part_twist_name_b, index + 1)
-            break
     for vertex, obj in twist_parent_bone_dedicated_vertices.items():
         vertex_twist_bone_dot = Vector(Vector(vertex.co) - twist_bone_head).dot(fixed_axis.xzy)
         delta = ((vertex_twist_bone_dot - twist_parent_bone_dot) / (twist_child_bone_dot - twist_parent_bone_dot)) * 4.0
@@ -617,10 +922,17 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
             obj.vertex_groups[twist_name_b].add([vertex.index], 1.0 - weight, 'ADD')
         else:
             pass
-    add_item_after(armature, twist_name_b, twist_parent_name_b)
+    if base_props.enable_gen_frame_checked:
+        add_item_after(armature, twist_name_b, twist_parent_name_b)
+    return SsbResult(status=SsbStatus.SUCCESS, result=[twist_name_j] + part_twist_name_j_list)
 
 
-def create_waist_bone(armature, props):
+def create_waist_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.waist_checked:
+        return
+
+    # 基本名称信息
     scale = props.scale
     waist_name_j = "腰"
     waist_name_e = "Waist Bone"
@@ -628,18 +940,25 @@ def create_waist_bone(armature, props):
     under_body_name_j = "下半身"
     right_leg_name_j = "右足"
     left_leg_name_j = "左足"
-    if left_leg_name_j not in jp_bl_map.keys():
-        print(f'“{armature.name}”缺失“{left_leg_name_j}”，腰骨骼添加失败')  # PE中没有对左足进行校验，直接抛异常且创建失败
-        return
+
+    # 先决条件校验
     if waist_name_j in jp_bl_map.keys():
-        print(f'“{armature.name}”已包含“{waist_name_j}”，已跳过')
+        results.append(SsbResult(status=SsbStatus.SKIPPED, result=[waist_name_j]))
         return
-    if under_body_name_j not in jp_bl_map.keys() or right_leg_name_j not in jp_bl_map.keys():
-        print(f'“{armature.name}”缺失“{under_body_name_j}/{right_leg_name_j}”，腰骨骼添加失败')
+    required_bones = [under_body_name_j, right_leg_name_j, left_leg_name_j]  # PE中没有对左足进行校验，直接抛异常且创建失败
+    under_body_parent = armature.pose.bones.get(jp_bl_map[under_body_name_j]).parent
+    if any(name not in jp_bl_map for name in required_bones) or under_body_parent is None:
+        not_found_list = [waist_name_j]
+        for bone_name in required_bones:
+            if bone_name not in jp_bl_map:
+                not_found_list.append(bone_name)
+        results.append(SsbResult(status=SsbStatus.FAILED, result=not_found_list))
+        if under_body_parent is None:
+            result = SsbResult(status=SsbStatus.FAILED,
+                               message=f"{waist_name_j}骨骼所需的{under_body_name_j}的亲骨骼不存在")
+            results.append(result)
         return
-    if not armature.pose.bones.get(jp_bl_map[under_body_name_j]).parent:
-        print(f'“{armature.name}”缺失“{under_body_name_j}”亲骨，腰骨骼添加失败')
-        return
+
     # 创建腰骨骼
     create_bone_with_mmd_info(armature, waist_name_b, waist_name_j, waist_name_e)
     set_visible(armature, waist_name_b, True)
@@ -668,33 +987,27 @@ def create_waist_bone(armature, props):
     for edit_bone in edit_bones:
         if edit_bone.parent == under_body_bone.parent and edit_bone.name != center_saki:
             edit_bone.parent = waist_bone
-    # 设置腰骨骼面板顺序
-    objs = find_pmx_objects(armature)
-    for obj in objs:
-        select_and_activate(obj)
-        for index, vg in enumerate(obj.vertex_groups):
-            if vg.name != waist_bone_parent_name_b:
-                continue
-            set_bone_panel_order(obj, waist_name_b, index + 1)
-        break
     # 设置显示枠
-    flag = add_item_after(armature, waist_name_b, under_body_parent_pose_bone.name)
-    if not flag:
-        pmx_root = find_pmx_root_with_child(armature)
-        frame = create_center_frame(pmx_root)
-        do_add_item(frame, 'BONE', waist_name_b)
+    if base_props.enable_gen_frame_checked:
+        flag = add_item_after(armature, waist_name_b, under_body_parent_pose_bone.name)
+        if not flag:
+            pmx_root = find_pmx_root_with_child(armature)
+            frame = create_center_frame(pmx_root)
+            do_add_item(frame, 'BONE', waist_name_b)
     waist_c_infos = [
         ("腰キャンセル右", "右足"),
         ("腰キャンセル左", "左足"),
     ]
+    waist_c_name_j_list = []
     for info in waist_c_infos:
         waist_c_name_j = info[0]
+        waist_c_name_j_list.append(waist_c_name_j)
         waist_c_name_b = convertNameToLR(waist_c_name_j)
         foot_name_j = info[1]
         foot_name_b = convertNameToLR(foot_name_j)
         if waist_c_name_j in jp_bl_map.keys():
-            print(f'“{armature.name}”已包含“{waist_c_name_j}”，已跳过')
-            return
+            results.append(SsbResult(status=SsbStatus.SKIPPED, result=[waist_c_name_j]))
+            continue
         # 创建腰取消骨骼
         create_bone_with_mmd_info(armature, waist_c_name_b, waist_c_name_j, '')
         # 暂时设置可见
@@ -730,21 +1043,14 @@ def create_waist_bone(armature, props):
         pose_bones[waist_c_name_b].bone.select = True
         bpy.ops.mmd_tools.apply_additional_transform()
         pose_bones[waist_c_name_b].bone.select = False
-        # 恢复肩c骨可见性为False
+        # 恢腰c骨可见性为False
         set_visible(armature, waist_c_name_b, False)
-        # 设置腰骨骼面板顺序
-        objs = find_pmx_objects(armature)
-        for obj in objs:
-            select_and_activate(obj)
-            for index, vg in enumerate(obj.vertex_groups):
-                if vg.name != foot_name_b:
-                    continue
-                set_bone_panel_order(obj, waist_c_name_b, index)
-            break
+    results.append(SsbResult(status=SsbStatus.SUCCESS, result=[waist_name_j] + waist_c_name_j_list))
 
 
 def remove_bone(armature, objs, bone_name):
-    pose_bone = armature.pose.bones.get(bone_name)
+    bone = armature.data.edit_bones.get(bone_name)
+    parent_bone = bone.parent
     pmx_root = find_pmx_root_with_child(armature)
     mmd_root = pmx_root.mmd_root
     frames = mmd_root.display_item_frames
@@ -752,33 +1058,54 @@ def remove_bone(armature, objs, bone_name):
     # 移除显示枠
     if found_frame is not None and found_item is not None:
         frames[found_frame].data.remove(found_item)
-    # 移除骨骼面板
+
+    # 转移权重
     for obj in objs:
-        vertex_group = obj.vertex_groups.get(bone_name)
-        if vertex_group is not None:
-            obj.vertex_groups.remove(vertex_group)
+        vg = obj.vertex_groups.get(bone_name)
+        parent_vg = None
+        if parent_bone:
+            parent_vg = obj.vertex_groups.get(parent_bone.name)
+        if not vg:
+            continue
+        for vert in obj.data.vertices:
+            for group in vert.groups:
+                if group.group == vg.index:
+                    if parent_vg is not None:
+                        obj.vertex_groups[parent_vg.name].add([vert.index], group.weight, 'ADD')
+                    obj.vertex_groups[vg].add([vert.index], 0, 'REPLACE')
+
     # 移除骨骼
     edit_bone = armature.data.edit_bones.get(bone_name)
     armature.data.edit_bones.remove(edit_bone)
 
 
-def create_ik_p_bone(armature):
+def create_ik_p_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.ik_p_checked:
+        return
+
     ik_p_infos = [
         ("右足IK親", "leg IKP_R", "右足ＩＫ"),
         ("左足IK親", "leg IKP_L", "左足ＩＫ")
     ]
     for info in ik_p_infos:
+        # 基本名称信息
         ik_p_name_j = info[0]
         ik_p_name_e = info[1]
         ik_p_name_b = convertNameToLR(info[0])
         ik_name_j = info[2]
-        ik_name_b = jp_bl_map[ik_name_j]
+
+        # 先决条件校验
         if ik_p_name_j in jp_bl_map.keys():
-            print(f'“{armature.name}”已包含“{ik_p_name_j}”，已跳过')
-            return
+            results.append(SsbResult(status=SsbStatus.SKIPPED, result=[ik_p_name_j]))
+            continue
         if ik_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{ik_name_j}”，肩P添加失败')
-            return
+            results.append(SsbResult(status=SsbStatus.FAILED, result=[ik_p_name_j, ik_name_j]))
+            continue
+
+        # 基本名称信息（blender）
+        ik_name_b = jp_bl_map[ik_name_j]
+
         create_bone_with_mmd_info(armature, ik_p_name_b, ik_p_name_j, ik_p_name_e)
         set_visible(armature, ik_p_name_b, True)
         set_movable(armature, ik_p_name_b, True)
@@ -797,19 +1124,16 @@ def create_ik_p_bone(armature):
         ik_p_bone.parent = ik_bone.parent
         ik_bone.parent = ik_p_bone
         # 设置显示枠
-        add_item_before(armature, ik_p_name_b, ik_name_b)
-        # 设置骨骼面板顺序
-        objs = find_pmx_objects(armature)
-        for obj in objs:
-            select_and_activate(obj)
-            for index, vg in enumerate(obj.vertex_groups):
-                if vg.name != ik_name_b:
-                    continue
-                set_bone_panel_order(obj, ik_p_name_b, index)
-            break
+        if base_props.enable_gen_frame_checked:
+            add_item_before(armature, ik_p_name_b, ik_name_b)
+        results.append(SsbResult(status=SsbStatus.SUCCESS, result=[ik_p_name_j]))
 
 
-def create_shoulder_p_bone(armature, props):
+def create_shoulder_p_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.shoulder_p_checked:
+        return
+
     scale = props.scale
     shoulder_infos = [
         ("左肩P", "左肩C", "shoulderP_L", "左肩", "左腕"),
@@ -824,14 +1148,24 @@ def create_shoulder_p_bone(armature, props):
         shoulder_c_name_b = convertNameToLR(shoulder_info[1])
         shoulder_name_j = shoulder_info[3]
         arm_name_j = shoulder_info[4]
-        shoulder_name_b = convertNameToLR(shoulder_info[3])
-        arm_name_b = convertNameToLR(shoulder_info[4])
+
+        # 先决条件校验
         if shoulder_p_name_j in jp_bl_map.keys():
-            print(f'“{armature.name}”已包含“{shoulder_p_name_j}”，已跳过')
-            return
-        if shoulder_name_j not in jp_bl_map.keys() and arm_name_j not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{shoulder_name_j}/{arm_name_j}”，肩P添加失败')
-            return
+            results.append(SsbResult(status=SsbStatus.SKIPPED, result=[shoulder_p_name_j]))
+            continue
+        required_bones = [shoulder_name_j, arm_name_j]
+        if any(name not in jp_bl_map for name in required_bones):
+            not_found_list = [shoulder_p_name_j]
+            for bone_name in required_bones:
+                if bone_name not in jp_bl_map:
+                    not_found_list.append(bone_name)
+            results.append(SsbResult(status=SsbStatus.FAILED, result=not_found_list))
+            continue
+
+        # 基本名称信息（blender）
+        shoulder_name_b = jp_bl_map[shoulder_name_j]
+        arm_name_b = jp_bl_map[arm_name_j]
+
         # 创建肩P骨
         create_bone_with_mmd_info(armature, shoulder_p_name_b, shoulder_p_name_j, shoulder_p_name_e)
         set_visible(armature, shoulder_p_name_b, True)
@@ -845,20 +1179,6 @@ def create_shoulder_p_bone(armature, props):
         set_movable(armature, shoulder_c_name_b, False)
         set_rotatable(armature, shoulder_c_name_b, True)
         set_controllable(armature, shoulder_c_name_b, True)
-        # 设置面板顺序
-        objs = find_pmx_objects(armature)
-        for obj in objs:
-            select_and_activate(obj)
-            # 设置肩P骨面板顺序
-            for index, vg in enumerate(obj.vertex_groups):
-                if vg.name != shoulder_name_b:
-                    continue
-                set_bone_panel_order(obj, shoulder_p_name_b, index)
-            # 设置肩C骨面板顺序
-            for index, vg in enumerate(obj.vertex_groups):
-                if vg.name != shoulder_name_b:
-                    continue
-                set_bone_panel_order(obj, shoulder_c_name_b, index + 1)
         if armature.mode != 'EDIT':
             select_and_activate(armature)
             bpy.ops.object.mode_set(mode='EDIT')
@@ -898,6 +1218,10 @@ def create_shoulder_p_bone(armature, props):
         pose_bones[shoulder_c_name_b].bone.select = False
         # 恢复肩c骨可见性为False
         set_visible(armature, shoulder_c_name_b, False)
+        # 设置显示枠
+        if base_props.enable_gen_frame_checked:
+            add_item_before(armature, shoulder_p_name_b, shoulder_name_b)
+        results.append(SsbResult(status=SsbStatus.SUCCESS, result=[shoulder_p_name_j, shoulder_c_name_j]))
 
 
 def create_bone_with_mmd_info(armature, shoulder_p_name_b, shoulder_p_name_j, shoulder_p_name_e):
@@ -905,23 +1229,39 @@ def create_bone_with_mmd_info(armature, shoulder_p_name_b, shoulder_p_name_j, sh
     jp_bl_map[shoulder_p_name_j] = shoulder_p_name_b
     bl_jp_map[shoulder_p_name_b] = shoulder_p_name_j
     # 设置MMD骨骼名称
+    bpy.ops.object.mode_set(mode='POSE')
     mmd_bone = armature.pose.bones.get(shoulder_p_name_b).mmd_bone
     mmd_bone.name_j = shoulder_p_name_j
     mmd_bone.name_e = shoulder_p_name_e
+    bpy.ops.object.mode_set(mode='EDIT')
 
 
-def create_upper_body2_bone(armature, props):
+
+def create_upper_body2_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.upper_body2_checked:
+        return
+
+    # 基本名称信息
     name_j = "上半身2"
     name_e = "upper body2"
     name_b = convertNameToLR(name_j)
-    if name_j in jp_bl_map.keys():
-        print(f'“{armature.name}”已包含“{name_j}”，已跳过')
-        return
     spine = "上半身"
     neck = "首"
-    if spine not in jp_bl_map.keys() or neck not in jp_bl_map.keys():
-        print(f'“{armature.name}”缺失“{spine}/{neck}”，上半身2添加失败')
+
+    # 先决条件校验
+    if name_j in jp_bl_map.keys():
+        results.append(SsbResult(status=SsbStatus.SKIPPED, result=[name_j]))
         return
+    required_bones = [spine, neck]
+    if any(name not in jp_bl_map for name in required_bones):
+        not_found_list = [name_j]
+        for bone_name in required_bones:
+            if bone_name not in jp_bl_map:
+                not_found_list.append(bone_name)
+        results.append(SsbResult(status=SsbStatus.FAILED, result=not_found_list))
+        return
+
     # 创建上半身2
     create_bone(armature, name_b)
     jp_bl_map[name_j] = name_b
@@ -969,16 +1309,8 @@ def create_upper_body2_bone(armature, props):
         parent_bone = edit_bone.parent
         if parent_bone and parent_bone.name == spine:
             edit_bone.parent = edit_bones[name_b]
-    # 设置骨骼面板顺序
-    objs = find_pmx_objects(armature)
-    for obj in objs:
-        select_and_activate(obj)
-        for index, vg in enumerate(obj.vertex_groups):
-            if vg.name != jp_bl_map[spine]:
-                continue
-            set_bone_panel_order(obj, name_b, index + 1)
-        break
     # 对每个物体均进行处理
+    objs = find_pmx_objects(armature)
     for obj in objs:
         upper_body2_vg_index = -1
         upper_body_vg_index = -1
@@ -1034,7 +1366,9 @@ def create_upper_body2_bone(armature, props):
             if rigid_body.mmd_rigid.bone == spine:
                 rigid_body.mmd_rigid.bone = name_b
     # 设置显示枠
-    add_frame_after(armature, name_b, jp_bl_map[spine])
+    if base_props.enable_gen_frame_checked:
+        add_item_after(armature, name_b, jp_bl_map[spine])
+    results.append(SsbResult(status=SsbStatus.SUCCESS, result=[name_j]))
 
 
 def is_vertex_dedicated_by_bone(obj, vertex, bone_name, threshold=1.0):
@@ -1057,27 +1391,35 @@ def is_vertex_dedicated_by_bone(obj, vertex, bone_name, threshold=1.0):
     return (summation / total) > threshold
 
 
-def add_frame_after(armature, assignee, base):
+def add_frame(armature, assignee, base, after=True):
     pmx_root = find_pmx_root_with_child(armature)
     mmd_root = pmx_root.mmd_root
     found_frame, found_item = find_bone_item(pmx_root, base)
 
     if found_frame is not None and found_item is not None:
         frames = mmd_root.display_item_frames
-        do_add_item(frames[found_frame], 'BONE', assignee, order=found_item + 1)
+        if after:
+            do_add_item(frames[found_frame], 'BONE', assignee, order=found_item + 1)
+        else:
+            do_add_item(frames[found_frame], 'BONE', assignee, order=found_item)
 
 
-def create_root_bone(armature):
+def create_root_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.root_checked:
+        return
+    # 基本名称信息
     name_j = '全ての親'
     name_e = 'root'
     name_b = convertNameToLR(name_j)
 
-    # 如果已经包含全亲骨则直接返回
+    # 先决条件校验
     if name_j in jp_bl_map.keys():
-        print(f'“{armature}”已包含“{name_j}”，已跳过')
+        results.append(SsbResult(status=SsbStatus.SKIPPED, result=[name_j]))
         return
+
     # 创建全亲骨
-    root_bone = create_bone(armature, name_b)
+    create_bone(armature, name_b)
     jp_bl_map[name_j] = name_b
     bl_jp_map[name_b] = name_j
     # 设置MMD骨骼名称
@@ -1103,10 +1445,6 @@ def create_root_bone(armature):
     objs = find_pmx_objects(armature)
     first_bone = get_first_bone(armature, name_b, objs)
     set_tail(armature, name_b, first_bone.name)
-    # 设置面板顺序
-    for obj in objs:
-        select_and_activate(obj)
-        set_bone_panel_order(obj, name_b, 0)
     # 设置亲骨骼及末端指向
     if armature.mode != 'EDIT':
         select_and_activate(armature)
@@ -1116,31 +1454,46 @@ def create_root_bone(armature):
         parent_bone = edit_bone.parent
         target_bone = get_target_bone(armature, edit_bone)
         if not parent_bone:
-            edit_bone.parent = edit_bones[root_bone.name]
+            edit_bone.parent = edit_bones[name_b]
         elif target_bone and target_bone == first_bone:
             # 如果骨骼的末端指向first_bone，则将其改为末端指向root_bone
-            set_target_bone(edit_bone, edit_bones[root_bone.name])
+            set_target_bone(edit_bone, edit_bones[name_b])
     # 设置显示枠
-    set_root_frame(armature, root_bone, first_bone)
+    if base_props.enable_gen_frame_checked:
+        set_root_frame(armature, name_b, first_bone)
+    results.append(SsbResult(status=SsbStatus.SUCCESS, result=[name_j]))
 
 
-def create_dummy_bone(armature, props):
+def create_dummy_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.dummy_checked:
+        return
+
     dummy_l = ("左ダミー", "dummy_L", "左手首", "左中指１")
     dummy_r = ("右ダミー", "dummy_R", "右手首", "右中指１")
     dummy_infos = [dummy_l, dummy_r]
     scale = props.scale
     for i, info in enumerate(dummy_infos):
+        # 基本名称信息
         name_j = info[0]
         name_e = info[1]
         name_b = convertNameToLR(name_j)
         wrist_bone_name = info[2]
         middle_finger_bone_name = info[3]
+
+        # 先决条件校验
         if name_j in jp_bl_map.keys():
-            print(f'“{armature.name}”已包含“{name_j}”，已跳过')
+            results.append(SsbResult(status=SsbStatus.SKIPPED, result=[name_j]))
             continue
-        if wrist_bone_name not in jp_bl_map.keys() and middle_finger_bone_name not in jp_bl_map.keys():
-            print(f'“{armature.name}”缺失“{wrist_bone_name}/{middle_finger_bone_name}”，手持骨添加失败')
+        required_bones = [wrist_bone_name, middle_finger_bone_name]
+        if any(name not in jp_bl_map for name in required_bones):
+            not_found_list = [name_j]
+            for bone_name in required_bones:
+                if bone_name not in jp_bl_map:
+                    not_found_list.append(bone_name)
+            results.append(SsbResult(status=SsbStatus.FAILED, result=not_found_list))
             continue
+
         # 创建手持骨
         create_bone(armature, name_b)
         jp_bl_map[name_j] = name_b
@@ -1181,41 +1534,32 @@ def create_dummy_bone(armature, props):
         dummy_bone.parent = wrist_bone
         # 设置旋转轴
         FnBone.update_auto_bone_roll(dummy_bone)
-        # 设置骨骼面板顺序
-        objs = find_pmx_objects(armature)
-        for obj in objs:
-            select_and_activate(obj)
-            for index, vg in enumerate(obj.vertex_groups):
-                if vg.name != jp_bl_map[wrist_bone_name]:
-                    continue
-                set_bone_panel_order(obj, name_b, index + 1)
-            break
         # 设置显示枠
-        set_dummy_frame(armature, name_b, jp_bl_map[wrist_bone_name])
+        if base_props.enable_gen_frame_checked:
+            add_item_after(armature, name_b, jp_bl_map[wrist_bone_name])
+        results.append(SsbResult(status=SsbStatus.SUCCESS, result=[name_j]))
 
 
-def set_dummy_frame(armature, dummy_name, wrist_name):
-    pmx_root = find_pmx_root_with_child(armature)
-    mmd_root = pmx_root.mmd_root
-    found_frame, found_item = find_bone_item(pmx_root, wrist_name)
-    if found_frame and found_item:
-        frames = mmd_root.display_item_frames
-        do_add_item(frames[found_frame], 'BONE', dummy_name, order=found_item + 1)
+def create_groove_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.groove_checked:
+        return
 
-
-def create_groove_bone(armature, props):
+    # 基本名称信息
     name_j = 'グルーブ'
     name_e = 'groove'
     name_b = convertNameToLR(name_j)
-    # 如果已经包含全亲骨则直接返回
+
+    # 先决条件校验
     if name_j in jp_bl_map.keys():
-        print(f'“{armature}”已包含“{name_j}”，已跳过')
+        results.append(SsbResult(status=SsbStatus.SKIPPED, result=[name_j]))
         return
     if 'センター' not in jp_bl_map.keys():
-        print(f'“{armature}”缺失“センター”，グルーブ添加失败')
+        results.append(SsbResult(status=SsbStatus.FAILED, result=[name_j, 'センター']))
         return
+
     # 创建グルーブ骨骼
-    groove_bone = create_bone(armature, name_b)
+    create_bone(armature, name_b)
     jp_bl_map[name_j] = name_b
     bl_jp_map[name_b] = name_j
     # 设置MMD骨骼名称
@@ -1242,16 +1586,6 @@ def create_groove_bone(armature, props):
     groove_edit_bone.parent = canter_bone
     # 设置グルーブ骨骼tail位置
     groove_edit_bone.tail = groove_edit_bone.head + get_loc_by_xzy((0, 1.4, 0), scale)
-    # 设置面板顺序
-    bpy.ops.object.mode_set(mode='OBJECT')
-    objs = find_pmx_objects(armature)
-    for obj in objs:
-        select_and_activate(obj)
-        for index, vg in enumerate(obj.vertex_groups):
-            if vg.name != "センター":
-                continue
-            set_bone_panel_order(obj, name_b, index + 1)
-        break
     # 修改指向
     if armature.mode != 'EDIT':
         select_and_activate(armature)
@@ -1265,7 +1599,9 @@ def create_groove_bone(armature, props):
         if edit_bone.parent == canter_bone and edit_bone.name != center_saki:
             edit_bone.parent = groove_edit_bone
     # 设置显示枠
-    set_groove_frame(armature, name_b)
+    if base_props.enable_gen_frame_checked:
+        set_groove_frame(armature, name_b)
+    results.append(SsbResult(status=SsbStatus.SUCCESS, result=[name_j]))
 
 
 def get_loc_by_xzy(loc, scale):
@@ -1286,18 +1622,24 @@ def set_groove_frame(armature, groove_name):
         do_add_item(frame, 'BONE', groove_name, order=0)
 
 
-def create_view_center_bone(armature, props):
+def create_view_center_bone(armature, props, results):
+    base_props = props.base
+    if not base_props.view_center_checked:
+        return
     scale = props.scale
+
+    # 基本名称信息
     name_j = '操作中心'
     name_e = 'view cnt'
     name_b = convertNameToLR(name_j)
 
-    # 如果已经包含全亲骨则直接返回
+    # 先决条件校验
     if name_j in jp_bl_map.keys():
-        print(f'“{armature}”已包含“{name_j}”，已跳过')
+        results.append(SsbResult(status=SsbStatus.SKIPPED, result=[name_j]))
         return
+
     # 创建操作中心骨骼
-    view_center_bone = create_bone(armature, name_b)
+    create_bone(armature, name_b)
     jp_bl_map[name_j] = name_b
     bl_jp_map[name_b] = name_j
     # 设置MMD骨骼名称
@@ -1312,12 +1654,8 @@ def create_view_center_bone(armature, props):
     set_rotatable(armature, name_b, True)
     # 设置是否可操作
     set_controllable(armature, name_b, True)
-    # 设置面板顺序
-    objs = find_pmx_objects(armature)
-    for obj in objs:
-        select_and_activate(obj)
-        set_bone_panel_order(obj, name_b, 0)
     # 设置末端指向
+    objs = find_pmx_objects(armature)
     first_bone = get_first_bone(armature, name_b, objs)
     if armature.mode != 'EDIT':
         select_and_activate(armature)
@@ -1327,11 +1665,13 @@ def create_view_center_bone(armature, props):
         target_bone = get_target_bone(armature, edit_bone)
         if target_bone == first_bone:
             # 如果骨骼的末端指向first_bone，则将其改为末端指向view_center_bone
-            set_target_bone(edit_bone, edit_bones[view_center_bone.name])
+            set_target_bone(edit_bone, edit_bones[name_b])
     # 设置操作中心 tail
-    edit_bones[view_center_bone.name].tail = edit_bones[view_center_bone.name].tail * scale
+    edit_bones[name_b].tail = edit_bones[name_b].tail * scale
     # 设置显示枠（流程同全亲骨）
-    set_root_frame(armature, view_center_bone, first_bone)
+    if base_props.enable_gen_frame_checked:
+        set_root_frame(armature, name_b, first_bone)
+    results.append(SsbResult(status=SsbStatus.SUCCESS, result=[name_j]))
 
 
 def get_first_bone(armature, name, objs):
@@ -1348,20 +1688,21 @@ def get_first_bone(armature, name, objs):
     return first_bone
 
 
-def gen_bone_name_map(pmx_armature):
+def gen_bone_name_map(armature):
+    """根据当前骨架生成骨骼名称映射"""
+    # 显示声明以改变引用
     global jp_bl_map
     global bl_jp_map
     jp_bl_map = {}
     bl_jp_map = {}
-    for pose_bone in pmx_armature.pose.bones:
-        # 如果导入模型的时候jp_name为空串，则blender会创建名称为Bone.xxx的骨骼
-        # 如果导出模型的时候jp_name为空串，则插件会设置为 pmx_bone.name = mmd_bone.name_j or bone.name
-        # 所以除非刻意设置为空串，否则基本上不会出现jp_name重复的情况
+    for pose_bone in armature.pose.bones:
+        # 如果导入模型的时候jp_name为空串，则blender会创建名称为Bone.xxx的骨骼，插件也会设置该名称
+        # 如果导入模型的时候jp_name相同，blender会创建名称为.xxx的骨骼，插件也会设置该名称
+        # 所以除非刻意在blender中设置mmd_bone.name_j为空串，否则基本上不会出现jp_name重复的情况
         name_j = pose_bone.mmd_bone.name_j
         name_b = pose_bone.name
         jp_bl_map[name_j] = name_b
         bl_jp_map[name_b] = name_j
-    return jp_bl_map, bl_jp_map
 
 
 def create_bone(armature, bone_name):
@@ -1374,7 +1715,6 @@ def create_bone(armature, bone_name):
     edit_bone.head = (0, 0, 0)
     edit_bone.tail = (0, 0, 1)
     bpy.ops.object.mode_set(mode='OBJECT')
-    return armature.pose.bones[bone_name]
 
 
 def set_visible(armature, bone_name, visible):
@@ -1417,18 +1757,7 @@ def set_controllable(armature, bone_name, controllable):
     pose_bone.mmd_bone.is_controllable = controllable
 
 
-def set_bone_panel_order(obj, vg_name, index):
-    vgs = obj.vertex_groups
-    if vg_name not in vgs:
-        vg = vgs.new(name=vg_name)
-    else:
-        vg = vgs.get(vg_name, None)
-        vgs.active_index = vg.index
-
-    move_after_target_vg(obj, index - 1)
-
-
-def set_root_frame(armature, root_bone, first_bone):
+def set_root_frame(armature, root_bone_name, first_bone):
     pmx_root = find_pmx_root_with_child(armature)
     found_frame, found_item = find_bone_item(pmx_root, first_bone.name)
     if first_bone and not found_frame and not found_item:
@@ -1445,7 +1774,7 @@ def set_root_frame(armature, root_bone, first_bone):
         first_frame.data.clear()
         first_frame.active_item = 0
         # 创建root_bone元素并将其移动到第0位
-        do_add_item(first_frame, 'BONE', root_bone.name, order=0)
+        do_add_item(first_frame, 'BONE',root_bone_name, order=0)
 
 
 def create_center_frame(pmx_root):

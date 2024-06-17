@@ -9,7 +9,7 @@ from ..operaters.select_bone_operators import SelectBoneOperator
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
 from ..operaters.remove_specify_content_operators import RemoveSpecifyContentOperator
-from ..operaters.ssb_operators import AddSsbOperator
+from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..utils import *
 
 
@@ -247,6 +247,7 @@ class AddSsbPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_add_ssb
+        base_props = props.base
         batch = props.batch
 
         layout = self.layout
@@ -255,9 +256,55 @@ class AddSsbPanel(bpy.types.Panel):
         model_row.prop(props, "model")
         scale_row = box.row()
         scale_row.prop(props, "scale")
+        row = box.row()
         show_batch_props(box, batch)
-        gen_display_item_row = box.row()
-        gen_display_item_row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)
+        box = layout.box()
+        row = box.row()
+        row.prop(base_props, "root_checked")
+        row = box.row()
+        row.prop(base_props, "arm_twist_checked")
+        row = box.row()
+        row.separator()
+        row.prop(base_props, "enable_elbow_offset_checked")
+        arm_twist_checked = base_props.arm_twist_checked
+        row.enabled = arm_twist_checked
+        row = box.row()
+        row.prop(base_props, "wrist_twist_checked")
+        row = box.row()
+        row.prop(base_props, "upper_body2_checked")
+        row = box.row()
+        row.prop(base_props, "groove_checked")
+        row = box.row()
+        row.prop(base_props, "waist_checked")
+        row = box.row()
+        row.prop(base_props, "ik_p_checked")
+        row = box.row()
+        row.prop(base_props, "view_center_checked")
+        row = box.row()
+        row.prop(base_props, "ex_checked")
+        row = box.row()
+        row.separator()
+        row.prop(base_props, "enable_leg_d_controllable_checked")
+        ex_checked = base_props.ex_checked
+        row.enabled = ex_checked
+        row = box.row()
+        row.prop(base_props, "dummy_checked")
+        row = box.row()
+        row.prop(base_props, "shoulder_p_checked")
+        row = box.row()
+        row.prop(base_props, "thumb0_checked")
+        row = box.row()
+        row.separator()
+        row.prop(base_props, "enable_thumb_local_axes_checked")
+        thumb0_checked = base_props.thumb0_checked
+        row.enabled = thumb0_checked
+        row = box.row()
+        row.prop(base_props, "enable_gen_frame_checked")
+        row = box.row()
+        row.operator(SelectAllSsbOperator.bl_idname, text=SelectAllSsbOperator.bl_label)
+        box = layout.box()
+        row = box.row()
+        row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)
 
 
 class GenDisplayItemFramePanel(bpy.types.Panel):

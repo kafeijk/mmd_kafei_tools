@@ -1,6 +1,7 @@
 import math
 import os
 import time
+from collections import OrderedDict
 from enum import Enum
 
 import bpy
@@ -208,14 +209,14 @@ def recursive_search(directory, suffix, threshold):
     skip_count = 0
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.endswith('.pmx'):
+            if file.endswith('.pmx') or file.endswith('.pmd'):
                 pmx_count += 1
                 file_path = os.path.join(root, file)
                 file_size = os.path.getsize(file_path)  # 获取文件大小（字节）
                 if file_size < threshold * 1024:
                     skip_count += 1
                     continue
-                other_files = [f for f in os.listdir(root) if f.endswith('.pmx')]
+                other_files = [f for f in os.listdir(root) if f.endswith('.pmx') or f.endswith('.pmd')]
                 if len(other_files) > 1:
                     most_recent_file = max(other_files, key=lambda x: os.path.getmtime(os.path.join(root, x)))
                     if most_recent_file != file:
@@ -390,6 +391,8 @@ def batch_process(func, props, f_flag=False):
         get_collection(TMP_COLLECTION_NAME)
         file_base_name = os.path.basename(filepath)
         ext = os.path.splitext(filepath)[1]
+        if ".pmd" == ext:
+            ext = ".pmx"    # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
         new_filepath = os.path.splitext(filepath)[0] + suffix + ext
         curr_time = time.time()
         import_pmx(filepath)
@@ -399,10 +402,15 @@ def batch_process(func, props, f_flag=False):
         else:
             func(pmx_root, props)
         export_pmx(new_filepath)
-        clean_scene()
+
+        current_time = time.time() - curr_time
+        total_time = time.time() - start_time
         print(
-            f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{time.time() - curr_time}秒，总耗时: {time.time() - start_time} 秒")
-    print(f"目录\"{abs_path}\" 处理完成，总耗时: {time.time() - start_time} 秒")
+            f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{current_time:.6f}秒，总耗时: {total_time:.6f} 秒")
+        clean_scene()
+
+    total_time = time.time() - start_time
+    print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
 
 
 def show_batch_props(box, batch):
@@ -650,3 +658,36 @@ def to_pmx_axis(armature, scale, axis, bone_name):
     pose_bone = armature.pose.bones.get(bone_name)
     m = matmul(pose_bone.matrix, pose_bone.bone.matrix_local.inverted()).to_3x3()
     return matmul(matmul(pmx_matrix_rot, m), Vector(axis).xzy).normalized()
+
+
+# -------------------------------------------------------------
+# 追加次标准骨骼 骨骼面板顺序预设
+# -------------------------------------------------------------
+# 下面的顺序取决于实际执行顺序，而非展示顺序
+SSB_ORDER_MAP = OrderedDict({
+    "右腕": ("右腕", "右腕捩", "右腕捩1", "右腕捩2", "右腕捩3"),
+    "左腕": ("左腕", "左腕捩", "左腕捩1", "左腕捩2", "左腕捩3"),
+    "右ひじ": ("右ひじ", "右手捩", "右手捩1", "右手捩2", "右手捩3"),
+    "左ひじ": ("左ひじ", "左手捩", "左手捩1", "左手捩2", "左手捩3"),
+    "上半身": ("上半身", "上半身2"),
+    "下半身": ("下半身", "腰"),
+    "右足": ("腰キャンセル右", "右足"),
+    "左足": ("腰キャンセル左", "左足"),
+    "右足ＩＫ": ("右足IK親", "右足ＩＫ"),
+    "左足ＩＫ": ("左足IK親", "左足ＩＫ"),
+    "右手首": ("右手首", "右ダミー"),
+    "左手首": ("左手首", "左ダミー"),
+    "右肩": ("右肩P", "右肩", "右肩C"),
+    "左肩": ("左肩P", "左肩", "左肩C"),
+    "右親指１": ("右親指０", "右親指１"),
+    "左親指１": ("左親指０", "左親指１")
+})
+SSB_ORDER_TOP_LIST = ["操作中心", "全ての親", "センター", "グルーブ"]
+SSB_ORDER_BOTTOM_LIST = ["右足D", "右ひざD", "右足首D", "右足先EX", "左足D", "左ひざD", "左足首D", "左足先EX"]
+# 预先创建的顶点组名称
+SSB_NAMES = set()
+for names in SSB_ORDER_MAP.values():
+    for name in names:
+        SSB_NAMES.add(name)
+SSB_NAMES.update(SSB_ORDER_TOP_LIST)
+SSB_NAMES.update(SSB_ORDER_BOTTOM_LIST)
