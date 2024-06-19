@@ -249,13 +249,16 @@ class AddSsbPanel(bpy.types.Panel):
         props = scene.mmd_kafei_tools_add_ssb
         base_props = props.base
         batch = props.batch
+        batch_flag = batch.flag
 
         layout = self.layout
         box = layout.box()
         model_row = box.row()
         model_row.prop(props, "model")
+        model_row.enabled = not batch_flag
         scale_row = box.row()
         scale_row.prop(props, "scale")
+        scale_row.enabled = not batch_flag
         row = box.row()
         show_batch_props(box, batch)
         box = layout.box()
