@@ -392,7 +392,7 @@ def batch_process(func, props, f_flag=False):
         file_base_name = os.path.basename(filepath)
         ext = os.path.splitext(filepath)[1]
         if ".pmd" == ext:
-            ext = ".pmx"    # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
+            ext = ".pmx"  # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
         new_filepath = os.path.splitext(filepath)[0] + suffix + ext
         curr_time = time.time()
         import_pmx(filepath)
@@ -488,22 +488,12 @@ def convertNameToLR(name, use_underscore=False):
 
 
 def set_tail(armature, parent_name, child_name):
-    if armature.mode != 'EDIT':
-        select_and_activate(armature)
-        bpy.ops.object.mode_set(mode='EDIT')
     parent = armature.data.edit_bones.get(parent_name, None)
     if not parent:
         return
     child = armature.data.edit_bones.get(child_name, None)
     if not child:
         return
-    if abs(child.head[0]) < 0.00001 and abs(child.head[1]) < 0.00001 and abs(child.head[2]) < 0.00001:
-        # 确保全亲骨不会因为指向(0,0,0)而被移除
-        parent.tail = (0, 0, 0.08)
-        child.use_connect = False
-    else:
-        parent.tail = child.head
-        child.use_connect = True
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -537,7 +527,7 @@ def get_target_bone(armature, edit_bone):
 
 def set_target_bone(bone, root_bone):
     """设置骨骼末端指向，参数均为edit_bone"""
-    bone.tail = root_bone.head
+
     root_bone.bone.use_connect = True
 
 
@@ -663,7 +653,22 @@ def to_pmx_axis(armature, scale, axis, bone_name):
 # -------------------------------------------------------------
 # 追加次标准骨骼 骨骼面板顺序预设
 # -------------------------------------------------------------
-# 下面的顺序取决于实际执行顺序，而非展示顺序
+# 次标准骨骼名称，共41个
+SSB_NAMES = [
+    '右腕捩', '右腕捩1', '右腕捩2', '右腕捩3', '左腕捩', '左腕捩1', '左腕捩2', '左腕捩3',
+    '右手捩', '右手捩1', '右手捩2', '右手捩3', '左手捩', '左手捩1', '左手捩2', '左手捩3',
+    '上半身2',
+    '腰', '腰キャンセル右', '腰キャンセル左',
+    '右足IK親', '左足IK親',
+    '右ダミー', '左ダミー',
+    '右肩P', '右肩C', '左肩P', '左肩C',
+    '右親指０', '左親指０',
+    '操作中心', '全ての親', 'グルーブ',
+    '右足D', '右ひざD', '右足首D', '右足先EX', '左足D', '左ひざD', '左足首D', '左足先EX'
+]
+# ssb实际创建顺序（首部）（非用户界面展示顺序）
+SSB_ORDER_TOP_LIST = ["操作中心", "全ての親", "センター", "グルーブ"]
+# ssb实际创建顺序（中部）（非用户界面展示顺序）
 SSB_ORDER_MAP = OrderedDict({
     "右腕": ("右腕", "右腕捩", "右腕捩1", "右腕捩2", "右腕捩3"),
     "左腕": ("左腕", "左腕捩", "左腕捩1", "左腕捩2", "左腕捩3"),
@@ -682,12 +687,13 @@ SSB_ORDER_MAP = OrderedDict({
     "右親指１": ("右親指０", "右親指１"),
     "左親指１": ("左親指０", "左親指１")
 })
-SSB_ORDER_TOP_LIST = ["操作中心", "全ての親", "センター", "グルーブ"]
+# ssb实际创建顺序（尾部）（非用户界面展示顺序）
 SSB_ORDER_BOTTOM_LIST = ["右足D", "右ひざD", "右足首D", "右足先EX", "左足D", "左ひざD", "左足首D", "左足先EX"]
-# 预先创建的顶点组名称
-SSB_NAMES = set()
-for names in SSB_ORDER_MAP.values():
-    for name in names:
-        SSB_NAMES.add(name)
-SSB_NAMES.update(SSB_ORDER_TOP_LIST)
-SSB_NAMES.update(SSB_ORDER_BOTTOM_LIST)
+# 需隐藏的ssb名称
+SSB_HIDE_LIST = ["右腕捩1", "右腕捩2", "右腕捩3", "左腕捩1", "左腕捩2", "左腕捩3",
+                 "右手捩1", "右手捩2", "右手捩3", "左手捩1", "左手捩2", "左手捩3",
+                 "腰キャンセル右", "腰キャンセル左",
+                 "右肩C", "左肩C",
+                 "右足D", "右ひざD", "右足首D", "左足D", "左ひざD", "左足首D"]
+# 临时骨骼名称
+KAFEI_TMP_BONE_NAME = "KAFEI_TMP_BONE"
