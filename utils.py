@@ -1,12 +1,10 @@
 import math
 import os
+import re
 import time
 from collections import OrderedDict
-from enum import Enum
 
 import bpy
-import re
-
 from mathutils import Vector
 
 ABC_NAME_PATTERN = re.compile(r'xform_(\d+)_material_(\d+)')

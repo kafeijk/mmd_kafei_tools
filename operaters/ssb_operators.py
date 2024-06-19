@@ -1,4 +1,4 @@
-from enum import auto
+from enum import auto, Enum
 
 import numpy as np
 
@@ -206,6 +206,53 @@ def remove_tmp_bone(armature):
     bpy.ops.object.mode_set(mode='OBJECT')
 
 
+def remove_ssb(armature, props):
+    if not props.force:
+        return
+
+    if armature.mode != 'EDIT':
+        deselect_all_objects()
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='EDIT')
+
+    # 本次应当添加的次标准骨骼
+    ssb_list = get_ssb_to_add(props)
+
+    # 移除ssb
+    edit_bones = armature.data.edit_bones
+    eb_name_bl_list = [eb.name for eb in edit_bones]
+    for name_bl in eb_name_bl_list:
+        # 排除临时骨骼对流程的干扰
+        if name_bl not in bl_jp_map.keys():
+            continue
+        name_jp = bl_jp_map[name_bl]
+        if name_jp in ssb_list:
+            edit_bones.remove(edit_bones[name_bl])
+            dummy_name_bl = '_dummy_' + name_bl
+            shadow_name_bl = '_shadow_' + name_bl
+            if dummy_name_bl in bl_jp_map.keys():
+                edit_bones.remove(edit_bones[dummy_name_bl])
+            if shadow_name_bl in bl_jp_map.keys():
+                edit_bones.remove(edit_bones[shadow_name_bl])
+
+    # 移除map中的ssb 移除显示枠
+    pmx_root = find_pmx_root_with_child(armature)
+    mmd_root = pmx_root.mmd_root
+    frames = mmd_root.display_item_frames
+    for name_jp in ssb_list:
+        if name_jp not in jp_bl_map.keys():
+            continue
+        # 移除map中的ssb
+        name_bl = jp_bl_map[name_jp]
+        del bl_jp_map[name_bl]
+        del jp_bl_map[name_jp]
+        # 移除显示枠
+        found_frame, found_item = find_bone_item(pmx_root, name_bl)
+        if found_frame is not None and found_item is not None:
+            frames[found_frame].data.remove(found_item)
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+
 class AddSsbOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.add_ssb"
     bl_label = "执行"
@@ -271,8 +318,13 @@ class AddSsbOperator(bpy.types.Operator):
         show_object(armature)
         deselect_all_objects()
         select_and_activate(armature)
+
         # 根据当前骨架生成骨骼名称映射
         gen_bone_name_map(armature)
+
+        # 根据force选项移除ssb
+        remove_ssb(armature, props)
+
         # 在mmd插件中，模型的PE骨骼面板顺序是根据blender顶点组来决定的
         # 但是在blender中，移动顶点组是一项非常耗时的操作
         # 顶点组所在的集合类型并不像其它集合那样，拥有移动到指定位置的函数。需要我们模拟界面点击的方式一个一个循环移动到指定位置
@@ -283,15 +335,12 @@ class AddSsbOperator(bpy.types.Operator):
         # 这里通过预先创建的方式维护一组tmp bone，需要时直接从中获取，并进行相应属性的赋予即可，从而达到创建ssb过程中始终保持EDIT模式
         # 补充说明：如果对edit bone改名，如果不切换模式，bone的hide属性失效（虽然能够获取bone）；mmd插件的调用也应该移动到后面防止意料外问题发生
         create_tmp_bones(armature)
-        # 根据勾选的选项追加次标准骨骼
-        # todo 增加用户提供的参数
-        # todo 先对参数进行校验，得出需要对哪些内容进行添加（但是不管怎样流程都是能走通的）
-        # todo 给出反馈，已经存在的不需要给出反馈，如果全部正常添加则给出正常反馈，一旦有一些内容添加不成功用警告（没有能追加的骨骼 改为 哪些骨骼因某种原因添加不成功）
-        # todo 需要有添加是否成功的 result
+
         # 进入编辑模式，并确保添加ssb期间不涉及模式切换
         if armature.mode != 'EDIT':
             select_and_activate(armature)
             bpy.ops.object.mode_set(mode='EDIT')
+
         # 接收返回结果的列表
         results = []
         # 腕弯曲骨骼
@@ -407,7 +456,7 @@ def get_ssb_to_add(props):
     if base_props.shoulder_p_checked:
         bones.extend(["右肩P", "右肩C", "左肩P", "左肩C"])
     if base_props.thumb0_checked:
-        bones.extend(["右親指０", "右親指１"])
+        bones.extend(["右親指０", "左親指０"])
     return bones
 
 
@@ -1007,10 +1056,10 @@ def create_waist_bone(armature, props, results):
     under_body_parent_pb = under_body_pb.parent
     waist_pb = pose_bones.get(waist_bl)
     waist_pb.mmd_bone.transform_order = under_body_parent_pb.mmd_bone.transform_order
-    # 如果骨骼的父级是下半身的parent且名称不是センター先，则将其亲骨改为腰骨
+    # 如果骨骼的父级是下半身的parent且名称不是センター先，则将其亲骨改为腰骨（还需要排除临时骨骼对流程的影响）
     center_saki = "センター先"
     for eb in edit_bones:
-        if eb.parent == under_body_eb.parent and eb.name != center_saki:
+        if eb.parent == under_body_eb.parent and eb.name != center_saki and KAFEI_TMP_BONE_NAME not in eb.name:
             eb.parent = waist_eb
     # 设置显示枠
     if base_props.enable_gen_frame_checked:
@@ -1302,7 +1351,7 @@ def create_upper_body2_bone(armature, props, results):
     # 如果骨骼的父级指向上半身，则改为上半身2
     for eb in edit_bones:
         parent_eb = eb.parent
-        if parent_eb and parent_eb.name == spine_bl:
+        if parent_eb and parent_eb.name == spine_bl and KAFEI_TMP_BONE_NAME not in eb.name:
             eb.parent = upper_body2_eb
     # 权重转移
     for obj in objs:
@@ -1381,7 +1430,10 @@ def is_vertex_dedicated_by_bone(obj, vertex, bone_name, threshold=1.0):
             summation += weight
         if group_name not in ['mmd_edge_scale', 'mmd_vertex_order']:
             total += weight
-    return (summation / total) > threshold
+    if total != 0:
+        return (summation / total) > threshold
+    else:
+        return 0
 
 
 def add_frame(armature, assignee, base, after=True):
@@ -1442,9 +1494,9 @@ def create_root_bone(armature, props, results):
     for eb in edit_bones:
         parent_eb = eb.parent
         target_eb = get_target_bone(armature, eb)
-        if not parent_eb:
+        if not parent_eb and KAFEI_TMP_BONE_NAME not in eb.name:
             eb.parent = root_eb
-        elif target_eb and target_eb == first_eb:
+        elif target_eb and target_eb == first_eb and KAFEI_TMP_BONE_NAME not in eb.name:
             # 如果骨骼的末端指向first_bone，则将其改为末端指向root_bone
             eb.tail = root_eb.head
     # 设置显示枠
@@ -1562,7 +1614,7 @@ def create_groove_bone(armature, props, results):
     center_saki_jp = "センター先"
     center_saki_bl = convertNameToLR(center_saki_jp)
     for eb in edit_bones:
-        if eb.parent == center_eb and eb.name != center_saki_bl:
+        if eb.parent == center_eb and eb.name != center_saki_bl and KAFEI_TMP_BONE_NAME not in eb.name:
             eb.parent = groove_eb
     # 设置显示枠
     if base_props.enable_gen_frame_checked:
@@ -1614,7 +1666,7 @@ def create_view_center_bone(armature, props, results):
     first_eb = edit_bones[first_vg.name]
     for eb in edit_bones:
         target_bone = get_target_bone(armature, eb)
-        if target_bone == first_eb:
+        if target_bone == first_eb and KAFEI_TMP_BONE_NAME not in eb.name:
             # 如果骨骼的末端指向first_bone，则将其改为末端指向view_center_bone
             eb.tail = view_center_eb.head
 

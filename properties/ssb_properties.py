@@ -104,6 +104,15 @@ class AddSsbProperty(bpy.types.PropertyGroup):
     base: bpy.props.PointerProperty(type=SsbBaseProperty)
 
     batch: bpy.props.PointerProperty(type=BatchProperty)
+    # blender相比PE的好处是，删除骨骼后，顶点权重依然被保留。
+    # 重新创建ssb时，如果权重正确，则不会改变（所以赋予权重时要用ADD而不是REPLACE）；如果权重不正确，将重新分配。
+    # 利用上述特点，增加强制重建选项
+    force: bpy.props.BoolProperty(
+        name="强制重建",
+        description="如果骨骼已经存在，将重建骨骼。可以保证在满足先决条件的情况下，必定能成功创建骨骼\n"
+                    "本选项仅应在权重正确但骨骼缺失的情况下开启",
+        default=False
+    )
 
     @staticmethod
     def register():

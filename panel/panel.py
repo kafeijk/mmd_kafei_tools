@@ -304,6 +304,8 @@ class AddSsbPanel(bpy.types.Panel):
         row = box.row()
         row.prop(base_props, "enable_gen_frame_checked")
         row = box.row()
+        row.prop(props, "force")
+        row = box.row()
         row.operator(SelectAllSsbOperator.bl_idname, text=SelectAllSsbOperator.bl_label)
         box = layout.box()
         row = box.row()
