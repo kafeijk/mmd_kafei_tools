@@ -556,6 +556,8 @@ def do_add_item(frame, item_type, item_name, morph_type=None, order=None):
         item.morph_type = morph_type
     frame.active_item = index
     if order is not None:  # order为0时应判断为True
+        if order < 0:
+            order = len(items) - 1
         items.move(index, order)
         frame.active_item = order
     return item

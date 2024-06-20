@@ -1622,7 +1622,7 @@ def create_groove_bone(armature, props, results):
         if not flag:
             pmx_root = find_pmx_root_with_child(armature)
             frame = create_center_frame(pmx_root)
-            do_add_item(frame, 'BONE', groove_bl, order=0)
+            do_add_item(frame, 'BONE', groove_bl, order=-1)
 
     results.append(SsbResult(status=SsbStatus.SUCCESS, result=[groove_jp]))
 
