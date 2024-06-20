@@ -1263,11 +1263,13 @@ def create_shoulder_p_bone(armature, props, results):
         set_rotatable(armature, shoulder_c_bl, True)
         set_controllable(armature, shoulder_c_bl, True)
 
-        # 设置肩P骨 head tail parent 旋转轴
+        # 设置肩P骨 head tail parent 旋转轴 尖端骨骼
         shoulder_p_bone.head = shoulder_eb.head
         shoulder_p_bone.tail = shoulder_p_bone.head + Vector((0, 0, 1)) * scale
         shoulder_p_bone.parent = shoulder_eb.parent
         FnBone.update_auto_bone_roll(shoulder_p_bone)
+        shoulder_p_pb = pose_bones[shoulder_p_bl]
+        shoulder_p_pb.mmd_bone.is_tip = True
         # 设置肩C骨 head tail parent
         shoulder_c_bone.head = arm_eb.head
         shoulder_c_bone.tail = shoulder_c_bone.head + Vector((0, 0, 1)) * scale
@@ -1663,6 +1665,7 @@ def create_view_center_bone(armature, props, results):
     # 常用参数获取
     scale = props.scale
     edit_bones = armature.data.edit_bones
+    pose_bones = armature.pose.bones
     objs = find_pmx_objects(armature)
 
     # 创建“操作中心”骨骼
@@ -1671,8 +1674,10 @@ def create_view_center_bone(armature, props, results):
     set_movable(armature, view_center_bl, True)
     set_rotatable(armature, view_center_bl, True)
     set_controllable(armature, view_center_bl, True)
-    # 设置tail
-    view_center_eb.tail = Vector((0, 0, scale))
+    # 设置tail 尖端骨骼
+    view_center_eb.tail = Vector((0, 0, 1)) * scale
+    view_center_pb = pose_bones[view_center_bl]
+    view_center_pb.mmd_bone.is_tip = True
     # 设置剩余骨骼的parent和target
     first_vg = get_first_vg(armature, objs, view_center_bl)
     first_eb = edit_bones[first_vg.name]
