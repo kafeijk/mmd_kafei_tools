@@ -893,6 +893,8 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
 
     twist_parent_eb = edit_bones.get(twist_parent_bl)
     twist_child_eb = edit_bones.get(twist_child_bl)
+    # c++中，vec3本身不是引用类型，所以这里需要copy
+    twist_child_eb_head = twist_child_eb.head.copy()
     # 自动补正旋转轴（修正腕捩所在位置）
     if has_elbow_offset and base_props.enable_elbow_offset_checked:
         v_count = 0.0
@@ -903,8 +905,8 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
                     loc_y_sum += vertex.co.y / scale
                     v_count = v_count + 1.0
         if v_count > 0.0:
-            offset = (loc_y_sum / v_count * scale - twist_child_eb.head.y) * 0.75
-            twist_child_eb.head.y += offset
+            offset = (loc_y_sum / v_count * scale - twist_child_eb_head.y) * 0.75
+            twist_child_eb_head.y += offset
 
     # 创建捩骨
     twist_eb = create_bone_with_mmd_info(armature, twist_bl, twist_jp, twist_en)
@@ -915,14 +917,14 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
     twist_pb.lock_rotation = (True, False, True)  # 设置锁定旋转，如果是tip且未应用固定轴时需特殊处理
     set_controllable(armature, twist_bl, True)
     # 设置捩骨 head parent
-    twist_eb.head = Vector(twist_parent_eb.head * 0.4 + twist_child_eb.head * 0.6)
+    twist_eb.head = Vector(twist_parent_eb.head * 0.4 + twist_child_eb_head * 0.6)
     twist_eb.parent = twist_parent_eb
     # 设置捩骨轴限制相关参数（mmd坐标系），默认不会应用，暂不提供是否应用的参数给用户
     # 如果开启自动补正旋转轴，fixed_axis的值在小数点后第5位存在误差（用MEIKO时数值不一致，但是用Miku_Hatsune时数值一致）
     # fixed_axis计算长度时，需要考虑缩放
     # 计算点积时，仅考虑fixed_axis的方向，fixed_axis的大小应为1，以便在最大值和最小值之间插值（值取决于在方向上的延伸即后者，而非fixed_axis的长度）
     twist_pb.mmd_bone.enabled_fixed_axis = True
-    tmp_axis = twist_child_eb.head - twist_parent_eb.head
+    tmp_axis = twist_child_eb_head - twist_parent_eb.head
     fixed_axis = to_pmx_axis(armature, scale, tmp_axis, twist_bl)
     twist_pb.mmd_bone.fixed_axis = fixed_axis
     # 设置捩骨 tail
@@ -933,7 +935,7 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
 
     twist_parent_eb_dedicated_vertices = {}
     twist_parent_eb_dot = Vector(twist_parent_eb.head - twist_eb.head).dot(fixed_axis.xzy) * 0.8
-    twist_child_eb_dot = Vector(twist_child_eb.head - twist_eb.head).dot(fixed_axis.xzy) * 0.8
+    twist_child_eb_dot = Vector(twist_child_eb_head - twist_eb.head).dot(fixed_axis.xzy) * 0.8
     for obj in objs:
         for vertex in obj.data.vertices:
             v_twist_eb_dot = Vector(Vector(vertex.co) - twist_eb.head).dot(fixed_axis.xzy)
