@@ -1017,7 +1017,7 @@ def create_waist_bone(armature, props, results):
 
     # 基本名称信息
     waist_jp = "腰"
-    waist_en = "Waist Bone"
+    waist_en = "waist"
     waist_bl = convertNameToLR(waist_jp)
     under_body_jp = "下半身"
     right_leg_jp = "右足"
@@ -1468,7 +1468,7 @@ def create_root_bone(armature, props, results):
 
     # 基本名称信息
     root_jp = '全ての親'
-    root_en = 'root'
+    root_en = 'master'
     root_bl = convertNameToLR(root_jp)
 
     # 先决条件校验
