@@ -1152,7 +1152,7 @@ def remove_bone(armature, objs, bone_name):
                 if group.group == vg.index:
                     if parent_vg is not None:
                         obj.vertex_groups[parent_vg.name].add([vert.index], group.weight, 'ADD')
-                    obj.vertex_groups[vg].add([vert.index], 0, 'REPLACE')
+                    obj.vertex_groups[vg.name].add([vert.index], 0, 'REPLACE')
 
     # 移除骨骼
     armature.data.edit_bones.remove(eb)
