@@ -93,10 +93,12 @@ def update_base(self, context):
 
 
 class AddSsbProperty(bpy.types.PropertyGroup):
+    # 这里限定选择范围为骨架
+    # 因为后续会对物体对象的名称进行修改，修改之后面板会引用一个.xxx的对象，这会导致异常
     model: bpy.props.PointerProperty(
-        name="模型",
-        description="MMD模型",
-        type=bpy.types.Object
+        name="骨架",
+        description="MMD模型骨架",
+        type=bpy.types.Armature
     )
     # 创建骨骼的时候需要考虑到mmd和blender之间的缩放，通常是0.08，即12.5
     # 但是这个缩放值并不会在blender中保存，所以无法得知用户导入模型时的具体数值

@@ -281,20 +281,21 @@ class AddSsbOperator(bpy.types.Operator):
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def check_props(self, props):
-        model = props.model
+        armature_data = props.model
         batch = props.batch
         batch_flag = batch.flag
         if not batch_flag:
-            if not model:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            if not armature_data:
+                self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
                 return False
-            pmx_root = find_pmx_root_with_child(model)
-            if not pmx_root:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
-                return False
-            pmx_armature = find_pmx_armature(pmx_root)
+            pmx_armature = next(
+                (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data.name == armature_data), None)
             if not pmx_armature:
-                self.report(type={'ERROR'}, message=f'模型骨架不存在！')
+                self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
+                return False
+            pmx_root = find_pmx_root_with_child(pmx_armature)
+            if not pmx_root:
+                self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
                 return False
             objs = find_pmx_objects(pmx_armature)
             if len(objs) == 0:
@@ -316,16 +317,17 @@ class AddSsbOperator(bpy.types.Operator):
 
         batch = props.batch
         batch_flag = batch.flag
-        model = props.model
-        pmx_root = find_pmx_root_with_child(model)
+        armature_data = props.model
+        pmx_armature = next(
+            (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data.name == armature_data), None)
+        pmx_root = find_pmx_root_with_child(pmx_armature)
 
         if batch_flag:
             batch_process(self.create_ssb, props)
         else:
             results = self.create_ssb(pmx_root, props)
-            armature = find_pmx_armature(pmx_root)
             duration = time.time() - start_time
-            self.show_msg(armature, props, results, duration)
+            self.show_msg(pmx_armature, props, results, duration)
 
     def create_ssb(self, pmx_root, props):
         # 获取模型数据
@@ -441,7 +443,7 @@ class AddSsbOperator(bpy.types.Operator):
                 self.report({'INFO'}, "所有次标准骨骼追加完成")
             else:
                 self.report({'WARNING'}, f"缺失骨骼：{missing_bones}")
-                self.report({'WARNING'}, "没有能追加的骨骼，请尝试“强制”选项。点击查看缺失骨骼↑↑↑")
+                self.report({'WARNING'}, "没有能追加的骨骼，请尝试“强制重建”选项。点击查看缺失骨骼↑↑↑")
 
 
 def get_ssb_to_add(props):
