@@ -249,6 +249,7 @@ class AddSsbPanel(bpy.types.Panel):
         props = scene.mmd_kafei_tools_add_ssb
         base_props = props.base
         batch = props.batch
+        force = props.force
         batch_flag = batch.flag
 
         layout = self.layout
@@ -296,6 +297,7 @@ class AddSsbPanel(bpy.types.Panel):
         row.prop(base_props, "shoulder_p_checked")
         row = box.row()
         row.prop(base_props, "thumb0_checked")
+        row.enabled = not force
         row = box.row()
         row.separator()
         row.prop(base_props, "enable_thumb_local_axes_checked")

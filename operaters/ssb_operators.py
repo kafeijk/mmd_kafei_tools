@@ -37,14 +37,21 @@ class SelectAllSsbOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_add_ssb
         base_props = props.base
+        force = props.force
 
         # 获取base_props对象的所有属性名
         all_props = dir(base_props)
 
+        exclude_names = ["enable_gen_frame_checked"]
+        if force:
+            exclude_names.append("thumb0_checked")
+            exclude_names.append("enable_thumb_local_axes_checked")
+
         # 如果所有值都为True，则将所有值都设置为False；只要有一个值不为True，则将所有值设置为True；不含enable属性
         set_to_true = False
         for prop_name in all_props:
-            if "enable" not in prop_name and isinstance(getattr(base_props, prop_name), bool):
+            if all(value not in prop_name for value in exclude_names) and isinstance(getattr(base_props, prop_name),
+                                                                                     bool):
                 # 如果有任何一个属性不为True，则将所有符合条件的属性都设置为True
                 if not getattr(base_props, prop_name):
                     set_to_true = True
@@ -53,8 +60,12 @@ class SelectAllSsbOperator(bpy.types.Operator):
                 else:
                     set_to_true = False
         for prop_name in all_props:
-            if "enable" not in prop_name and isinstance(getattr(base_props, prop_name), bool):
+            if all(value not in prop_name for value in exclude_names) and isinstance(getattr(base_props, prop_name),
+                                                                                     bool):
                 setattr(base_props, prop_name, set_to_true)
+
+        if force:
+            base_props.thumb0_checked = False
 
 
 def pre_set_panel_order(armature):

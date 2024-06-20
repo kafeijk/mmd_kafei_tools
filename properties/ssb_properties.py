@@ -86,6 +86,12 @@ class SsbBaseProperty(bpy.types.PropertyGroup):
     )
 
 
+def update_base(self, context):
+    if self.force:
+        self.base.thumb0_checked = False
+        self.base.enable_thumb_local_axes_checked = False
+
+
 class AddSsbProperty(bpy.types.PropertyGroup):
     model: bpy.props.PointerProperty(
         name="模型",
@@ -111,7 +117,8 @@ class AddSsbProperty(bpy.types.PropertyGroup):
         name="强制重建",
         description="如果骨骼已经存在，将重建骨骼。可以保证在满足先决条件的情况下，必定能成功创建骨骼\n"
                     "本选项仅应在权重正确但骨骼缺失的情况下开启",
-        default=False
+        default=False,
+        update=lambda self, context: update_base(self, context)
     )
 
     @staticmethod
