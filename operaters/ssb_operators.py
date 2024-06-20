@@ -99,9 +99,15 @@ def pre_set_panel_order(armature):
     # 但是如果后续逻辑涉及到权重转换，或者是使用者修改了物体的顺序时，都可能会产生问题
     # 稳妥起见，为所有物体都设置上相应的顶点组
     for obj in objs:
-        deselect_all_objects()
         obj_name = obj.name
         current_tmp_obj = copy_obj(tmp_obj)
+        # 将物体修改器拷贝到临时物体上以防丢失
+        deselect_all_objects()
+        select_and_activate(current_tmp_obj)
+        select_and_activate(obj)
+        bpy.ops.object.make_links_data(type='MODIFIERS')
+        # 合并物体
+        deselect_all_objects()
         select_and_activate(obj)
         select_and_activate(current_tmp_obj)
         bpy.ops.object.join()
