@@ -544,8 +544,7 @@ def create_ex_bone(armature, props, results):
                     ex_y = ex_eb.head.y
                     center = (vertex.co.y - ankle_y) / (ex_y - ankle_y)
                     weight = np.clip((center - 0.75) * 2.0, 0.0, 1.0)
-                    for group in vertex.groups:
-                        obj.vertex_groups[group.group].remove([vertex.index])
+                    remove_vertex_weight(obj, vertex)
                     obj.vertex_groups[ex_bl].add([vertex.index], weight, 'ADD')
                     obj.vertex_groups[ankle_bl].add([vertex.index], 1 - weight, 'ADD')
         for obj in objs:
@@ -583,6 +582,17 @@ def create_ex_bone(armature, props, results):
                 add_item_after(armature, leg_d_bl, ankle_bl)
         results.append(
             SsbResult(status=SsbStatus.SUCCESS, result=[ex_jp, leg_d_jp, knee_d_jp, ankle_d_jp]))
+
+
+def remove_vertex_weight(obj, vertex):
+    """移除顶点权重（排除对'mmd_edge_scale', 'mmd_vertex_order'的影响）
+    mmd_edge_scale 轮廓倍率，一般值均为1
+    mmd_vertex_order 取值为i/vertex_count，记录了pmx模型顶点的顺序。
+    """
+    for group in vertex.groups:
+        group_name = obj.vertex_groups[group.group].name
+        if group_name not in ['mmd_edge_scale', 'mmd_vertex_order']:
+            obj.vertex_groups[group.group].remove([vertex.index])
 
 
 def create_d_bone(armature, scale, source_jp, controllable):
@@ -725,14 +735,12 @@ def create_thumb0_bone(armature, props, results):
                     weight = np.clip((1.0 - weight) * 1.3, 0.0, 1.0)
                     # 如果顶点受手首影响（阈值0.97）
                     if is_vertex_dedicated_by_bone(obj, vertex, wrist_bl, threshold=0.97):
-                        for group in vertex.groups:
-                            obj.vertex_groups[group.group].remove([vertex.index])
+                        remove_vertex_weight(obj, vertex)
                         obj.vertex_groups[thumb0_bl].add([vertex.index], weight, 'ADD')
                         obj.vertex_groups[wrist_bl].add([vertex.index], 1 - weight, 'ADD')
                     # 如果顶点受亲指1影响（阈值0.97）
                     elif is_vertex_dedicated_by_bone(obj, vertex, thumb1_bl, threshold=0.97):
-                        for group in vertex.groups:
-                            obj.vertex_groups[group.group].remove([vertex.index])
+                        remove_vertex_weight(obj, vertex)
                         obj.vertex_groups[thumb0_bl].add([vertex.index], weight, 'ADD')
                         obj.vertex_groups[thumb1_bl].add([vertex.index], 1 - weight, 'ADD')
                     # 其他情况分配权重
@@ -979,8 +987,7 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
         vertex_twist_bone_dot = Vector(Vector(vertex.co) - twist_eb.head).dot(fixed_axis.xzy)
         delta = ((vertex_twist_bone_dot - twist_parent_eb_dot) / (twist_child_eb_dot - twist_parent_eb_dot)) * 4.0
         weight = (int(100.0 * delta) % 100) / 100.0
-        for group in vertex.groups:
-            obj.vertex_groups[group.group].remove([vertex.index])
+        remove_vertex_weight(obj, vertex)
         if int(delta) == 0:
             obj.vertex_groups[part_twists[0]].add([vertex.index], weight, 'ADD')
             obj.vertex_groups[twist_parent_bl].add([vertex.index], 1.0 - weight, 'ADD')
@@ -1389,8 +1396,7 @@ def create_upper_body2_bone(armature, props, results):
                         break
         # 将完全归上半身（含阈值）的顶点所对应的权重，转移到上半身2上面
         for spine_vertex in spine_vertices:
-            for group in spine_vertex.groups:
-                obj.vertex_groups[group.group].remove([spine_vertex.index])
+            remove_vertex_weight(obj, spine_vertex)
 
             # 获取上半身顶点和上半身2的head的距离
             distance = spine_vertex.co - upper_body2_eb.head
