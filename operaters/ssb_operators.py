@@ -68,21 +68,23 @@ class SelectAllSsbOperator(bpy.types.Operator):
             base_props.thumb0_checked = False
 
 
-def pre_set_panel_order(armature):
+def pre_set_panel_order(armature, props):
     """通过与临时物体合并的方式预先创建顶点组（对应PE中的骨骼面板）"""
     objs = find_pmx_objects(armature)
-    if has_all_ssb(armature):
+    if has_all_ssb(armature, props):
         return
 
     # pmx模型的首个Mesh对象
     pmx_obj = objs[0]
+    # 当前要添加的ssb对象
+    curr_ssb_list = get_ssb_to_add(props)
     # 创建临时物体
     collection = pmx_obj.users_collection[0]
     tmp_obj = create_tmp_obj(armature, collection)
 
     # 设置面板中位于前面的顶点组
     for name_jp in SSB_ORDER_TOP_LIST:
-        if convertNameToLR(name_jp) not in tmp_obj.vertex_groups:
+        if name_jp in curr_ssb_list and convertNameToLR(name_jp) not in tmp_obj.vertex_groups:
             tmp_obj.vertex_groups.new(name=convertNameToLR(name_jp))
     # 设置面板中位于中间的顶点组
     for vg in pmx_obj.vertex_groups:
@@ -91,7 +93,7 @@ def pre_set_panel_order(armature):
         if vg_name_b not in bl_jp_map.keys():
             continue
         vg_name_j = bl_jp_map[vg.name]
-        if vg_name_j in SSB_ORDER_MAP.keys():
+        if vg_name_j in curr_ssb_list and vg_name_j in SSB_ORDER_MAP.keys():
             items = SSB_ORDER_MAP[vg_name_j]
             for item_name_j in items:
                 item_name_b = convertNameToLR(item_name_j)
@@ -102,7 +104,7 @@ def pre_set_panel_order(armature):
                 tmp_obj.vertex_groups.new(name=vg_name_b)
     # 设置面板中位于底部的顶点组
     for name_jp in SSB_ORDER_BOTTOM_LIST:
-        if convertNameToLR(name_jp) not in tmp_obj.vertex_groups:
+        if name_jp in curr_ssb_list and convertNameToLR(name_jp) not in tmp_obj.vertex_groups:
             tmp_obj.vertex_groups.new(name=convertNameToLR(name_jp))
 
     # 为物体添加顶点组
@@ -131,12 +133,13 @@ def pre_set_panel_order(armature):
     bpy.data.objects.remove(tmp_obj, do_unlink=True)
 
 
-def has_all_ssb(armature):
+def has_all_ssb(armature, props):
+    curr_ssb_list = get_ssb_to_add(props)
     count = 0
     for pb in armature.pose.bones:
-        if bl_jp_map[pb.name] in SSB_NAMES:
+        if bl_jp_map[pb.name] in curr_ssb_list:
             count += 1
-    if count == len(SSB_NAMES):
+    if count == len(curr_ssb_list):
         return True
     return False
 
@@ -348,7 +351,7 @@ class AddSsbOperator(bpy.types.Operator):
         # 但是在blender中，移动顶点组是一项非常耗时的操作
         # 顶点组所在的集合类型并不像其它集合那样，拥有移动到指定位置的函数。需要我们模拟界面点击的方式一个一个循环移动到指定位置
         # 这里通过新建一个Mesh，并为其预先添加顶点组，然后用这个Mesh和原模型合并的方式来达到设置骨骼面板的目的
-        pre_set_panel_order(armature)
+        pre_set_panel_order(armature, props)
         # 在创建ssb的过程中需要获取mmd_bone，这是一个pose_bone的属性，需要创建完edit_bone之后切换模式才能获取
         # 但是切换模式会造成edit_bone的数据失效，需要重新获取，造成代码冗余
         # 这里通过预先创建的方式维护一组tmp bone，需要时直接从中获取，并进行相应属性的赋予即可，从而达到创建ssb过程中始终保持EDIT模式
@@ -1707,19 +1710,19 @@ def create_view_center_bone(armature, props, results):
 
 
 def get_first_vg(armature, objs, exclude_name):
-    """获取（排除自身后）排在首位的顶点组对应的骨骼"""
+    """获取（排除自身后）排在首位的顶点组（对应的骨骼）"""
 
     # 如果对象拥有导入时的骨架修改器，可最大程度上确保顶点组的完整；如果没有骨架修改器，则会尽可能的寻找
     for obj in objs:
         if obj.modifiers.get('mmd_bone_order_override', None):
             for vg in obj.vertex_groups:
-                if vg and vg.name and vg.name != exclude_name and armature.pose.bones.get(vg.name):
+                if vg.name != exclude_name and armature.pose.bones.get(vg.name):
                     return vg
     for obj in objs:
         for vg in obj.vertex_groups:
-            if vg and vg.name and vg.name != exclude_name and armature.pose.bones.get(vg.name):
+            if vg.name != exclude_name and armature.pose.bones.get(vg.name):
                 return vg
-    raise RuntimeError(f"未在'{armature.name}'下物体中发现目标顶点组！")
+    raise RuntimeError(f"未在骨架为'{armature.name}'的物体中发现目标顶点组！")
 
 
 def gen_bone_name_map(armature):
