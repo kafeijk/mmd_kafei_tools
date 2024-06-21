@@ -93,9 +93,11 @@ def pre_set_panel_order(armature, props):
         if vg_name_b not in bl_jp_map.keys():
             continue
         vg_name_j = bl_jp_map[vg.name]
-        if vg_name_j in curr_ssb_list and vg_name_j in SSB_ORDER_MAP.keys():
+        if vg_name_j in SSB_ORDER_MAP.keys():
             items = SSB_ORDER_MAP[vg_name_j]
             for item_name_j in items:
+                if item_name_j not in curr_ssb_list:
+                    continue
                 item_name_b = convertNameToLR(item_name_j)
                 if item_name_b not in tmp_obj.vertex_groups:
                     tmp_obj.vertex_groups.new(name=item_name_b)
