@@ -146,6 +146,17 @@ def has_all_ssb(armature, props):
     return False
 
 
+def has_all_ssb_without_extra(armature, props):
+    curr_ssb_list = set(get_ssb_to_add(props)) & set(SSB_BASE_NAMES)
+    count = 0
+    for pb in armature.pose.bones:
+        if bl_jp_map[pb.name] in curr_ssb_list:
+            count += 1
+    if count == len(curr_ssb_list):
+        return True
+    return False
+
+
 def create_tmp_obj(armature, collection):
     # 新建Mesh并删除所有顶点
     bpy.ops.object.mode_set(mode='OBJECT')
@@ -206,13 +217,14 @@ def get_tmp_bone(armature):
 def hide_ssb(armature, props):
     base_props = props.base
     controllable = base_props.enable_leg_d_controllable_checked
+    curr_ssb_list = get_ssb_to_add(props)
     if armature.mode != 'OBJECT':
         select_and_activate(armature)
         bpy.ops.object.mode_set(mode='OBJECT')
     for pb in armature.pose.bones:
         if pb.name in bl_jp_map.keys():
-            pb_name_j = bl_jp_map[pb.name]
-            if pb_name_j in SSB_HIDE_LIST and ('D' not in pb_name_j or not controllable):
+            name_jp = bl_jp_map[pb.name]
+            if name_jp in curr_ssb_list and name_jp in SSB_HIDE_LIST and ('D' not in name_jp or not controllable):
                 pb.bone.hide = True
 
 
@@ -335,6 +347,8 @@ class AddSsbOperator(bpy.types.Operator):
             self.show_msg(pmx_armature, props, results, duration)
 
     def create_ssb(self, pmx_root, props):
+        # 接收返回结果的列表
+        results = []
         # 获取模型数据
         armature = find_pmx_armature(pmx_root)
         # 显示根节点与骨架，避免引起上下文异常
@@ -345,6 +359,10 @@ class AddSsbOperator(bpy.types.Operator):
 
         # 根据当前骨架生成骨骼名称映射
         gen_bone_name_map(armature)
+
+        # 如果本次所有要添加的次标准骨骼（不含额外创建的ssb）均已存在，且未勾选强制重建，则直接返回
+        if has_all_ssb_without_extra(armature, props) and not props.force:
+            return results
 
         # 根据force选项移除ssb
         remove_ssb(armature, props)
@@ -365,8 +383,6 @@ class AddSsbOperator(bpy.types.Operator):
             select_and_activate(armature)
             bpy.ops.object.mode_set(mode='EDIT')
 
-        # 接收返回结果的列表
-        results = []
         # 腕弯曲骨骼
         create_arm_twist_bone(armature, props, results)
         # 手弯曲骨骼
