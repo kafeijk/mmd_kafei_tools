@@ -74,8 +74,13 @@ def pre_set_panel_order(armature, props):
     if has_all_ssb(armature, props):
         return
 
-    # pmx模型的首个Mesh对象
+    # pmx模型中首个拥有骨架修改器的Mesh类型对象
     pmx_obj = objs[0]
+    for obj in objs:
+        if obj.modifiers.get('mmd_bone_order_override', None):
+            pmx_obj = obj
+            break
+
     # 当前要添加的ssb对象
     curr_ssb_list = get_ssb_to_add(props)
     # 创建临时物体
@@ -84,7 +89,9 @@ def pre_set_panel_order(armature, props):
 
     # 设置面板中位于前面的顶点组
     for name_jp in SSB_ORDER_TOP_LIST:
-        if name_jp in curr_ssb_list and convertNameToLR(name_jp) not in tmp_obj.vertex_groups:
+        name_bl = convertNameToLR(name_jp)
+        # 名称属于本次应添加的ssb 且 名称于临时物体顶点组中不存在 且 名称于源物体顶点组中不存在（防止出现骨骼面板顺序问题）
+        if name_jp in curr_ssb_list and name_bl not in tmp_obj.vertex_groups and name_bl not in pmx_obj.vertex_groups:
             tmp_obj.vertex_groups.new(name=convertNameToLR(name_jp))
     # 设置面板中位于中间的顶点组
     for vg in pmx_obj.vertex_groups:
@@ -93,14 +100,25 @@ def pre_set_panel_order(armature, props):
         if vg_name_b not in bl_jp_map.keys():
             continue
         vg_name_j = bl_jp_map[vg.name]
+        # 如果当前顶点组触发了关键词
         if vg_name_j in SSB_ORDER_MAP.keys():
             items = SSB_ORDER_MAP[vg_name_j]
+
+            # 如果待添加的顶点组全部在源obj中存在，则只添加触发key的当前顶点组
+            # （主要是用来防止有些模型在次标准骨骼之上进行二次修改以导致骨骼面板顺序问题）
+            all_existed = True
             for item_name_j in items:
-                if item_name_j not in curr_ssb_list:
-                    continue
                 item_name_b = convertNameToLR(item_name_j)
-                if item_name_b not in tmp_obj.vertex_groups:
-                    tmp_obj.vertex_groups.new(name=item_name_b)
+                if item_name_b not in pmx_obj.vertex_groups:
+                    all_existed = False
+                    break
+            if all_existed:
+                tmp_obj.vertex_groups.new(name=vg_name_b)
+            else:
+                for item_name_j in items:
+                    item_name_b = convertNameToLR(item_name_j)
+                    if item_name_b not in tmp_obj.vertex_groups:
+                        tmp_obj.vertex_groups.new(name=item_name_b)
         else:
             if vg_name_b not in tmp_obj.vertex_groups:
                 tmp_obj.vertex_groups.new(name=vg_name_b)

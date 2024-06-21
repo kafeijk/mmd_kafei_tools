@@ -305,10 +305,19 @@ class AddSsbPanel(bpy.types.Panel):
         row.enabled = thumb0_checked
         row = box.row()
         row.prop(base_props, "enable_gen_frame_checked")
-        row = box.row()
-        row.prop(props, "force")
+
+        if not props.enable_hidden_option:
+            icon = 'HIDE_ON' if not props.enable_hidden_option else 'ERROR'
+            row.prop(props, "enable_hidden_option", icon=icon, text="", emboss=False)
+
+        if props.enable_hidden_option:
+            row = box.row()
+            row.prop(props, "force")
+            icon = 'HIDE_ON' if not props.enable_hidden_option else 'ERROR'
+            row.prop(props, "enable_hidden_option", icon=icon, text="", emboss=False)
         row = box.row()
         row.operator(SelectAllSsbOperator.bl_idname, text=SelectAllSsbOperator.bl_label)
+        row.enabled = not force
         box = layout.box()
         row = box.row()
         row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)

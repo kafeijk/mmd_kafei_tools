@@ -88,8 +88,21 @@ class SsbBaseProperty(bpy.types.PropertyGroup):
 
 def update_base(self, context):
     if self.force:
-        self.base.thumb0_checked = False
-        self.base.enable_thumb_local_axes_checked = False
+        exclude_names = ["enable_gen_frame_checked"]
+        base_props = self.base
+        # 获取base_props对象的所有属性名
+        all_props = dir(base_props)
+        for prop_name in all_props:
+            if all(value not in prop_name for value in exclude_names) and isinstance(getattr(base_props, prop_name), bool):
+                setattr(base_props, prop_name, False)
+        if self.force:
+            self.base.thumb0_checked = False
+            self.base.enable_thumb_local_axes_checked = False
+
+
+def update_force(self, context):
+    if not self.enable_hidden_option:
+        self.force = False
 
 
 class AddSsbProperty(bpy.types.PropertyGroup):
@@ -115,10 +128,18 @@ class AddSsbProperty(bpy.types.PropertyGroup):
     # blender相比PE的好处是，删除骨骼后，顶点权重依然被保留。
     # 重新创建ssb时，如果权重正确，则不会改变（所以赋予权重时要用ADD而不是REPLACE）；如果权重不正确，将重新分配。
     # 利用上述特点，增加强制重建选项
+    enable_hidden_option: bpy.props.BoolProperty(
+        name="隐藏选项",
+        description="隐藏选项，请谨慎开启",
+        default=False,
+        update=lambda self, context: update_force(self, context)
+    )
     force: bpy.props.BoolProperty(
         name="强制重建",
-        description="如果骨骼已经存在，将重建骨骼。可以保证在满足先决条件的情况下，必定能成功创建骨骼\n"
-                    "本选项仅应在权重正确但骨骼缺失的情况下开启",
+        description="如果骨骼已存在，将重建骨骼\n"
+                    "可以保证在满足先决条件的情况下，成功创建骨骼\n"
+                    "对次标准骨骼进行二次编辑的模型请谨慎使用该选项\n"
+                    "开启时请按需勾选次标准骨骼，通常情况下，不建议开启",
         default=False,
         update=lambda self, context: update_base(self, context)
     )
