@@ -469,13 +469,13 @@ def get_ssb_to_add(props):
         bones.append('グルーブ')
     if base_props.waist_checked:
         bones.extend(["腰", "腰キャンセル右", "腰キャンセル左"])
-    if base_props.waist_checked:
+    if base_props.ik_p_checked:
         bones.extend(["右足IK親", "左足IK親"])
     if base_props.view_center_checked:
         bones.append("操作中心")
     if base_props.ex_checked:
         bones.extend(["右足D", "右ひざD", "右足首D", "右足先EX", "左足D", "左ひざD", "左足首D", "左足先EX"])
-    if base_props.groove_checked:
+    if base_props.dummy_checked:
         bones.extend(["右ダミー", "左ダミー"])
     if base_props.shoulder_p_checked:
         bones.extend(["右肩P", "右肩C", "左肩P", "左肩C"])
