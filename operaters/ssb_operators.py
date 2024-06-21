@@ -289,7 +289,7 @@ class AddSsbOperator(bpy.types.Operator):
                 self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
                 return False
             pmx_armature = next(
-                (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data.name == armature_data), None)
+                (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data == armature_data), None)
             if not pmx_armature:
                 self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
                 return False
@@ -319,7 +319,7 @@ class AddSsbOperator(bpy.types.Operator):
         batch_flag = batch.flag
         armature_data = props.model
         pmx_armature = next(
-            (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data.name == armature_data), None)
+            (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data == armature_data), None)
         pmx_root = find_pmx_root_with_child(pmx_armature)
 
         if batch_flag:
@@ -553,9 +553,7 @@ def create_ex_bone(armature, props, results):
         for obj in objs:
             for vertex in obj.data.vertices:
                 if is_vertex_dedicated_by_bone(obj, vertex, ankle_bl, threshold=0.97):
-                    ankle_y = ankle_eb.head.y
-                    ex_y = ex_eb.head.y
-                    center = (vertex.co.y - ankle_y) / (ex_y - ankle_y)
+                    center = (vertex.co.y - ankle_eb.head.y) / (ex_eb.head.y - ankle_eb.head.y)
                     weight = np.clip((center - 0.75) * 2.0, 0.0, 1.0)
                     remove_vertex_weight(obj, vertex)
                     obj.vertex_groups[ex_bl].add([vertex.index], weight, 'ADD')
@@ -1515,7 +1513,7 @@ def create_root_bone(armature, props, results):
     first_vg = get_first_vg(armature, objs, root_bl)
     first_eb = edit_bones[first_vg.name]
     if all(abs(coord) < 0.00001 for coord in first_eb.head):
-        root_eb.tail = (0, 0, scale)  # 确保全亲骨不会因为指向(0,0,0)而被移除
+        root_eb.tail = Vector((0, 0, 1)) * scale  # 确保全亲骨不会因为指向(0,0,0)而被移除
     else:
         root_eb.tail = first_eb.head
 
@@ -1710,11 +1708,18 @@ def create_view_center_bone(armature, props, results):
 
 def get_first_vg(armature, objs, exclude_name):
     """获取（排除自身后）排在首位的顶点组对应的骨骼"""
+
+    # 如果对象拥有导入时的骨架修改器，可最大程度上确保顶点组的完整；如果没有骨架修改器，则会尽可能的寻找
+    for obj in objs:
+        if obj.modifiers.get('mmd_bone_order_override', None):
+            for vg in obj.vertex_groups:
+                if vg and vg.name and vg.name != exclude_name and armature.pose.bones.get(vg.name):
+                    return vg
     for obj in objs:
         for vg in obj.vertex_groups:
             if vg and vg.name and vg.name != exclude_name and armature.pose.bones.get(vg.name):
                 return vg
-    return None
+    raise RuntimeError(f"未在'{armature.name}'下物体中发现目标顶点组！")
 
 
 def gen_bone_name_map(armature):
