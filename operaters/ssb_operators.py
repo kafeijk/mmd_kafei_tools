@@ -87,45 +87,35 @@ def pre_set_panel_order(armature, props):
     collection = pmx_obj.users_collection[0]
     tmp_obj = create_tmp_obj(armature, collection)
 
-    # 设置面板中位于前面的顶点组
+    # 获取预添加的名称列表
+    source_names = [vg.name for vg in pmx_obj.vertex_groups]
+    target_names = []
     for name_jp in SSB_ORDER_TOP_LIST:
         name_bl = convertNameToLR(name_jp)
-        # 名称属于本次应添加的ssb 且 名称于临时物体顶点组中不存在 且 名称于源物体顶点组中不存在（防止出现骨骼面板顺序问题）
-        if name_jp in curr_ssb_list and name_bl not in tmp_obj.vertex_groups and name_bl not in pmx_obj.vertex_groups:
-            tmp_obj.vertex_groups.new(name=convertNameToLR(name_jp))
-    # 设置面板中位于中间的顶点组
-    for vg in pmx_obj.vertex_groups:
-        vg_name_b = vg.name
-        # 顶点组如果不在当前骨架中则跳过
-        if vg_name_b not in bl_jp_map.keys():
+        if name_jp in curr_ssb_list and name_jp not in target_names:
+            target_names.append(name_bl)
+    for name_bl in source_names:
+        if name_bl not in bl_jp_map.keys():  # 排除自定义顶点组的干扰
             continue
-        vg_name_j = bl_jp_map[vg.name]
-        # 如果当前顶点组触发了关键词
-        if vg_name_j in SSB_ORDER_MAP.keys():
-            items = SSB_ORDER_MAP[vg_name_j]
-
-            # 如果待添加的顶点组全部在源obj中存在，则只添加触发key的当前顶点组
-            # （主要是用来防止有些模型在次标准骨骼之上进行二次修改以导致骨骼面板顺序问题）
-            all_existed = True
-            for item_name_j in items:
+        name_jp = bl_jp_map[name_bl]
+        if name_jp in SSB_ORDER_MAP.keys():  # 如果触发了关键词
+            items = SSB_ORDER_MAP[name_jp]
+            for item_name_j in items:  # 添加预设顶点组
                 item_name_b = convertNameToLR(item_name_j)
-                if item_name_b not in pmx_obj.vertex_groups:
-                    all_existed = False
-                    break
-            if all_existed:
-                tmp_obj.vertex_groups.new(name=vg_name_b)
-            else:
-                for item_name_j in items:
-                    item_name_b = convertNameToLR(item_name_j)
-                    if item_name_b not in tmp_obj.vertex_groups:
-                        tmp_obj.vertex_groups.new(name=item_name_b)
+                if name_jp == item_name_j:
+                    target_names.append(name_bl)
+                else:
+                    if item_name_j in curr_ssb_list:  # 确保预添加的顶点组在本次勾选的范围内
+                        target_names.append(item_name_b)
         else:
-            if vg_name_b not in tmp_obj.vertex_groups:
-                tmp_obj.vertex_groups.new(name=vg_name_b)
-    # 设置面板中位于底部的顶点组
+            target_names.append(name_bl)
     for name_jp in SSB_ORDER_BOTTOM_LIST:
-        if name_jp in curr_ssb_list and convertNameToLR(name_jp) not in tmp_obj.vertex_groups:
-            tmp_obj.vertex_groups.new(name=convertNameToLR(name_jp))
+        name_bl = convertNameToLR(name_jp)
+        if name_jp in curr_ssb_list and name_jp not in target_names:
+            target_names.append(name_bl)
+    # 为临时对象添加顶点组
+    for name_bl in target_names:
+        tmp_obj.vertex_groups.new(name=name_bl)
 
     # 为物体添加顶点组
     # 通常情况下，只需要为第一个物体预先设置顶点组即可
