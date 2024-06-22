@@ -599,7 +599,7 @@ def create_ex_bone(armature, props, results):
                     obj.vertex_groups[ankle_bl].add([vertex.index], 1 - weight, 'ADD')
         for obj in objs:
             for vertex in obj.data.vertices:
-                for vg in vertex.groups:
+                for vg in reversed(vertex.groups):
                     group_name = obj.vertex_groups[vg.group].name
                     weight = vg.weight
                     if group_name == leg_bl:
@@ -639,7 +639,7 @@ def remove_vertex_weight(obj, vertex):
     mmd_edge_scale 轮廓倍率，一般值均为1
     mmd_vertex_order 取值为i/vertex_count，记录了pmx模型顶点的顺序。
     """
-    for group in vertex.groups:
+    for group in reversed(vertex.groups):
         group_name = obj.vertex_groups[group.group].name
         if group_name not in ['mmd_edge_scale', 'mmd_vertex_order']:
             obj.vertex_groups[group.group].remove([vertex.index])
@@ -799,7 +799,7 @@ def create_thumb0_bone(armature, props, results):
                         vgs = [vg for vg in vertex.groups if
                                obj.vertex_groups[vg.group].name in bl_jp_map.keys() and
                                obj.vertex_groups[vg.group].name not in ('mmd_edge_scale', 'mmd_vertex_order')]
-                        for vg in vgs:
+                        for vg in vgs:  # vgs是独立副本，所以正序
                             vg_count += 1
                             if vg_count > 4:
                                 break
@@ -994,7 +994,7 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
                 twist_child_eb_dot = max(twist_child_eb_dot, v_twist_eb_dot)
                 twist_parent_eb_dedicated_vertices[vertex] = obj
             elif v_twist_eb_dot > 0.0:
-                for group in vertex.groups:
+                for group in vertex.groups: # 删除一次即break，所以正序
                     if obj.vertex_groups[group.group].name == twist_parent_bl:
                         index = obj.vertex_groups.find(twist_bl)
                         if index != -1:
@@ -1441,7 +1441,7 @@ def create_upper_body2_bone(armature, props, results):
                 spine_vertices.append(vertex)
             elif vertex.co.z > upper_body2_eb.head.z:
                 # 将不完全归上半身（含阈值）所有的顶点所对应的权重，转移到上半身2上面
-                for group in vertex.groups:
+                for group in vertex.groups:  # 删除一次即break，所以正序
                     if obj.vertex_groups[group.group].name == spine_jp:
                         index = obj.vertex_groups.find(upper_body2_bl)
                         if index != -1:
