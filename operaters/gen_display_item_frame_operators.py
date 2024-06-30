@@ -107,7 +107,7 @@ def gen_display_frame(pmx_root, props):
     view_center_bl = jp_bl_map.get('操作中心', None)
     if view_center_bl:
         bpy.ops.pose.select_all(action='DESELECT')
-        do_add_item(armature, [view_center_bl], jp_processed_map)
+        add_item(armature, [view_center_bl], jp_processed_map)
     # 添加显示枠内元素（常用）
     add_item_common(mmd_root, armature, jp_bone_map, jp_bl_map, jp_processed_map, frame_items)
     # 添加显示枠内元素（物理）
@@ -143,7 +143,7 @@ def add_item_common(mmd_root, armature, jp_bone_map, jp_bl_map, jp_processed_map
             if bone is None:
                 continue
             items.append(jp_bl_map[jp_name])
-        do_add_item(armature, items, jp_processed_map)
+        add_item(armature, items, jp_processed_map)
 
 
 def add_frame(pmx_root, frame_name):
@@ -178,7 +178,7 @@ def add_item_other(armature, jp_bl_name_map, mmd_root, processed_bones):
         key=lambda bone_name: pose_bones.find(bone_name)
     )
 
-    do_add_item(armature, items, processed_bones)
+    add_item(armature, items, processed_bones)
 
 
 def remove_frame(mmd_root):
@@ -222,7 +222,7 @@ def add_item_physical(mmd_root, rigid_grp_obj, armature, jp_bl_name_map,
         physical_frame_index = i
 
     mmd_root.active_display_item_frame = physical_frame_index
-    do_add_item(armature, affected_bone_bl_names, processed_bones)
+    add_item(armature, affected_bone_bl_names, processed_bones)
 
 
 def find_rigid_group(root):
