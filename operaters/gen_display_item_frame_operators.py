@@ -270,9 +270,7 @@ def get_common_items():
 
         Item("全ての親", "root", 'センター'),
         Item("センター", "center", "センター"),
-        Item("センター2", "", "センター"),
         Item("グルーブ", "groove", 'センター'),
-        Item("グルーブ2", "", 'センター'),
 
         Item("左足IK親", "leg IKP_L", 'ＩＫ'),
         Item("左足ＩＫ", "leg IK_L", "ＩＫ"),
@@ -284,8 +282,8 @@ def get_common_items():
         Item("右足先ＩＫ", "toe2 IK_R", "ＩＫ"),
 
         Item("上半身", "upper body", "体(上)"),
-        Item("上半身2", "upper body", "体(上)"),
         Item("上半身3", "upper body", "体(上)"),
+        Item("上半身2", "upper body", "体(上)"),
         Item("首", "neck", "体(上)"),
         Item("頭", "head", "体(上)"),
         Item("左目", "eye_L", "体(上)"),
@@ -293,12 +291,12 @@ def get_common_items():
         Item("両目", "eyes", "体(上)"),
 
         Item("左胸", "", "胸"),
-        Item("左胸1", "", "胸"),
-        Item("左胸2", "", "胸"),
+        Item("左胸１", "", "胸"),
+        Item("左胸２", "", "胸"),
         Item("左胸変形", "", "胸"),
         Item("右胸", "", "胸"),
-        Item("右胸1", "", "胸"),
-        Item("右胸2", "", "胸"),
+        Item("右胸１", "", "胸"),
+        Item("右胸２", "", "胸"),
         Item("右胸変形", "", "胸"),
 
         Item("左肩P", "shoulderP_L", "腕"),
