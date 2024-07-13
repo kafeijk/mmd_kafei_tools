@@ -70,7 +70,7 @@ def change_toon_texture_filepaths(pmx_file, new_folder):
     pmx_path = os.path.dirname(pmx_file)
     tex_folder = os.path.join(pmx_path, new_folder)
     for material in bpy.data.materials:
-        # 如果为空则不修改
+        # 如果路径为空则不修改（如果是共用的卡通纹理，则其无路径，也不会被修改）
         toon_texture = material.mmd_material.toon_texture
         if toon_texture is not None and toon_texture.strip() != '':
             directory, filename = os.path.split(material.mmd_material.toon_texture)
