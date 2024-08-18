@@ -9,7 +9,7 @@ class BatchProperty(bpy.types.PropertyGroup):
     )
     directory: bpy.props.StringProperty(
         name="模型目录",
-        description="模型所在目录（可跨越层级）",
+        description="模型文件所在目录（可跨越层级）",
         subtype='DIR_PATH',
         default=''
     )
@@ -25,4 +25,20 @@ class BatchProperty(bpy.types.PropertyGroup):
         description="在原有名称的基础上，添加的名称后缀",
         default='',
         maxlen=50,  # 防止用户随意输入
+    )
+    search_strategy: bpy.props.EnumProperty(
+        name="检索模式",
+        description="如果检索到多个符合条件的文件，应该如何处理",
+        items=[
+            ("LATEST", "最新", "获取修改日期最新的文件"),
+            ("ALL", "全部", "获取所有文件")],
+        default="LATEST"
+    )
+    conflict_strategy:bpy.props.EnumProperty(
+        name="冲突时",
+        description="检索到的文件中，如果已经包含指定名称的后缀，应该如何处理",
+        items=[
+            ("SKIP", "不处理", "跳过对这些文件的后续处理"),
+            ("OVERWRITE", "覆盖", "继续对这些文件进行后续处理，产生的新文件会覆盖原文件")],
+        default="SKIP"
     )

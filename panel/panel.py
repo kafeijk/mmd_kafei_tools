@@ -222,13 +222,7 @@ class ChangeTexLocPanel(bpy.types.Panel):
         box = layout.box()
         new_folder_row = box.row()
         new_folder_row.prop(props, "new_folder")
-
-        directory_row = box.row()
-        directory_row.prop(batch, "directory")
-        threshold_row = box.row()
-        threshold_row.prop(batch, "threshold")
-        suffix_row = box.row()
-        suffix_row.prop(batch, "suffix")
+        show_batch_props(box, False, batch)
         remove_empty_row = box.row()
         remove_empty_row.prop(props, "remove_empty")
         change_tex_loc_row = box.row()
@@ -261,7 +255,7 @@ class AddSsbPanel(bpy.types.Panel):
         scale_row.prop(props, "scale")
         scale_row.enabled = not batch_flag
         row = box.row()
-        show_batch_props(box, batch)
+        show_batch_props(box, True, batch)
         box = layout.box()
         row = box.row()
         row.prop(base_props, "root_checked")
@@ -339,7 +333,7 @@ class GenDisplayItemFramePanel(bpy.types.Panel):
 
         layout = self.layout
         box = layout.box()
-        show_batch_props(box, batch)
+        show_batch_props(box,True, batch)
         gen_display_item_row = box.row()
         gen_display_item_row.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
 
@@ -378,7 +372,7 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
         elif content_type == 'UV_MAP':
             keep_first_row = box.row()
             keep_first_row.prop(props, "keep_first")
-            show_batch_props(box, batch)
+            show_batch_props(box,True, batch)
 
         operator_row = box.row()
         operator_row.operator(RemoveSpecifyContentOperator.bl_idname, text=RemoveSpecifyContentOperator.bl_label)
@@ -420,7 +414,7 @@ class RenderPreviewPanel(bpy.types.Panel):
         align_row = box.row()
         align_row.prop(props, "align")
 
-        batch_box = show_batch_props(box, batch)
+        batch_box = show_batch_props(box,True, batch)
         if batch_box:
             force_center_row = batch_box.row()
             force_center_row.prop(props, "force_center")

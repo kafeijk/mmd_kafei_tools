@@ -13,7 +13,7 @@ class ChangeTexLocProperty(bpy.types.PropertyGroup):
     batch: bpy.props.PointerProperty(type=BatchProperty)
     remove_empty: bpy.props.BoolProperty(
         name="删除空文件夹",
-        description="贴图路径修改后，是否删除pmx目录下空文件夹（不含递归）",
+        description="贴图路径修改后，是否删除模型目录下空文件夹",
         default=True
     )
 

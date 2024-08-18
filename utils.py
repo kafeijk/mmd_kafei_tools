@@ -200,32 +200,53 @@ def get_collection(collection_name):
     return collection
 
 
-def recursive_search(directory, suffix, threshold):
+def recursive_search(directory, suffix, threshold, search_strategy, conflict_strategy):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型 todo 之后看看能不能更通用些"""
     file_list = []
     pmx_count = 0
-    skip_count = 0
     for root, dirs, files in os.walk(directory):
+        flag = False
+
         for file in files:
             if file.endswith('.pmx') or file.endswith('.pmd'):
+                flag = True
                 pmx_count += 1
-                file_path = os.path.join(root, file)
-                file_size = os.path.getsize(file_path)  # 获取文件大小（字节）
-                if file_size < threshold * 1024:
-                    skip_count += 1
-                    continue
-                other_files = [f for f in os.listdir(root) if f.endswith('.pmx') or f.endswith('.pmd')]
-                if len(other_files) > 1:
-                    most_recent_file = max(other_files, key=lambda x: os.path.getmtime(os.path.join(root, x)))
-                    if most_recent_file != file:
-                        skip_count += 1
+        if flag:
+            curr_list = []  # 当前目录下符合条件的文件
+            model_files = [f for f in files
+                           if (f.endswith('.pmx') or f.endswith('.pmd'))
+                           and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
+
+            # 如果满足条件的model_files有多个，取最新的还是取全部
+            if search_strategy == 'LATEST':
+                most_recent_file = max(model_files, key=lambda x: os.path.getmtime(os.path.join(root, x)))
+                curr_list.append(most_recent_file)
+            elif search_strategy == 'ALL':
+                for model_file in model_files:
+                    curr_list.append(model_file)
+            # 如果含有相同的名称后缀，是排除（不处理）还是放行（覆盖）
+            files_to_remove = []
+            for file in reversed(curr_list):
+                if os.path.splitext(file)[0].endswith(suffix):
+                    if conflict_strategy == 'SKIP':
+                        files_to_remove.append(file)
+                    elif conflict_strategy == 'OVERWRITE':
+                        pass
+
+                    # 针对检索模式为“全部”的情况下，原文件和目标文件同时存在时的处理
+                    if search_strategy != 'ALL':
                         continue
-                    elif suffix in os.path.splitext(most_recent_file)[0]:
-                        print(f"{os.path.splitext(most_recent_file)[0]}已经预处理完毕")
-                        skip_count += 1
+                    if suffix == '':
                         continue
-                file_list.append(file_path)
-    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{skip_count}")
+                    source_file = os.path.splitext(file)[0].replace(suffix, '')
+                    if source_file in curr_list:
+                        files_to_remove.append(source_file)
+            for file in reversed(files_to_remove):
+                curr_list.remove(file)
+
+            for file in curr_list:
+                file_list.append(os.path.join(root, file))
+    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{pmx_count - len(file_list)}")
     return file_list
 
 
@@ -379,11 +400,13 @@ def is_plugin_enabled(plugin_name):
 def batch_process(func, props, f_flag=False):
     batch = props.batch
     directory = batch.directory
+    search_strategy = batch.search_strategy
     abs_path = bpy.path.abspath(directory)
     threshold = batch.threshold
     suffix = batch.suffix
+    conflict_strategy = batch.conflict_strategy
     start_time = time.time()
-    file_list = recursive_search(abs_path, suffix, threshold)
+    file_list = recursive_search(abs_path, suffix, threshold, search_strategy, conflict_strategy)
     file_count = len(file_list)
     for index, filepath in enumerate(file_list):
         get_collection(TMP_COLLECTION_NAME)
@@ -391,7 +414,13 @@ def batch_process(func, props, f_flag=False):
         ext = os.path.splitext(filepath)[1]
         if ".pmd" == ext:
             ext = ".pmx"  # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
-        new_filepath = os.path.splitext(filepath)[0] + suffix + ext
+
+        # 如果新文件名已经包含指定后缀，则对原文件进行覆盖
+        if os.path.splitext(filepath)[0].endswith(suffix):
+            new_filepath = os.path.splitext(filepath)[0] + ext
+        else:
+            new_filepath = os.path.splitext(filepath)[0] + suffix + ext
+
         curr_time = time.time()
         import_pmx(filepath)
         pmx_root = bpy.context.active_object
@@ -411,19 +440,26 @@ def batch_process(func, props, f_flag=False):
     print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
 
 
-def show_batch_props(box, batch):
-    batch_row = box.row()
-    batch_row.prop(batch, "flag")
-    batch_flag = batch.flag
-    if not batch_flag:
-        return
-    batch_box = box.box()
+def show_batch_props(box, create_new_box, batch):
+    if create_new_box:
+        batch_row = box.row()
+        batch_row.prop(batch, "flag")
+        batch_flag = batch.flag
+        if not batch_flag:
+            return
+        batch_box = box.box()
+    else:
+        batch_box = box
     directory_row = batch_box.row()
     directory_row.prop(batch, "directory")
+    search_strategy_row = batch_box.row()
+    search_strategy_row.prop(batch, "search_strategy")
     threshold_row = batch_box.row()
     threshold_row.prop(batch, "threshold")
     suffix_row = batch_box.row()
     suffix_row.prop(batch, "suffix")
+    conflict_strategy_row = batch_box.row()
+    conflict_strategy_row.prop(batch, "conflict_strategy")
     return batch_box
 
 
