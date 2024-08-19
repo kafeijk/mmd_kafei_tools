@@ -527,7 +527,15 @@ def create_abc_parent(source_root, source_target_map):
             abc_root = bpy.data.objects.new(case_insensitive_replace("pmx", "abc", source_root.name), None)
         else:
             abc_root = bpy.data.objects.new(source_root.name + " abc", None)
-        bpy.context.collection.objects.link(abc_root)
+
+        # 需要将parent移动到child所在集合
+        # 在使用时出现过child在集合a而parent新建在集合b的情况（因为b处于激活的状态），这样会对用户产生困扰
+        # 由于一般情况下child不会分散在各个集合，所以任选其一作为参考即可
+        for target in source_target_map.values():
+            if len(target.users_collection) > 0:
+                target.users_collection[0].objects.link(abc_root)
+                break
+
         # 设置父级
         for target in source_target_map.values():
             target.parent = abc_root
