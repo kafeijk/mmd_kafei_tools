@@ -1,9 +1,4 @@
-import math
-import random
-import time
-
 import bmesh
-from mathutils import Vector
 
 from ..utils import *
 
@@ -368,6 +363,43 @@ def gen_key(vert, object_type):
             truncate(vert.co.z * 0.08))
 
 
+def link_normal(mapping, direction):
+    """
+    传递源物体的自定义拆边法向信息到目标物体身上。
+    该操作的目的是通过传递自定义拆边法向，配合abc烘焙时不导出法向信息，以此来减少abc文件的体积与烘焙时间。
+    传入的mapping是配对完成后的内容，拓扑一致，所以映射方式为拓扑
+
+    源物体的锐边信息需要同步吗？不需要，如果源物体有锐边，推荐重新导出pmx进行预设的构建。
+    拆边法向的常见场景是通过合并顶点重新计算法向，修复面与面之间的折痕，但是这样会更改拓扑结构，所以插件不支持这个操作。需要用户在检查模型阶段完成修复操作，或手动添加数据传递修改器
+    将修复完成后的pmx模型重新导入后，该模型已经具备了修复后的法向，所以PMX->PMX的情况下无需传递法向
+    """
+    if direction == "PMX2PMX":
+        return
+    for source, target in mapping.items():
+        deselect_all_objects()
+        select_and_activate(target)
+
+        # 为target创建DataTransfer修改器，源为source，混合模式为替换，混合系数为1，传递内容为面拐数据中的自定义法向，映射方式为最近的面插值
+        modifier = target.modifiers.new(name="custom_normal_transfer", type='DATA_TRANSFER')
+        modifier.object = source
+        modifier.mix_mode = 'REPLACE'
+        modifier.mix_factor = 1.0
+
+        modifier.use_loop_data = True
+        modifier.data_types_loops = {'CUSTOM_NORMAL'}
+        modifier.loop_mapping = 'TOPOLOGY'
+
+        # 将DataTransfer修改器移动到第一位，然后执行生成数据层，然后应用掉该修改器
+        bpy.ops.object.modifier_move_to_index(modifier=modifier.name, index=0)
+        bpy.ops.object.datalayout_transfer(modifier=modifier.name)
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+        # 获取target网格序列缓存修改器，取消面的读取
+        cache_modifiers = modifiers_by_type(target, "MESH_SEQUENCE_CACHE")
+        for cache_modifier in cache_modifiers:
+            cache_modifier.read_data = {'VERT', 'UV', 'COLOR'}
+
+
 def main(operator, context):
     # pmx -> abc 操作频率较高，仅用名称配对即可
     # pmx -> pmx 在换头类角色上材质/网格顺序内容变动的情况下 能够很好地适应。
@@ -421,9 +453,11 @@ def main(operator, context):
     # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
     if len(source_target_map) == 0:
         if toon_shading_flag:
-            raise RuntimeError(f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
+            raise RuntimeError(
+                f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
         else:
-            raise RuntimeError(f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
+            raise RuntimeError(
+                f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
 
     # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
     # 记录源物体和目标物体的可见性
@@ -460,6 +494,10 @@ def main(operator, context):
     modifiers_flag = props.modifiers_flag
     if modifiers_flag:
         link_modifiers(source_target_map, direction)
+
+    normal_flag = props.normal_flag
+    if normal_flag:
+        link_normal(source_target_map, direction)
 
     face_object = props.face_object
     face_vg = props.face_vg

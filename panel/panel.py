@@ -56,6 +56,10 @@ class TransferPresetPanel(bpy.types.Panel):
         else:
             vgs_col.enabled = True
 
+        if direction == 'PMX2ABC':
+            normal_flag_col = common_param_box.column()
+            normal_flag_col.prop(props, "normal_flag")
+
         gen_skin_uv_flag_col = common_param_box.column()
         gen_skin_uv_flag_col.prop(props, "gen_skin_uv_flag")
 
