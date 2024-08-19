@@ -15,7 +15,7 @@ from ..utils import *
 
 class TransferPresetPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_transfer_preset"
-    bl_label = "通用材质传递"
+    bl_label = "通用预设传递"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
@@ -27,49 +27,54 @@ class TransferPresetPanel(bpy.types.Panel):
         props = scene.mmd_kafei_tools_transfer_preset
 
         layout = self.layout
-        direction_row = self.layout.row()
-        direction_row.prop(props, "direction")
-        common_param_row = self.layout.row()
-        common_param_box = common_param_row.box()
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        direction_col = col.column()
+        direction_col.prop(props, "direction")
+        common_param_col = col.column()
+        common_param_box = common_param_col.box()
         direction = props.direction
         if direction == 'PMX2PMX':
-            source_row = common_param_box.row()
-            source_row.prop(props, "source")
-            target_row = common_param_box.row()
-            target_row.prop(props, "target")
+            source_col = common_param_box.column()
+            source_col.prop(props, "source")
+            target_col = common_param_box.column()
+            target_col.prop(props, "target")
 
-        material_flag_row = common_param_box.row()
-        material_flag_row.prop(props, "material_flag")
+        material_flag_col = common_param_box.column()
+        material_flag_col.prop(props, "material_flag")
 
-        vgs_row = common_param_box.row()
-        vgs_row.prop(props, "vgs_flag")
+        vgs_col = common_param_box.column()
+        vgs_col.prop(props, "vgs_flag")
 
-        modifiers_row = common_param_box.row()
-        modifiers_row.prop(props, "modifiers_flag")
+        modifiers_col = common_param_box.column()
+        modifiers_col.prop(props, "modifiers_flag")
         if props.modifiers_flag:
-            vgs_row.enabled = False
+            vgs_col.enabled = False
         else:
-            vgs_row.enabled = True
+            vgs_col.enabled = True
 
-        gen_skin_uv_flag_row = common_param_box.row()
-        gen_skin_uv_flag_row.prop(props, "gen_skin_uv_flag")
+        gen_skin_uv_flag_col = common_param_box.column()
+        gen_skin_uv_flag_col.prop(props, "gen_skin_uv_flag")
 
         if props.gen_skin_uv_flag:
-            skin_uv_name_row = common_param_box.row()
-            skin_uv_name_box = skin_uv_name_row.box()
+            skin_uv_name_col = common_param_box.column()
+            skin_uv_name_box = skin_uv_name_col.box()
             skin_uv_name_box.prop(props, "skin_uv_name")
 
         if direction == 'PMX2ABC':
-            toon_shading_flag_row = common_param_box.row()
-            toon_shading_flag_row.prop(props, "toon_shading_flag")
+            toon_shading_flag_col = common_param_box.column()
+            toon_shading_flag_col.prop(props, "toon_shading_flag")
 
         if props.toon_shading_flag:
-            toon_shading_flag_row = common_param_box.row()
-            box = toon_shading_flag_row.box()
+            toon_shading_flag_col = common_param_box.column()
+            box = toon_shading_flag_col.box()
             box.prop(props, "face_locator")
-            face_row = box.row()
+            face_col = box.column()
 
-            face_row.prop(props, "auto_face_location")
+            face_col.prop(props, "auto_face_location")
             auto_face_location = props.auto_face_location
             if not auto_face_location:
                 face_box = box.box()
@@ -77,16 +82,16 @@ class TransferPresetPanel(bpy.types.Panel):
                 # 顶点组太多了，让用户手动输入名称
                 face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
 
-            material_flag_row.enabled = False
-            vgs_row.enabled = False
-            modifiers_row.enabled = False
+            material_flag_col.enabled = False
+            vgs_col.enabled = False
+            modifiers_col.enabled = False
         else:
-            material_flag_row.enabled = True
+            material_flag_col.enabled = True
             if props.modifiers_flag:
-                vgs_row.enabled = False
+                vgs_col.enabled = False
             else:
-                vgs_row.enabled = True
-            modifiers_row.enabled = True
+                vgs_col.enabled = True
+            modifiers_col.enabled = True
 
         row = layout.row()
         row.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
@@ -119,17 +124,22 @@ class ModifyColorspacePanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_modify_colorspace
-        layout = self.layout
-        box = layout.box()
 
-        colorspace_row = box.row()
-        colorspace_row.prop(props, "colorspace")
-        keywords_row = box.row()
-        keywords_row.prop(props, "keywords")
-        selected_only_row = box.row()
-        selected_only_row.prop(props, "selected_only")
-        operator_row = box.row()
-        operator_row.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        colorspace_col = col.column()
+        colorspace_col.prop(props, "colorspace")
+        keywords_col = col.column()
+        keywords_col.prop(props, "keywords")
+        selected_only_col = col.column()
+        selected_only_col.prop(props, "selected_only")
+
+        operator_col = col.column()
+        operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
 
 
 class ModifySssPanel(bpy.types.Panel):
@@ -142,11 +152,14 @@ class ModifySssPanel(bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        scene = context.scene
         layout = self.layout
-        box = layout.box()
-        modify_sss_row = box.row()
-        modify_sss_row.operator(ModifySssOperator.bl_idname, text=ModifySssOperator.bl_label)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        modify_sss_col = col.column()
+        modify_sss_col.operator(ModifySssOperator.bl_idname, text=ModifySssOperator.bl_label)
 
 
 class TransferVgWeightPanel(bpy.types.Panel):
@@ -161,14 +174,20 @@ class TransferVgWeightPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_transfer_vg_weight
+
         layout = self.layout
-        box = layout.box()
-        source_vg_row = box.row()
-        source_vg_row.prop(props, "source_vg", icon='GROUP_VERTEX')
-        target_vg_row = box.row()
-        target_vg_row.prop(props, "target_vg", icon='GROUP_VERTEX')
-        operator_row = box.row()
-        operator_row.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        source_vg_col = col.column()
+        source_vg_col.prop(props, "source_vg", icon='GROUP_VERTEX')
+        target_vg_col = col.column()
+        target_vg_col.prop(props, "target_vg", icon='GROUP_VERTEX')
+
+        operator_col = col.column()
+        operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
 
 
 class SelectBonePanel(bpy.types.Panel):
@@ -182,14 +201,19 @@ class SelectBonePanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
-        layout = self.layout
         props = scene.mmd_kafei_tools_select_bone
-        box = layout.box()
 
-        category_row = box.row()
-        category_row.prop(props, "category")
-        operators_row = box.row()
-        operators_row.operator(SelectBoneOperator.bl_idname, text=SelectBoneOperator.bl_label)
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        category_col = col.column()
+        category_col.prop(props, "category")
+
+        operators_col = col.column()
+        operators_col.operator(SelectBoneOperator.bl_idname, text=SelectBoneOperator.bl_label)
 
 
 class PrePostProcessingPanel(bpy.types.Panel):
@@ -219,14 +243,20 @@ class ChangeTexLocPanel(bpy.types.Panel):
         batch = props.batch
 
         layout = self.layout
-        box = layout.box()
-        new_folder_row = box.row()
-        new_folder_row.prop(props, "new_folder")
-        show_batch_props(box, False, batch)
-        remove_empty_row = box.row()
-        remove_empty_row.prop(props, "remove_empty")
-        change_tex_loc_row = box.row()
-        change_tex_loc_row.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        new_folder_col = col.column()
+        new_folder_col.prop(props, "new_folder")
+
+        show_batch_props(col, False, False, batch)
+        remove_empty_col = col.column()
+        remove_empty_col.prop(props, "remove_empty")
+
+        change_tex_loc_col = col.column()
+        change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
 class AddSsbPanel(bpy.types.Panel):
@@ -255,7 +285,7 @@ class AddSsbPanel(bpy.types.Panel):
         scale_row.prop(props, "scale")
         scale_row.enabled = not batch_flag
         row = box.row()
-        show_batch_props(box, True, batch)
+        show_batch_props(box, True, True, batch)
         box = layout.box()
         row = box.row()
         row.prop(base_props, "root_checked")
@@ -332,10 +362,15 @@ class GenDisplayItemFramePanel(bpy.types.Panel):
         batch = props.batch
 
         layout = self.layout
-        box = layout.box()
-        show_batch_props(box,True, batch)
-        gen_display_item_row = box.row()
-        gen_display_item_row.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        show_batch_props(col, True, True, batch)
+
+        gen_display_item_col = col.column()
+        gen_display_item_col.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
 
 
 class RemoveSpecifyContentPanel(bpy.types.Panel):
@@ -349,33 +384,37 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
-        layout = self.layout
         props = scene.mmd_kafei_tools_remove_specify_content
         batch = props.batch
-        box = layout.box()
 
-        content_type_row = box.row()
-        content_type_row.prop(props, "content_type")
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        content_type_col = col.column()
+        content_type_col.prop(props, "content_type")
         content_type = props.content_type
         if content_type == 'MATERIAL':
-            create_default_row = box.row()
-            create_default_row.prop(props, "create_default")
+            create_default_col = col.column()
+            create_default_col.prop(props, "create_default")
         elif content_type == 'MODIFIER':
-            keep_first_row = box.row()
-            keep_first_row.prop(props, "keep_first")
+            keep_first_col = col.column()
+            keep_first_col.prop(props, "keep_first")
         elif content_type == 'VERTEX_GROUP':
             # 无额外参数
             pass
         elif content_type == 'SHAPE_KEY':
-            keep_current_row = box.row()
-            keep_current_row.prop(props, "keep_current")
+            keep_current_col = col.column()
+            keep_current_col.prop(props, "keep_current")
         elif content_type == 'UV_MAP':
-            keep_first_row = box.row()
-            keep_first_row.prop(props, "keep_first")
-            show_batch_props(box,True, batch)
+            keep_first_col = col.column()
+            keep_first_col.prop(props, "keep_first")
+            show_batch_props(col, True, True, batch)
 
-        operator_row = box.row()
-        operator_row.operator(RemoveSpecifyContentOperator.bl_idname, text=RemoveSpecifyContentOperator.bl_label)
+        operator_col = col.column()
+        operator_col.operator(RemoveSpecifyContentOperator.bl_idname, text=RemoveSpecifyContentOperator.bl_label)
 
 
 class RenderPreviewPanel(bpy.types.Panel):
@@ -392,36 +431,36 @@ class RenderPreviewPanel(bpy.types.Panel):
         props = scene.mmd_kafei_tools_render_preview
         align = props.align
         batch = props.batch
+
         layout = self.layout
-        box = layout.box()
+        layout.use_property_split = True
+        layout.use_property_decorate = False
 
-        type_row = box.row(align=True)
-        type_row.prop(props, "type")
-        rotation_row = box.row(align=True)
-        rotation_row.prop(props, "rotation_euler_x")
-        rotation_row_y = rotation_row.row(align=True)
-        rotation_row_y.prop(props, "rotation_euler_y")
-        rotation_row_y.enabled = not align  # Disable if align is True
-        rotation_row.prop(props, "rotation_euler_z")
+        col = layout.column()
 
-        auto_follow_row = rotation_row.row()
-        auto_follow_row.alignment = 'CENTER'
-        auto_follow_row.prop(props, "auto_follow")
+        type_col = col.column()
+        type_col.prop(props, "type")
+        scale_col = col.column()
+        scale_col.prop(props, "scale")
+        rotation_col = col.column(align=True)
+        rotation_col.prop(props, "rotation_euler_x")
+        rotation_col_y = rotation_col.column(align=True)
+        rotation_col_y.prop(props, "rotation_euler_y")
+        rotation_col_y.enabled = not align  # Disable if align is True
+        rotation_col.prop(props, "rotation_euler_z")
+        auto_follow_col = rotation_col.column()
+        auto_follow_col.prop(props, "auto_follow")
+        align_col = col.column()
+        align_col.prop(props, "align")
 
-        scale_row = box.row()
-        scale_row.prop(props, "scale")
-
-        align_row = box.row()
-        align_row.prop(props, "align")
-
-        batch_box = show_batch_props(box,True, batch)
+        batch_box = show_batch_props(col, True, True, batch)
         if batch_box:
-            force_center_row = batch_box.row()
-            force_center_row.prop(props, "force_center")
+            force_center_col = batch_box.column()
+            force_center_col.prop(props, "force_center")
 
-        load_render_preset_row = box.row()
+        load_render_preset_row = col.row()
         load_render_preset_row.operator(LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
-        render_row = box.row()
+        render_row = col.row()
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
         render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
 
