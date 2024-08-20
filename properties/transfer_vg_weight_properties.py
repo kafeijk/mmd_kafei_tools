@@ -2,16 +2,14 @@ import bpy
 
 
 class TransferVgWeightProperty(bpy.types.PropertyGroup):
-    source_vg: bpy.props.StringProperty(
+    source_vg_name: bpy.props.StringProperty(
         name="源顶点组",
-        description="源顶点组，必填项，不存在则跳过"
+        description="源顶点组名称，必填项，如果不存在，则跳过处理"
     )
-    target_vg: bpy.props.StringProperty(
+    target_vg_name: bpy.props.StringProperty(
         name="目标顶点组",
-        description="源顶点组，必填项，不存在则默认新建"
+        description="目标顶点组名称，必填项，如果不存在，则会自动创建一个新的顶点组"
     )
-
-    # todo 是否提供仅选中顶点的选项，以修复如足尖部分权重因某些误操作跑到足首上面的问题（单一物体），但这种情况并不普遍
 
     @staticmethod
     def register():

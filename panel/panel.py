@@ -185,10 +185,10 @@ class TransferVgWeightPanel(bpy.types.Panel):
 
         col = layout.column()
 
-        source_vg_col = col.column()
-        source_vg_col.prop(props, "source_vg", icon='GROUP_VERTEX')
-        target_vg_col = col.column()
-        target_vg_col.prop(props, "target_vg", icon='GROUP_VERTEX')
+        source_vg_name_col = col.column()
+        source_vg_name_col.prop(props, "source_vg_name", icon='GROUP_VERTEX')
+        target_vg_name_col = col.column()
+        target_vg_name_col.prop(props, "target_vg_name", icon='GROUP_VERTEX')
 
         operator_col = col.column()
         operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
