@@ -68,11 +68,6 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         default=True,
         update=lambda self, context: update_vgs_flag(self, context)
     )
-    normal_flag: bpy.props.BoolProperty(
-        name="法向",
-        description="将源物体拥有的自定义拆边法向数据传递到目标物体上",
-        default=True
-    )
     gen_skin_uv_flag: bpy.props.BoolProperty(
         name="皮肤UV",
         description="对目标物体添加指定名称的UV，这些UV是孤岛比例平均化之后的结果",

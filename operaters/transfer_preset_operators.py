@@ -372,6 +372,8 @@ def link_normal(mapping, direction):
     源物体的锐边信息需要同步吗？不需要，如果源物体有锐边，推荐重新导出pmx进行预设的构建。
     拆边法向的常见场景是通过合并顶点重新计算法向，修复面与面之间的折痕，但是这样会更改拓扑结构，所以插件不支持这个操作。需要用户在检查模型阶段完成修复操作，或手动添加数据传递修改器
     将修复完成后的pmx模型重新导入后，该模型已经具备了修复后的法向，所以PMX->PMX的情况下无需传递法向
+
+    更新：在blender3.x以上的环境下，我们无法自由选择读取（缓存的）什么数据。所以暂时不考虑法向的传递
     """
     if direction == "PMX2PMX":
         return
@@ -495,10 +497,6 @@ def main(operator, context):
     if modifiers_flag:
         link_modifiers(source_target_map, direction)
 
-    normal_flag = props.normal_flag
-    if normal_flag:
-        link_normal(source_target_map, direction)
-
     face_object = props.face_object
     face_vg = props.face_vg
     auto_face_location = props.auto_face_location
@@ -506,7 +504,7 @@ def main(operator, context):
     if toon_shading_flag and direction == 'PMX2ABC':
         process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
 
-    # 为abc创建父级物体
+    # 为abc模型创建父级物体，创建父级可以更好地操作与管理导入的abc模型
     if direction == 'PMX2ABC':
         create_abc_parent(source_root, source_target_map)
 
