@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 from ..utils import *
 
 
@@ -7,7 +5,7 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.gen_display_item_frame"
     bl_label = "生成"
     # todo 引导用户在空场景下执行，空场景下2个pmx要20s，非空场景测了下2个要120s，待后续调查
-    bl_description = "生成显示枠，如果同一目录下（不含级联）存在多个符合条件的文件，只会处理修改时间最新的那个文件"
+    bl_description = "生成显示枠"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -23,7 +21,6 @@ class GenDisplayItemFrameOperator(bpy.types.Operator):
         batch_flag = batch.flag
         if batch_flag:
             batch_process(gen_display_frame, props, f_flag=False)
-
         else:
             active_object = bpy.context.active_object
             pmx_root = find_ancestor(active_object)
@@ -56,11 +53,15 @@ def gen_display_frame(pmx_root, props):
     mmd_root = pmx_root.mmd_root
     armature = find_pmx_armature(pmx_root)
 
+    bone_flag = props.bone_flag
+    exp_flag = props.exp_flag
+
     # 激活骨架对象并进入姿态模式
+    if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
+        bpy.ops.object.mode_set(mode='OBJECT')
     show_object(armature)
     deselect_all_objects()
     select_and_activate(armature)
-    bpy.ops.object.mode_set(mode='POSE')
 
     # 骨骼jp名称 -> 是否处理完毕
     jp_processed_map = {}
@@ -69,19 +70,17 @@ def gen_display_frame(pmx_root, props):
     # 骨骼jp名称 -> 骨骼blender名称
     jp_bl_map = {}
     # 骨骼blender名称 -> 骨骼jp名称
-    bl_jp_name_map = {}
+    bl_jp_map = {}
 
     # 构建字典
     for bone in armature.pose.bones:
         jp_bone_map[bone.mmd_bone.name_j] = bone
-        bl_jp_name_map[bone.name] = bone.mmd_bone.name_j
+        bl_jp_map[bone.name] = bone.mmd_bone.name_j
         jp_bl_map[bone.mmd_bone.name_j] = bone.name
-        # 操作中心在root显示枠中，默认true
         jp_processed_map[bone.mmd_bone.name_j] = False
-    # 常用显示枠内元素预设
+
+    # 获取显示枠内元素预设
     common_items = get_common_items()
-    # 常用显示枠内元素jp名称预设
-    common_item_jp_names = [item.jp_name for item in common_items]
     # 常用显示枠 -> 常用显示枠内元素
     frame_items = OrderedDict()
     for common_item in common_items:
@@ -89,88 +88,111 @@ def gen_display_frame(pmx_root, props):
             frame_items[common_item.display_panel] = []
         frame_items[common_item.display_panel].append(common_item.jp_name)
 
-    # 重置已有显示枠及显示枠内元素 # todo 表情是否处理下，如果有没有添加进来的表情则添加进来？
-    bpy.ops.mmd_tools.display_item_quick_setup(type='RESET')
-    # 载入面部项目
-    bpy.ops.mmd_tools.display_item_quick_setup(type='FACIAL')
-    # 清除root显示枠内元素
-    root_frame = mmd_root.display_item_frames[0]
-    root_frame.data.clear()
+    if exp_flag:
+        # 重置表情显示枠
+        reset_expression_frame(mmd_root)
+        # 添加显示枠内元素（表情）
+        bpy.ops.mmd_tools.display_item_quick_setup(type='FACIAL')
 
-    # 新建显示枠
-    common_frame_names = get_common_frame_names()
-    for common_frame_name in common_frame_names:
-        add_frame(pmx_root, common_frame_name)
+    if bone_flag:
+        # 重置骨骼显示枠
+        reset_bone_frame(mmd_root)
 
-    # 添加显示枠内元素（操作中心）
-    mmd_root.active_display_item_frame = 0
-    view_center_bl = jp_bl_map.get('操作中心', None)
-    if view_center_bl:
-        bpy.ops.pose.select_all(action='DESELECT')
-        add_item(armature, [view_center_bl], jp_processed_map)
-    # 添加显示枠内元素（常用）
-    add_item_common(mmd_root, armature, jp_bone_map, jp_bl_map, jp_processed_map, frame_items)
-    # 添加显示枠内元素（物理）
-    rigid_group = find_rigid_group(pmx_root)
-    if rigid_group:
-        add_item_physical(mmd_root, rigid_group, armature, jp_bl_map, bl_jp_name_map, jp_processed_map,
-                          common_item_jp_names)
-    # 添加显示枠内元素（剩余未添加的骨骼）
-    add_item_other(armature, jp_bl_map, mmd_root, jp_processed_map)
-    # 移除不包含元素的显示枠
-    remove_frame(mmd_root)
-    # 结束时回到物体模式
-    bpy.ops.object.mode_set(mode='OBJECT')
+        # 新建显示枠
+        common_frame_names = get_common_frame_names()
+        for common_frame_name in common_frame_names:
+            add_frame(pmx_root, common_frame_name)
+
+        # 添加显示枠内元素（常用）
+        add_common_item(mmd_root, jp_bone_map, jp_bl_map, jp_processed_map, frame_items)
+        # 添加显示枠内元素（物理）
+        add_physical_item(pmx_root, armature, bl_jp_map, jp_processed_map)
+        # 添加显示枠内元素（剩余未添加的骨骼）
+        add_other_item(armature, jp_bl_map, bl_jp_map, mmd_root, jp_processed_map)
+        # 移除不包含元素的显示枠
+        remove_empty_frame(mmd_root)
 
 
-def add_item_common(mmd_root, armature, jp_bone_map, jp_bl_map, jp_processed_map, frame_items):
+def create_expression_frame(frames):
+    frame_expression = frames.add()
+    # 在显示枠的日文名称是“表情”，对应英文为“Exp”，看意思是“expression”的缩写，但实际上“expression”并无此缩写，这里为了与pmx保持一致名称为“Exp”
+    frame_expression.name = '表情'
+    frame_expression.name_e = 'Exp'
+    frame_expression.is_special = True
+    frames.move(frames.find('表情'), 1)
+    return frame_expression
+
+
+def reset_bone_frame(mmd_root):
+    """重置骨骼显示枠"""
+    frames = mmd_root.display_item_frames
+    for i in range(len(frames) - 1, -1, -1):
+        frame = frames[i]
+        if frame.name != '表情':
+            print(frame.name)
+            frames.remove(i)
+
+    frame_root = frames.add()
+    frame_root.name = 'Root'
+    frame_root.name_e = 'Root'
+    frame_root.is_special = True
+
+    frames.move(frames.find('Root'), 0)
+
+
+def reset_expression_frame(mmd_root):
+    """重置表情显示枠"""
+    frames = mmd_root.display_item_frames
+    for i in range(len(frames) - 1, -1, -1):
+        frame = frames[i]
+        if frame.name == '表情':
+            frames.remove(i)
+
+    create_expression_frame(frames)
+
+
+def add_common_item(mmd_root, jp_bone_map, jp_bl_map, jp_processed_map, frame_items):
     """添加显示枠内元素（常用）"""
     frames = mmd_root.display_item_frames
-    # 跳过root和表情的显示枠
-    frame_range = range(2, len(frames))
-    for i in frame_range:
-        frame = frames[i]
+    for i, frame in enumerate(frames):
+        # 跳过表情显示枠
+        if i == 1:
+            continue
         jp_names = frame_items.get(frame.name, None)
         # 如"物理"，"その他"等显示枠元素不一定存在于frame_map中
         if jp_names is None:
             continue
-        mmd_root.active_display_item_frame = i
-
-        items = []
         for jp_name in jp_names:
             bone = jp_bone_map.get(jp_name, None)
             # 常用预设中的骨骼并不一定存在于当前骨架中
             if bone is None:
                 continue
-            items.append(jp_bl_map[jp_name])
-        add_item(armature, items, jp_processed_map)
+            bl_name = jp_bl_map[jp_name]
+            do_add_item(frame, 'BONE', bl_name, order=-1)
+            jp_processed_map[jp_name] = True
 
 
 def add_frame(pmx_root, frame_name):
     """增加指定名称的显示枠"""
-    bpy.ops.mmd_tools.display_item_frame_add()
-    index = pmx_root.mmd_root.active_display_item_frame
-    pmx_root.mmd_root.display_item_frames[index].name = frame_name
+    mmd_root = pmx_root.mmd_root
+    frames = mmd_root.display_item_frames
+    item, index = ItemOp.add_after(frames, len(frames) - 1)
+    item.name = frame_name
+    mmd_root.active_display_item_frame = index
 
 
-def add_item_other(armature, jp_bl_name_map, mmd_root, processed_bones):
+def add_other_item(armature, jp_bl_map, bl_jp_map, mmd_root, jp_processed_map):
     """添加显示枠内元素（剩余未添加的骨骼）"""
     # 其它未添加的内容
     items = []
 
-    # 寻找'その他'显示枠并激活
-    frames = mmd_root.display_item_frames
-    for i, frame in enumerate(frames):
-        if frame.name != 'その他':
-            continue
-        mmd_root.active_display_item_frame = i
+    # 寻找'その他'显示枠
+    other_frame = get_frame_by_name(mmd_root, "その他")
 
-    # 取消骨骼选中如果每次循环都调用的话，非常浪费时间，这里仅每次处理前调用一次
-    bpy.ops.pose.select_all(action='DESELECT')
-    for processing_bone, flag in processed_bones.items():
+    for processing_bone, flag in jp_processed_map.items():
         if flag:
             continue
-        items.append(jp_bl_name_map[processing_bone])
+        items.append(jp_bl_map[processing_bone])
 
     # 按照pose bone的顺序对骨骼排序
     pose_bones = armature.pose.bones
@@ -178,10 +200,13 @@ def add_item_other(armature, jp_bl_name_map, mmd_root, processed_bones):
         key=lambda bone_name: pose_bones.find(bone_name)
     )
 
-    add_item(armature, items, processed_bones)
+    for bl_name in items:
+        do_add_item(other_frame, 'BONE', bl_name, order=-1)
+        jp_name = bl_jp_map[bl_name]
+        jp_processed_map[jp_name] = True
 
 
-def remove_frame(mmd_root):
+def remove_empty_frame(mmd_root):
     """如果显示枠内无元素，则移除该显示枠（跳过root和表情的显示枠）"""
     frames = mmd_root.display_item_frames
     for i in range(len(frames) - 1, 1, -1):
@@ -189,9 +214,12 @@ def remove_frame(mmd_root):
             frames.remove(i)
 
 
-def add_item_physical(mmd_root, rigid_grp_obj, armature, jp_bl_name_map,
-                      bl_jp_name_map, processed_bones, common_bone_jp_names):
+def add_physical_item(pmx_root, armature, bl_jp_map, jp_processed_map):
     """添加显示枠内元素（物理），需要屏蔽blender中骨骼名称对jp骨骼名称排序的影响"""
+    rigid_grp_obj = find_rigid_group(pmx_root)
+    if rigid_grp_obj is None:
+        return
+    mmd_root = pmx_root.mmd_root
     rigid_bodies = rigid_grp_obj.children
     # 受刚体物理影响的骨骼名称列表（blender名称）
     affected_bone_bl_names = []
@@ -200,7 +228,7 @@ def add_item_physical(mmd_root, rigid_grp_obj, armature, jp_bl_name_map,
         if rigid_body.mmd_rigid.bone == '':
             continue
         # common时处理过的这里不处理
-        if processed_bones[bl_jp_name_map[rigid_body.mmd_rigid.bone]]:
+        if jp_processed_map[bl_jp_map[rigid_body.mmd_rigid.bone]]:
             continue
         # 0:骨骼 1:物理 2:物理+骨骼
         if rigid_body.mmd_rigid.type not in ('1', '2'):
@@ -214,43 +242,21 @@ def add_item_physical(mmd_root, rigid_grp_obj, armature, jp_bl_name_map,
     )
 
     # 寻找物理显示枠索引（肯定有）
+    physical_frame = get_frame_by_name(mmd_root, "物理")
+
+    for bl_name in affected_bone_bl_names:
+        do_add_item(physical_frame, 'BONE', bl_name, order=-1)
+        jp_name = bl_jp_map[bl_name]
+        jp_processed_map[jp_name] = True
+
+
+def get_frame_by_name(mmd_root, frame_name):
     frames = mmd_root.display_item_frames
-    physical_frame_index = -1
-    for i in range(len(frames)):
-        if frames[i].name != '物理':
+    for frame in frames:
+        if frame.name != frame_name:
             continue
-        physical_frame_index = i
-
-    mmd_root.active_display_item_frame = physical_frame_index
-    add_item(armature, affected_bone_bl_names, processed_bones)
-
-
-def find_rigid_group(root):
-    """寻找刚体对象"""
-    return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'RIGID_GRP_OBJ', root.children), None)
-
-
-def add_item(armature, items, processed_bones):
-    """添加显示枠内元素"""
-    # 取消骨骼选中，如果每次循环都调用的话，非常浪费时间，这里仅每次循环前调用一次
-    bpy.ops.pose.select_all(action='DESELECT')
-    for item in items:
-        do_add_item(armature, item, processed_bones)
-
-
-def do_add_item(armature, item, processed_bones):
-    """添加显示枠内元素"""
-    # 选中并激活目标骨骼
-    bone = armature.pose.bones[item]
-    bone.bone.select = True
-    armature.data.bones.active = bone.bone
-    # 添加为显示枠内元素
-    bpy.ops.mmd_tools.display_item_add()
-    # 标记骨骼已添加到显示枠中
-    processed_bones[bone.mmd_bone.name_j] = True
-    # 取消选中和激活状态
-    bone.bone.select = False
-    armature.data.bones.active = None
+        return frame
+    return None
 
 
 class Item:
@@ -290,15 +296,6 @@ def get_common_items():
         Item("右目", "eye_R", "体(上)"),
         Item("両目", "eyes", "体(上)"),
 
-        Item("左胸", "", "胸"),
-        Item("左胸１", "", "胸"),
-        Item("左胸２", "", "胸"),
-        Item("左胸変形", "", "胸"),
-        Item("右胸", "", "胸"),
-        Item("右胸１", "", "胸"),
-        Item("右胸２", "", "胸"),
-        Item("右胸変形", "", "胸"),
-
         Item("左肩P", "shoulderP_L", "腕"),
         Item("左肩", "shoulder_L", "腕"),
         Item("左腕", "arm_L", "腕"),
@@ -336,7 +333,7 @@ def get_common_items():
         Item("右腕捩調整", "", "_調整ボーン"),
         Item("右ひじ調整", "", "_調整ボーン"),
         Item("右手捩調整", "", "_調整ボーン"),
-        Item("右手捩調整", "", "_調整ボーン"),
+        Item("右手首調整", "", "_調整ボーン"),
         Item("左足ＩＫ調整", "", "_調整ボーン"),
         Item("左つま先ＩＫ調整", "", "_調整ボーン"),
         Item("右足ＩＫ調整", "", "_調整ボーン"),
@@ -415,14 +412,8 @@ def get_common_items():
         Item("足_薬指2.R", "Toe_RingFinger2.R", "足指"),
         Item("足_小指1.R", "Toe_LittleFinger1.R", "足指"),
         Item("足_小指2.R", "Toe_LittleFinger2.R", "足指"),
-
-        Item("tongue01", "tongue01", "舌"),
-        Item("tongue02", "tongue02", "舌"),
-        Item("tongue03", "tongue03", "舌"),
-        Item("tongue04", "tongue04", "舌")
-
     ]
 
 
 def get_common_frame_names():
-    return ["センター", "ＩＫ", "体(上)", "胸", "腕", "_調整ボーン", "指", "体(下)", "足", "足指", "舌", "物理", "その他"]
+    return ["センター", "ＩＫ", "体(上)", "腕", "_調整ボーン", "指", "体(下)", "足", "足指", "物理", "その他"]

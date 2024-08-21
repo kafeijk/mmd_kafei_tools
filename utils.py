@@ -234,11 +234,14 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
                         pass
 
                     # 针对检索模式为“全部”的情况下，原文件和目标文件同时存在时的处理
+                    # 无论是SKIP还是OVERWRITE，如果选择了ALL，都应该排除source_file的影响
+                    # 如果选择SKIP时，不排除source_file的影响的话，即使跳过了名称冲突的文件，也会因为source_file的存在而被复写
+                    # 如果选择OVERWRITE时，应该对冲突的文件进行复写而不是source_file
                     if search_strategy != 'ALL':
                         continue
                     if suffix == '':
                         continue
-                    source_file = os.path.splitext(file)[0].replace(suffix, '')
+                    source_file = file.replace(suffix, '')
                     if source_file in curr_list:
                         files_to_remove.append(source_file)
             for file in reversed(files_to_remove):
@@ -440,7 +443,7 @@ def batch_process(func, props, f_flag=False):
     print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
 
 
-def show_batch_props(col,show_flag, create_box, batch):
+def show_batch_props(col, show_flag, create_box, batch):
     if show_flag:
         batch_col = col.column()
         batch_col.prop(batch, "flag")
@@ -745,3 +748,4 @@ SSB_HIDE_LIST = ["右腕捩1", "右腕捩2", "右腕捩3", "左腕捩1", "左腕
                  "右足D", "右ひざD", "右足首D", "左足D", "左ひざD", "左足首D"]
 # 临时骨骼名称
 KAFEI_TMP_BONE_NAME = "KAFEI_TMP_BONE"
+

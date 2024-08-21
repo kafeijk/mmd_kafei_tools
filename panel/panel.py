@@ -370,6 +370,10 @@ class GenDisplayItemFramePanel(bpy.types.Panel):
         layout.use_property_decorate = False
 
         col = layout.column()
+        bone_flag_col = col.column()
+        bone_flag_col.prop(props, "bone_flag")
+        exp_flag_col = col.column()
+        exp_flag_col.prop(props, "exp_flag")
 
         show_batch_props(col, True, True, batch)
 
