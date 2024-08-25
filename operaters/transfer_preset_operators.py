@@ -568,6 +568,9 @@ def modifiers_by_type(obj, typename):
 
 def link_uv(operator, source_target_map, direction):
     """关联源物体UV到目标物体上面"""
+    # 用物体的顶点数等数据是否相等来校验两个物体是否是一样的进而传递UV等内容，并不准确。
+    # （比如将物体拆边后，虽然顶点数边数不一致，但依然能够传递UV），但这里不考虑这些内容
+
     # 移除之前生成的uv对后续重复执行造成的影响
     target_uvs_to_remove = {}
     for source, target in source_target_map.items():
