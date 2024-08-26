@@ -185,7 +185,7 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     bpy.ops.object.vertex_parent_set()
     bpy.ops.object.mode_set(mode='OBJECT')
 
-    set_visibility(locator, False, True, False, True)
+    set_visibility(locator, (False, True, False, True))
 
 
 def check_locator(locator):
@@ -510,7 +510,7 @@ def main(operator, context):
 
     # 恢复原有可见性
     for obj, visibility in visibility_map.items():
-        set_visibility(obj, visibility[0], visibility[1], visibility[2], visibility[3])
+        set_visibility(obj, visibility)
 
 
 def create_abc_parent(source_root, source_target_map):

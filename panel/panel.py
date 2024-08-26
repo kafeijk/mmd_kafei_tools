@@ -1,15 +1,15 @@
+from ..operaters.organize_panel_operators import OrganizePanelOperator
 from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
-from ..operaters.gen_display_item_frame_operators import GenDisplayItemFrameOperator
 from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
 from ..operaters.modify_sss_operators import ModifySssOperator
+from ..operaters.remove_specify_content_operators import RemoveSpecifyContentOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
 from ..operaters.render_preview_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.select_bone_operators import SelectBoneOperator
+from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
-from ..operaters.remove_specify_content_operators import RemoveSpecifyContentOperator
-from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..utils import *
 
 
@@ -347,9 +347,9 @@ class AddSsbPanel(bpy.types.Panel):
         row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)
 
 
-class GenDisplayItemFramePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_gen_display_item_frame"
-    bl_label = "生成显示枠"
+class OrganizePanelPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_organize_panel"
+    bl_label = "面板整理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
@@ -358,7 +358,7 @@ class GenDisplayItemFramePanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_gen_display_item_frame
+        props = scene.mmd_kafei_tools_organize_panel
         batch = props.batch
 
         layout = self.layout
@@ -366,15 +366,33 @@ class GenDisplayItemFramePanel(bpy.types.Panel):
         layout.use_property_decorate = False
 
         col = layout.column()
-        bone_flag_col = col.column()
-        bone_flag_col.prop(props, "bone_flag")
-        exp_flag_col = col.column()
-        exp_flag_col.prop(props, "exp_flag")
+        bone_panel_flag_col = col.column()
+        bone_panel_flag_col.prop(props, "bone_panel_flag")
+        morph_panel_flag_col = col.column()
+        morph_panel_flag_col.prop(props, "morph_panel_flag")
+        rigid_body_panel_flag_col = col.column()
+        rigid_body_panel_flag_col.prop(props, "rigid_body_panel_flag")
+        display_panel_flag_col = col.column()
+        display_panel_flag_col.prop(props, "display_panel_flag")
+
+        bone_flag_row = col.row()
+        bone_flag_row.separator()
+        bone_flag_row.separator()
+        bone_flag_row.prop(props, "bone_flag")
+        if props.display_panel_flag is False:
+            bone_flag_row.enabled = False
+
+        exp_flag_row = col.row()
+        exp_flag_row.separator()
+        exp_flag_row.separator()
+        exp_flag_row.prop(props, "exp_flag")
+        if props.display_panel_flag is False:
+            exp_flag_row.enabled = False
 
         show_batch_props(col, True, True, batch)
 
-        gen_display_item_col = col.column()
-        gen_display_item_col.operator(GenDisplayItemFrameOperator.bl_idname, text=GenDisplayItemFrameOperator.bl_label)
+        organize_panel_col = col.column()
+        organize_panel_col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
 
 
 class RemoveSpecifyContentPanel(bpy.types.Panel):

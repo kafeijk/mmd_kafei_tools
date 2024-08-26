@@ -1,5 +1,3 @@
-import math
-
 import mathutils
 
 from ..utils import *
@@ -148,7 +146,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
             # 隐藏场景中所有灯光
             lights = [obj for obj in bpy.context.scene.objects if obj.type == 'LIGHT']
             for light in lights:
-                set_visibility(light, False, True, False, True)
+                set_visibility(light, (False, True, False, True))
 
 
 class GenPreviewCameraOperator(bpy.types.Operator):

@@ -165,22 +165,6 @@ def has_all_ssb_without_extra(armature, props):
     return False
 
 
-def create_tmp_obj(armature, collection):
-    # 新建Mesh并删除所有顶点
-    bpy.ops.object.mode_set(mode='OBJECT')
-    deselect_all_objects()
-    bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=True)
-    bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.mesh.delete(type='VERT')
-    bpy.ops.object.mode_set(mode='OBJECT')
-    tmp_obj = bpy.context.active_object
-    tmp_obj.name = "tmp_plane"
-    # 设置parent为armature
-    tmp_obj.parent = armature
-    move_to_target_collection_recursive(tmp_obj, collection)
-    return tmp_obj
-
-
 def post_set_panel_order(armature):
     """移除名称为ssb且骨架中不含该骨骼的顶点组"""
     objs = find_pmx_objects(armature)
@@ -193,15 +177,6 @@ def post_set_panel_order(armature):
             vg_name = vgs[i].name
             if vg_name in SSB_NAMES and vg_name not in pb_names:
                 vgs.remove(vgs[i])
-
-
-def copy_obj(obj):
-    new_mesh = obj.data.copy()
-    new_obj = obj.copy()
-    new_obj.data = new_mesh
-    col = obj.users_collection[0]
-    col.objects.link(new_obj)
-    return new_obj
 
 
 def create_tmp_bones(armature):
@@ -604,7 +579,7 @@ def create_ex_bone(armature, props, results):
 
         # 足骨刚体移动到足D骨
         pmx_root = find_pmx_root_with_child(armature)
-        rigid_group = find_rigid_group(pmx_root)
+        rigid_group = find_rigid_body_parent(pmx_root)
         if rigid_group:
             for rigid_body in rigid_group.children:
                 if rigid_body.mmd_rigid.bone == leg_bl:
@@ -984,7 +959,7 @@ def create_twist_bone(armature, props, info, has_elbow_offset):
                 twist_child_eb_dot = max(twist_child_eb_dot, v_twist_eb_dot)
                 twist_parent_eb_dedicated_vertices[vertex] = obj
             elif v_twist_eb_dot > 0.0:
-                for group in vertex.groups: # 删除一次即break，所以正序
+                for group in vertex.groups:  # 删除一次即break，所以正序
                     if obj.vertex_groups[group.group].name == twist_parent_bl:
                         index = obj.vertex_groups.find(twist_bl)
                         if index != -1:
@@ -1459,7 +1434,7 @@ def create_upper_body2_bone(armature, props, results):
                 obj.vertex_groups[upper_body_vg_index].add([spine_vertex.index], 1 - weight, 'ADD')
     # 如果刚体关联的是上半身，则改为上半身2
     pmx_root = find_pmx_root_with_child(armature)
-    rigid_group = find_rigid_group(pmx_root)
+    rigid_group = find_rigid_body_parent(pmx_root)
     if rigid_group:
         for rigid_body in rigid_group.children:
             if rigid_body.mmd_rigid.bone == spine_bl:

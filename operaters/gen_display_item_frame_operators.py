@@ -216,7 +216,7 @@ def remove_empty_frame(mmd_root):
 
 def add_physical_item(pmx_root, armature, bl_jp_map, jp_processed_map):
     """添加显示枠内元素（物理），需要屏蔽blender中骨骼名称对jp骨骼名称排序的影响"""
-    rigid_grp_obj = find_rigid_group(pmx_root)
+    rigid_grp_obj = find_rigid_body_parent(pmx_root)
     if rigid_grp_obj is None:
         return
     mmd_root = pmx_root.mmd_root

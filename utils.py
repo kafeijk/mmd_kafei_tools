@@ -1,57 +1,11 @@
 import math
 import os
-import re
 import time
-from collections import OrderedDict
 
 import bpy
 from mathutils import Vector
 
-ABC_NAME_PATTERN = re.compile(r'xform_(\d+)_material_(\d+)')
-PMX_NAME_PATTERN = re.compile(r'(?P<prefix>[0-9A-Z]{3}_)(?P<name>.*?)(?P<suffix>\.\d{3})?$')
-# 最大重试次数
-MAX_RETRIES = 5
-# 导入pmx生成的txt文件pattern
-TXT_INFO_PATTERN = re.compile(r'(.*)(_e(\.\d{3})?)$')
-# 临时集合名称
-TMP_COLLECTION_NAME = "KAFEI临时集合"
-# 默认精度
-PRECISION = 0.0001
-# 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
-IMG_TYPE_EXT_MAP = {
-    "BMP": ".bmp",
-    "IRIS": ".rgb",
-    "PNG": ".png",
-    "JPEG": ".jpg",
-    "JPEG2000": ".jp2",
-    "TARGA": ".tga",
-    "TARGA_RAW": ".tga",
-    "CINEON": ".cin",
-    "DPX": ".dpx",
-    "OPEN_EXR_MULTILAYER": ".exr",
-    "OPEN_EXR": ".exr",
-    "HDR": ".hdr",
-    "TIFF": ".tif",
-    "WEBP": ".webp"
-}
-
-PMX_BAKE_BONES = ['全ての親', 'センター',
-                  '左足ＩＫ', '左つま先ＩＫ', '右足ＩＫ', '右つま先ＩＫ',
-                  '上半身', '上半身3', '上半身2', '首', '頭', '左目', '右目',
-                  '左肩', '左腕', '左腕捩', '左ひじ', '左手捩', '左手首',
-                  '右肩', '右腕', '右腕捩', '右ひじ', '右手捩', '右手首',
-                  '左親指０', '左親指１', '左親指２', '左人指１', '左人指２', '左人指３', '左中指１', '左中指２', '左中指３',
-                  '左薬指１', '左薬指２', '左薬指３', '左小指１', '左小指２', '左小指３',
-                  '右親指０', '右親指１', '右親指２', '右人指１', '右人指２', '右人指３', '右中指１', '右中指２', '右中指３',
-                  '右薬指１', '右薬指２', '右薬指３', '右小指１', '右小指２', '右小指３',
-                  '下半身',
-                  # 足骨 -> 足D骨
-                  '左足D', '左ひざD', '左足首D', '左足先EX', '右足D', '右ひざD', '右足首D', '右足先EX']
-# 文件名非法字符
-INVALID_CHARS = '<>:"/\\|?*'
-
-__CONVERT_NAME_TO_L_REGEXP = re.compile('^(.*)左(.*)$')
-__CONVERT_NAME_TO_R_REGEXP = re.compile('^(.*)右(.*)$')
+from .constants import *
 
 
 def find_pmx_root():
@@ -84,7 +38,7 @@ def find_abc_objects():
     return abc_objects
 
 
-def find_rigid_group(root):
+def find_rigid_body_parent(root):
     """寻找刚体对象"""
     return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'RIGID_GRP_OBJ', root.children), None)
 
@@ -114,17 +68,22 @@ def deselect_all_objects():
     bpy.context.view_layer.objects.active = None
 
 
+def record_visibility(obj):
+    """记录物体的可见性"""
+    return obj.hide_select, obj.hide_get(), obj.hide_viewport, obj.hide_render
+
+
 def show_object(obj):
     """显示物体。在视图取消禁用选择，在视图中取消隐藏，在视图中取消禁用，在渲染中取消禁用"""
-    set_visibility(obj, False, False, False, False)
+    set_visibility(obj, (False, False, False, False))
 
 
 def hide_object(obj):
     """显示物体。在视图取消禁用选择，在视图中取消隐藏，在视图中取消禁用，在渲染中取消禁用"""
-    set_visibility(obj, True, True, True, True)
+    set_visibility(obj, (True, True, True, True))
 
 
-def set_visibility(obj, hide_select_flag, hide_set_flag, hide_viewport_flag, hide_render_flag):
+def set_visibility(obj, visibility):
     """设置Blender物体的可见性相关属性"""
     # 如果不在当前视图层，则跳过，如"在视图层中排除该集合"的情况下
     view_layer = bpy.context.view_layer
@@ -132,13 +91,13 @@ def set_visibility(obj, hide_select_flag, hide_set_flag, hide_viewport_flag, hid
     if obj.name not in view_layer.objects:
         return
     # 是否可选
-    obj.hide_select = hide_select_flag
+    obj.hide_select = visibility[0]
     # 是否在视图中隐藏
-    obj.hide_set(hide_set_flag)
+    obj.hide_set(visibility[1])
     # 是否在视图中禁用
-    obj.hide_viewport = hide_viewport_flag
+    obj.hide_viewport = visibility[2]
     # 是否在渲染中禁用
-    obj.hide_render = hide_render_flag
+    obj.hide_render = visibility[3]
 
 
 def walk_island(vert):
@@ -516,11 +475,11 @@ def case_insensitive_replace(pattern, replacement, string):
 
 ## 日本語で左右を命名されている名前をblender方式のL(R)に変更する
 def convertNameToLR(name, use_underscore=False):
-    m = __CONVERT_NAME_TO_L_REGEXP.match(name)
+    m = CONVERT_NAME_TO_L_REGEXP.match(name)
     delimiter = '_' if use_underscore else '.'
     if m:
         name = m.group(1) + m.group(2) + delimiter + 'L'
-    m = __CONVERT_NAME_TO_R_REGEXP.match(name)
+    m = CONVERT_NAME_TO_R_REGEXP.match(name)
     if m:
         name = m.group(1) + m.group(2) + delimiter + 'R'
     return name
@@ -691,61 +650,49 @@ def to_pmx_axis(armature, scale, axis, bone_name):
     return matmul(matmul(pmx_matrix_rot, m), Vector(axis).xzy).normalized()
 
 
-# -------------------------------------------------------------
-# 追加次标准骨骼 骨骼面板顺序预设
-# -------------------------------------------------------------
-# 次标准骨骼名称，共41个
-SSB_NAMES = [
-    '右腕捩', '右腕捩1', '右腕捩2', '右腕捩3', '左腕捩', '左腕捩1', '左腕捩2', '左腕捩3',
-    '右手捩', '右手捩1', '右手捩2', '右手捩3', '左手捩', '左手捩1', '左手捩2', '左手捩3',
-    '上半身2',
-    '腰', '腰キャンセル右', '腰キャンセル左',
-    '右足IK親', '左足IK親',
-    '右ダミー', '左ダミー',
-    '右肩P', '右肩C', '左肩P', '左肩C',
-    '右親指０', '左親指０',
-    '操作中心', '全ての親', 'グルーブ',
-    '右足D', '右ひざD', '右足首D', '右足先EX', '左足D', '左ひざD', '左足首D', '左足先EX'
-]
-# 次标准骨骼名称（不含额外创建内容）
-SSB_BASE_NAMES = [
-    '右腕捩', '左腕捩', '右手捩', '左手捩',
-    '上半身2', '腰',
-    '右足IK親', '左足IK親',
-    '右ダミー', '左ダミー',
-    '右肩P', '左肩P',
-    '右親指０', '左親指０',
-    '操作中心', '全ての親', 'グルーブ',
-    '右足先EX', '左足先EX'
-]
-# ssb实际创建顺序（首部）（非用户界面展示顺序）
-SSB_ORDER_TOP_LIST = ["操作中心", "全ての親", "センター", "グルーブ", "腰"]
-# ssb实际创建顺序（中部）（非用户界面展示顺序）
-SSB_ORDER_MAP = OrderedDict({
-    "右腕": ("右腕", "右腕捩", "右腕捩1", "右腕捩2", "右腕捩3"),
-    "左腕": ("左腕", "左腕捩", "左腕捩1", "左腕捩2", "左腕捩3"),
-    "右ひじ": ("右ひじ", "右手捩", "右手捩1", "右手捩2", "右手捩3"),
-    "左ひじ": ("左ひじ", "左手捩", "左手捩1", "左手捩2", "左手捩3"),
-    "上半身": ("上半身", "上半身2"),
-    "右足": ("腰キャンセル右", "右足"),
-    "左足": ("腰キャンセル左", "左足"),
-    "右足ＩＫ": ("右足IK親", "右足ＩＫ"),
-    "左足ＩＫ": ("左足IK親", "左足ＩＫ"),
-    "右手首": ("右手首", "右ダミー"),
-    "左手首": ("左手首", "左ダミー"),
-    "右肩": ("右肩P", "右肩", "右肩C"),
-    "左肩": ("左肩P", "左肩", "左肩C"),
-    "右親指１": ("右親指０", "右親指１"),
-    "左親指１": ("左親指０", "左親指１")
-})
-# ssb实际创建顺序（尾部）（非用户界面展示顺序）
-SSB_ORDER_BOTTOM_LIST = ["右足D", "右ひざD", "右足首D", "右足先EX", "左足D", "左ひざD", "左足首D", "左足先EX"]
-# 需隐藏的ssb名称
-SSB_HIDE_LIST = ["右腕捩1", "右腕捩2", "右腕捩3", "左腕捩1", "左腕捩2", "左腕捩3",
-                 "右手捩1", "右手捩2", "右手捩3", "左手捩1", "左手捩2", "左手捩3",
-                 "腰キャンセル右", "腰キャンセル左",
-                 "右肩C", "左肩C",
-                 "右足D", "右ひざD", "右足首D", "左足D", "左ひざD", "左足首D"]
-# 临时骨骼名称
-KAFEI_TMP_BONE_NAME = "KAFEI_TMP_BONE"
 
+def create_tmp_obj(armature, collection):
+    # 新建Mesh并删除所有顶点
+    bpy.ops.object.mode_set(mode='OBJECT')
+    deselect_all_objects()
+    bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=True)
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.delete(type='VERT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+    tmp_obj = bpy.context.active_object
+    tmp_obj.name = "tmp_plane"
+    # 设置parent为armature
+    tmp_obj.parent = armature
+    move_to_target_collection_recursive(tmp_obj, collection)
+    return tmp_obj
+
+
+def copy_obj(obj):
+    new_mesh = obj.data.copy()
+    new_obj = obj.copy()
+    new_obj.data = new_mesh
+    col = obj.users_collection[0]
+    col.objects.link(new_obj)
+    return new_obj
+
+
+def int2base(x, base, width=0):
+    """
+    Method to convert an int to a base
+    Source: http://stackoverflow.com/questions/2267362
+    """
+    import string
+    digs = string.digits + string.ascii_uppercase
+    assert (2 <= base <= len(digs))
+    digits, negtive = '', False
+    if x <= 0:
+        if x == 0:
+            return '0' * max(1, width)
+        x, negtive, width = -x, True, width - 1
+    while x:
+        digits = digs[x % base] + digits
+        x //= base
+    digits = '0' * (width - len(digits)) + digits
+    if negtive:
+        digits = '-' + digits
+    return digits
