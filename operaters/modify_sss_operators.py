@@ -4,7 +4,7 @@ from ..utils import *
 class ModifySssOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.modify_sss"
     bl_label = "修复"
-    bl_description = "修复因次表面而产生的如皮肤颜色泛蓝问题"
+    bl_description = "修复因次表面而产生的问题"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -21,6 +21,13 @@ def is_valid_material(material):
     if not nodes:  # 有节点树但无节点
         return False
     return True
+
+
+def reset_bsdf_sss(nodes):
+    for node in nodes:
+        if node and node.type == 'BSDF_PRINCIPLED':
+            if not node.inputs["Subsurface"].is_linked:
+                node.inputs["Subsurface"].default_value = 0
 
 
 def main(operator, context):
@@ -61,19 +68,22 @@ def main(operator, context):
         if output_node is None:
             continue
 
-        if strategy == "INTELLIGENCE":
-            # 处理原理化BSDF节点
-            processed = process_bsdf(linked_node)
+        if strategy == "RESET":
+            reset_bsdf_sss(nodes)
+        else:
+            if strategy == "INTELLIGENCE":
+                # 处理原理化BSDF节点
+                processed = process_bsdf(linked_node)
+                if processed:
+                    continue
+
+            # 如果已经强制处理过，则不再处理
+            processed = is_force_processed(linked_node, node_tree)
             if processed:
                 continue
 
-        # 如果已经强制处理过，则不再处理
-        processed = is_force_processed(linked_node, node_tree)
-        if processed:
-            continue
-
-        # 强制处理
-        force_process(node_tree, output_node)
+            # 强制处理
+            force_process(node_tree, output_node)
 
 
 def get_materials(objs):
