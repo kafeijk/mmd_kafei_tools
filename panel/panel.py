@@ -264,7 +264,8 @@ class ChangeTexLocPanel(bpy.types.Panel):
         change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
-class AddSsbPanel(bpy.types.Panel):
+class AddSsbPanel:
+# class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "追加次标准骨骼"
     bl_space_type = 'VIEW_3D'
