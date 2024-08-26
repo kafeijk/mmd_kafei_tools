@@ -8,6 +8,7 @@ class RemoveSpecifyContentProperty(bpy.types.PropertyGroup):
         name="移除类型",
         description="移除类型",
         items=[
+            ("UV_MAP", "UV贴图", "移除类型：UV贴图"),  # 适用场景：某些模型UV数量太多了，没用还占地方（很占体积），提供批量处理  keep_first
             ("MATERIAL", "材质", "移除类型：材质"),  # 适用场景：星铁咒  create_default
             ("MODIFIER", "修改器", "移除类型：修改器"),  # keep_first
             ("VERTEX_GROUP", "顶点组", "移除类型：顶点组"),  # 适用场景：失去权重，但仍有骨骼，如模之屋仅展示时
@@ -15,7 +16,7 @@ class RemoveSpecifyContentProperty(bpy.types.PropertyGroup):
             # 提供保持当前形态的选项
             # todo 提供一个传递形态键的工具？
             ("SHAPE_KEY", "形态键", "移除类型：形态键"),  # keep_current
-            ("UV_MAP", "UV贴图", "移除类型：UV贴图"),  # 适用场景：某些模型UV数量太多了，没用还占地方（很占体积），提供批量处理  keep_first
+
         ]
     )
     create_default: bpy.props.BoolProperty(
