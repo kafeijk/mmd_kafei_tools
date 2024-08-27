@@ -1,8 +1,9 @@
-from ..operaters.organize_panel_operators import OrganizePanelOperator
+from ..operaters.modify_specify_content_operators import ModifySpecifyContentOperator
 from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
 from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
 from ..operaters.modify_sss_operators import ModifySssOperator
-from ..operaters.remove_specify_content_operators import RemoveSpecifyContentOperator
+from ..operaters.organize_panel_operators import OrganizePanelOperator
+from ..operaters.remove_uv_map_operators import RemoveUvMapOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
 from ..operaters.render_preview_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
@@ -221,6 +222,62 @@ class SelectBonePanel(bpy.types.Panel):
         operators_col.operator(SelectBoneOperator.bl_idname, text=SelectBoneOperator.bl_label)
 
 
+class RemoveSpecifyContentPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_remove_specify_content"
+    bl_label = "物体操作"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_tools"
+    bl_order = 5
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_modify_specify_content
+        batch = props.batch
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        content_type_col = col.column()
+        content_type_col.prop(props, "content_type")
+        content_type = props.content_type
+        if content_type == 'ADD_UV_MAP':
+            uv_name_col = col.column()
+            uv_name_col.prop(props, "uv_name")
+            average_islands_flag_col = col.column()
+            average_islands_flag_col.prop(props, "average_islands_flag")
+        elif content_type == 'ADD_COLOR_ATTRIBUTE':
+            color_attribute_name_col = col.column()
+            color_attribute_name_col.prop(props, "color_attribute_name")
+            color_col = col.column()
+            color_col.prop(props, "color")
+        elif content_type == 'REMOVE_UV_MAP':
+            keep_first_col = col.column()
+            keep_first_col.prop(props, "keep_first")
+        elif content_type == 'REMOVE_COLOR_ATTRIBUTE':
+            keep_first_col = col.column()
+            keep_first_col.prop(props, "keep_first")
+        elif content_type == 'REMOVE_MATERIAL':
+            create_default_col = col.column()
+            create_default_col.prop(props, "create_default")
+        elif content_type == 'REMOVE_MODIFIER':
+            keep_first_col = col.column()
+            keep_first_col.prop(props, "keep_first")
+        elif content_type == 'REMOVE_VERTEX_GROUP':
+            keep_locked_col = col.column()
+            keep_locked_col.prop(props, "keep_locked")
+        elif content_type == 'REMOVE_SHAPE_KEY':
+            keep_current_col = col.column()
+            keep_current_col.prop(props, "keep_current")
+
+        operator_col = col.column()
+        operator_col.operator(ModifySpecifyContentOperator.bl_idname, text=ModifySpecifyContentOperator.bl_label)
+
+
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
     bl_label = "预处理 / 后处理"
@@ -265,7 +322,7 @@ class ChangeTexLocPanel(bpy.types.Panel):
 
 
 class AddSsbPanel:
-# class AddSsbPanel(bpy.types.Panel):
+    # class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "追加次标准骨骼"
     bl_space_type = 'VIEW_3D'
@@ -353,13 +410,38 @@ class AddSsbPanel:
         row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)
 
 
+class RemoveUvMapPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_remove_uv_map"
+    bl_label = "移除冗余UV"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_remove_uv_map
+        batch = props.batch
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+        show_batch_props(col, False, False, batch)
+
+        operator_col = col.column()
+        operator_col.operator(RemoveUvMapOperator.bl_idname, text=RemoveUvMapOperator.bl_label)
+
+
 class OrganizePanelPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_organize_panel"
     bl_label = "面板整理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 3
+    bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -399,50 +481,6 @@ class OrganizePanelPanel(bpy.types.Panel):
 
         organize_panel_col = col.column()
         organize_panel_col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
-
-
-class RemoveSpecifyContentPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_remove_specify_content"
-    bl_label = "移除指定内容"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 4
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_remove_specify_content
-        batch = props.batch
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-
-        content_type_col = col.column()
-        content_type_col.prop(props, "content_type")
-        content_type = props.content_type
-        if content_type == 'MATERIAL':
-            create_default_col = col.column()
-            create_default_col.prop(props, "create_default")
-        elif content_type == 'MODIFIER':
-            keep_first_col = col.column()
-            keep_first_col.prop(props, "keep_first")
-        elif content_type == 'VERTEX_GROUP':
-            # 无额外参数
-            pass
-        elif content_type == 'SHAPE_KEY':
-            keep_current_col = col.column()
-            keep_current_col.prop(props, "keep_current")
-        elif content_type == 'UV_MAP':
-            keep_first_col = col.column()
-            keep_first_col.prop(props, "keep_first")
-            show_batch_props(col, True, True, batch)
-
-        operator_col = col.column()
-        operator_col.operator(RemoveSpecifyContentOperator.bl_idname, text=RemoveSpecifyContentOperator.bl_label)
 
 
 class RenderPreviewPanel(bpy.types.Panel):

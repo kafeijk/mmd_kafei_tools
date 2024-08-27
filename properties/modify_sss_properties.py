@@ -8,7 +8,7 @@ class ModifySssProperty(bpy.types.PropertyGroup):
         items=[
             ("INTELLIGENCE", "Eevee泛蓝问题（智能）", "根据节点的实际连接情况进行修复"),
             ("FORCE", "Eevee泛蓝问题（强制）", "通过创建额外的SSS着色器进行修复"),
-            ("RESET", "Cycles显示问题（归零）", "将原理化BSDF节点的次表面恢复为默认值")
+            ("RESET", "Cycles显示问题（归零）", "将原理化BSDF节点的次表面值归零")
         ],
         default='INTELLIGENCE'
     )
