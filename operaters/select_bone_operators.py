@@ -5,7 +5,7 @@ class SelectBoneOperator(bpy.types.Operator):
     # TODO 暂时想不到还有其它什么用途骨骼，可能不限于mmd骨骼
     bl_idname = "mmd_kafei_tools.select_bone"
     bl_label = "选择"
-    bl_description = "选择指定用途骨骼"
+    bl_description = "骨骼选择"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -19,7 +19,9 @@ class SelectBoneOperator(bpy.types.Operator):
             return
 
         # 获取激活的物体
-        armature = bpy.context.active_object
+        obj = bpy.context.active_object
+        pmx_root = find_pmx_root_with_child(obj)
+        armature = find_pmx_armature(pmx_root)
 
         # 选中骨架并进入姿态模式
         deselect_all_objects()
@@ -37,13 +39,14 @@ class SelectBoneOperator(bpy.types.Operator):
     def check_props(self, props):
         active_object = bpy.context.active_object
         if not active_object:
-            self.report(type={'ERROR'}, message=f'请选择骨架')
+            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
             return False
-        if active_object.type != "ARMATURE":
-            self.report(type={'ERROR'}, message=f'请选择骨架')
+        pmx_root = find_pmx_root_with_child(active_object)
+        if not pmx_root:
+            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
             return False
-        pmx_root = find_ancestor(active_object)
-        if pmx_root.mmd_type != "ROOT":
-            self.report(type={'ERROR'}, message=f'请选择MMD模型')
+        armature = find_pmx_armature(pmx_root)
+        if not armature:
+            self.report(type={'ERROR'}, message=f'模型缺少骨架！')
             return False
         return True

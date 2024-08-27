@@ -198,7 +198,7 @@ class TransferVgWeightPanel(bpy.types.Panel):
 
 class SelectBonePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_select_bone"
-    bl_label = "选择指定用途骨骼"
+    bl_label = "骨骼选择"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"

@@ -15,13 +15,16 @@ def find_pmx_root():
 
 def find_pmx_root_with_child(child):
     """根据child寻找pmx对应空物体"""
-    if child is None:
+    if not child:
         return None
-    while child.parent:
-        child = child.parent
-    if child.mmd_type != 'ROOT':
-        return None
-    return child
+
+    parent = child
+    while parent:
+        if parent.mmd_type == 'ROOT':
+            return parent
+        parent = parent.parent
+
+    return None
 
 
 def find_pmx_armature(pmx_root):
@@ -649,7 +652,6 @@ def to_pmx_axis(armature, scale, axis, bone_name):
     pose_bone = armature.pose.bones.get(bone_name)
     m = matmul(pose_bone.matrix, pose_bone.bone.matrix_local.inverted()).to_3x3()
     return matmul(matmul(pmx_matrix_rot, m), Vector(axis).xzy).normalized()
-
 
 
 def create_tmp_obj(armature, collection):
