@@ -338,8 +338,8 @@ def get_mouth_preset():
     main_preset_list = ['あ', 'い', 'う', 'え', 'お', 'ん']
     other_preset_list = ['▲', '∧', '□', 'ワ', 'ω', 'ω□', 'にやり', 'にっこり', 'ぺろっ', 'てへぺろ', '口角上げ',
                          '口角下げ', '口横広げ', '歯無し上', '歯無し下', 'ハンサム']
-    half_width_digits = [str(i) for i in range(0, 10)]
-    full_width_digits = [chr(i) for i in range(ord('０'), ord('９') + 1)]
+    half_width_digits = [str(i) for i in range(0, 11)]
+    full_width_digits = ['０', '１', '２', '３', '４', '５', '６', '７', '８', '９', '１０']
 
     def append_morphs(preset_list, include=False):
         for morph in preset_list:
