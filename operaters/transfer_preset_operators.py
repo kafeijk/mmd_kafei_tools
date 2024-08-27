@@ -43,7 +43,7 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
             dvert = vert[dvert_lay]
             for group_index, weight in dvert.items():
                 group_name = group_names[group_index]
-                if group_name == face_vg and weight == 1.0:  # todo
+                if group_name == face_vg and weight == 1.0:
                     count += 1
                     # 备选三点父级位置
                     for i in range(-1, 2):
