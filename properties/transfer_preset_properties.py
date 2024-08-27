@@ -1,25 +1,22 @@
 import bpy
-
-
-def update_vgs_flag(self, context):
-    if self.modifiers_flag:
-        self.vgs_flag = True
+from ..utils import *
 
 
 def auto_fill(self, context):
     if self.toon_shading_flag:
-        self.multi_material_slots_flag = True
+        self.material_flag = True
+        self.uv_flag = True
         self.vgs_flag = True
         self.modifiers_flag = True
 
         if self.face_locator is None:
-            pmx_model = next((obj for obj in bpy.context.scene.objects if obj.mmd_type == 'ROOT'), None)
-            if pmx_model is None:
+            root = find_pmx_root()
+            if root is None:
                 return
-            pmx_armature = next((child for child in pmx_model.children if child.type == 'ARMATURE'), None)
-            if pmx_armature is None:
+            armature = find_pmx_armature(root)
+            if armature is None:
                 return
-            face_locator = next((child for child in pmx_armature.children if child.parent_type == 'BONE'), None)
+            face_locator = next((child for child in armature.children if child.parent_type == 'BONE'), None)
             self.face_locator = face_locator
 
 
@@ -53,30 +50,28 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     )
     material_flag: bpy.props.BoolProperty(
         name="材质",
-        description="关联材质与UV，如果源物体具有多个材质槽，则将这些材质设置到目标物体对应的面上",
-        default=True
+        description="关联材质，如果源物体具有多个材质槽，则将这些材质设置到目标物体对应的面上",
+        default=True,
+        update=lambda self, context: self.check_selection(context, "material_flag")
+    )
+    uv_flag: bpy.props.BoolProperty(
+        name="UV贴图",
+        description="关联UV",
+        default=True,
+        update=lambda self, context: self.check_selection(context, "uv_flag")
     )
     vgs_flag: bpy.props.BoolProperty(
         name="顶点组",
         description="将源物体自定义的顶点组及顶点权重传递到目标物体上",
         default=True,
+        update=lambda self, context: self.check_selection(context, "vgs_flag")
 
     )
     modifiers_flag: bpy.props.BoolProperty(
         name="修改器",
         description="将源物体拥有的修改器传递到目标物体上",
         default=True,
-        update=lambda self, context: update_vgs_flag(self, context)
-    )
-    gen_skin_uv_flag: bpy.props.BoolProperty(
-        name="皮肤UV",
-        description="对目标物体添加指定名称的UV，这些UV是孤岛比例平均化之后的结果",
-        default=False
-    )
-    skin_uv_name: bpy.props.StringProperty(
-        name="UV名称",
-        description="皮肤UV名称",
-        default='skin_uv'
+        update=lambda self, context: self.check_selection(context, "modifiers_flag")
     )
     toon_shading_flag: bpy.props.BoolProperty(
         name="三渲二",
@@ -114,3 +109,15 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     @staticmethod
     def unregister():
         del bpy.types.Scene.mmd_kafei_tools_transfer_preset
+
+    def check_selection(self, context, changed_property):
+        """检查选项，至少保持一个选项被选中"""
+        if not (self.material_flag or self.uv_flag or self.vgs_flag or self.modifiers_flag):
+            if changed_property == "material_flag":
+                self.material_flag = True
+            elif changed_property == "uv_flag":
+                self.uv_flag = True
+            elif changed_property == "vgs_flag":
+                self.vgs_flag = True
+            elif changed_property == "modifiers_flag":
+                self.modifiers_flag = True

@@ -47,23 +47,13 @@ class TransferPresetPanel(bpy.types.Panel):
         material_flag_col = common_param_box.column()
         material_flag_col.prop(props, "material_flag")
 
+        uv_flag_col = common_param_box.column()
+        uv_flag_col.prop(props, "uv_flag")
         vgs_col = common_param_box.column()
         vgs_col.prop(props, "vgs_flag")
 
         modifiers_col = common_param_box.column()
         modifiers_col.prop(props, "modifiers_flag")
-        if props.modifiers_flag:
-            vgs_col.enabled = False
-        else:
-            vgs_col.enabled = True
-
-        gen_skin_uv_flag_col = common_param_box.column()
-        gen_skin_uv_flag_col.prop(props, "gen_skin_uv_flag")
-
-        if props.gen_skin_uv_flag:
-            skin_uv_name_col = common_param_box.column()
-            skin_uv_name_box = skin_uv_name_col.box()
-            skin_uv_name_box.prop(props, "skin_uv_name")
 
         if direction == 'PMX2ABC':
             toon_shading_flag_col = common_param_box.column()
@@ -84,14 +74,13 @@ class TransferPresetPanel(bpy.types.Panel):
                 face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
 
             material_flag_col.enabled = False
+            uv_flag_col.enabled = False
             vgs_col.enabled = False
             modifiers_col.enabled = False
         else:
             material_flag_col.enabled = True
-            if props.modifiers_flag:
-                vgs_col.enabled = False
-            else:
-                vgs_col.enabled = True
+            uv_flag_col.enabled = True
+            vgs_col.enabled = True
             modifiers_col.enabled = True
 
         row = layout.row()

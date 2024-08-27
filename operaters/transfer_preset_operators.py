@@ -43,7 +43,7 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
             dvert = vert[dvert_lay]
             for group_index, weight in dvert.items():
                 group_name = group_names[group_index]
-                if group_name == face_vg and weight == 1.0:
+                if group_name == face_vg and weight == 1.0:  # todo
                     count += 1
                     # 备选三点父级位置
                     for i in range(-1, 2):
@@ -150,12 +150,17 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
 
     # 三点父级对应顶点
     min_z_vertex = min(face_area, key=lambda v: v.co.z)
+    face_area.remove(min_z_vertex)
     min_x_vertex = min(face_area, key=lambda v: v.co.x)
+    face_area.remove(min_x_vertex)
     max_x_vertex = max(face_area, key=lambda v: v.co.x)
+    face_area.remove(max_x_vertex)
+
     min_z_vertex.select = True
     min_x_vertex.select = True
     max_x_vertex.select = True
     parents = [min_z_vertex, min_x_vertex, max_x_vertex]
+    parent_indexes = [v.index for v in parents]
 
     # 清除面部定位器之前的父级（保持变换）
     world_loc = locator.matrix_world.to_translation()
@@ -170,11 +175,6 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     avg_position = Vector(sum((face_obj.matrix_world @ v.co for v in parents), Vector())) / len(parents)
     locator.location = avg_position
 
-    # 将三点父级对应顶点放入顶点组中
-    vertex_group = face_obj.vertex_groups.new(name="FACE_VERTEX_3")
-    parent_indexes = [v.index for v in parents]
-    vertex_group.add(parent_indexes, 1.0, 'REPLACE')
-
     # 设置三点父级
     bm.to_mesh(face_obj.data)
     bm.free()
@@ -185,19 +185,11 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     bpy.ops.object.vertex_parent_set()
     bpy.ops.object.mode_set(mode='OBJECT')
 
+    # 将三点父级对应顶点放入顶点组中（顺序在bm.to_mesh(face_obj.data)后面，否则添加顶点失败）
+    vertex_group = face_obj.vertex_groups.new(name="FACE_VERTEX_3")
+    vertex_group.add(parent_indexes, 1.0, 'REPLACE')
+
     set_visibility(locator, (False, True, False, True))
-
-
-def check_locator(locator):
-    if locator is None:
-        raise Exception(f'未找到面部定位器对象')
-    # 先仅考虑骨骼父级的情况
-    if locator.parent_type != 'BONE':
-        raise Exception(f'面部定位器的父级类型不受支持。支持类型：骨骼（BONE），当前类型：{locator.parent_type}')
-    vg_name = locator.parent_bone
-    if vg_name is None or vg_name == '':
-        raise Exception(f'面部定位器未绑定到父级骨骼')
-    return True
 
 
 def check_transfer_preset_props(operator, props):
@@ -228,7 +220,7 @@ def check_transfer_preset_props(operator, props):
         # 排除面部定位器对操作流程的影响
         if toon_shading_flag:
             if face_locator is None:
-                operator.report(type={'ERROR'}, message=f'未找到面部定位器对象！')
+                operator.report(type={'ERROR'}, message=f'请输入面部定位器对象！')
                 return False
             # 先仅考虑骨骼父级的情况
             if face_locator.parent_type != 'BONE':
@@ -471,20 +463,17 @@ def main(operator, context):
         display_list.append(target_armature)
     visibility_map = show_objects(display_list)
 
-    material_flag = props.material_flag
-    if material_flag:
+    uv_flag = props.uv_flag
+    if uv_flag:
         # 关联源物体UV到目标物体上面
         link_uv(operator, source_target_map, direction)
+
+    material_flag = props.material_flag
+    if material_flag:
         # 关联源物体材质到目标物体上面
         link_material(source_target_map)
         # 关联源物体材质到目标物体上面（多材质槽情况下）
         link_multi_slot_materials(operator, source_target_map, direction)
-
-    # 为每个目标物体对象赋予顶点色，新建uv并使这些uv孤岛比例平均化
-    gen_skin_uv_flag = props.gen_skin_uv_flag
-    if gen_skin_uv_flag:
-        skin_uv_name = props.skin_uv_name
-        gen_skin_uv(operator, source_target_map, skin_uv_name)
 
     # 关联源物体顶点组及顶点权重到目标物体上面（正序）
     vgs_flag = props.vgs_flag
@@ -659,69 +648,6 @@ def link_material(source_target_map):
         # 关联材质
         bpy.ops.object.make_links_data(type='MATERIAL')
     deselect_all_objects()
-
-
-def gen_skin_uv(operator, mapping, skin_uv_name):
-    """为每个目标物体对象赋予顶点色，新建uv并使这些uv孤岛比例平均化"""
-    if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-    # 移除之前生成的uv对后续重复执行造成的影响
-    #   如果target没执行过材质传递，skin_uv_name可能从source传递过来
-    #   如果target执行过材质传递，skin_uv_name可能会重复生成导致UV数量达到上限
-    for _, target in mapping.items():
-        for uv_layer in target.data.uv_layers:
-            if uv_layer.name == skin_uv_name:
-                target.data.uv_layers.remove(uv_layer)
-                break
-
-    # 记录各物体原始的活动的uv及用于渲染的uv
-    obj_active_uv_map = {}
-    obj_render_uv_map = {}
-    for _, target in mapping.items():
-        for index, uv_layer in enumerate(target.data.uv_layers):
-            if uv_layer.active:
-                obj_active_uv_map[target.name] = index
-            if uv_layer.active_render:
-                obj_render_uv_map[target.name] = index
-
-    # 待执行孤岛比例平均化的对象列表
-    candidate_objs = []
-    for _, target in mapping.items():
-        deselect_all_objects()
-        # 进入顶点绘制模式再返回物体模式
-        select_and_activate(target)
-        bpy.ops.object.mode_set(mode='VERTEX_PAINT')
-        bpy.ops.object.mode_set(mode='OBJECT')
-        # 新建并激活uv
-        target_mesh = target.data
-        new_uv = target_mesh.uv_layers.new(name=skin_uv_name)
-        if new_uv:
-            new_uv.active = True
-            new_uv.active_render = True
-            # 只有成功创建UV的物体才会被添加进列表，否则后续操作会破坏其原始UV的布局
-            candidate_objs.append(target)
-        else:
-            operator.report(type={'WARNING'},
-                            message=f'未能成功创建皮肤UV，请检查。物体：{target.name}，当前UV数量：{len(target.data.uv_layers)}')
-
-    # 孤岛比例平均化
-    deselect_all_objects()
-    for candidate_obj in candidate_objs:
-        select_and_activate(candidate_obj)
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.average_islands_scale()
-    bpy.ops.mesh.select_all(action='DESELECT')
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    # 恢复各物体原始的活动的uv及用于渲染的uv，未成功创建UV的物体无需恢复
-    for candidate_obj in candidate_objs:
-        candidate_mesh = candidate_obj.data
-        active_uv_index = obj_active_uv_map[candidate_obj.name]
-        render_uv_index = obj_render_uv_map[candidate_obj.name]
-        candidate_mesh.uv_layers[active_uv_index].active = True
-        candidate_mesh.uv_layers[render_uv_index].active_render = True
 
 
 def link_vertices_group(source_armature, target_armature, mapping, direction):
