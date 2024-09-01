@@ -238,14 +238,12 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             else:
                 sk = obj.shape_key_add(name='Basis', from_mix=False)
 
-            # 删除形态键（除了最后一个）
+            # 删除形态键，应用场景如删除形态键之后应用修改器
+            # 是否保留首位的修改器？意义不大，blender会默认新建初始形态
             shape_keys = mesh.shape_keys.key_blocks[:-1]
             for shape_key in reversed(shape_keys):
                 obj.shape_key_remove(shape_key)
-
-            # 修改为默认名称
-            if sk.name != 'Basis':
-                sk.name = 'Basis'
+            obj.shape_key_remove(sk)
 
 
 def get_obj_by_type(objs, content_type):
