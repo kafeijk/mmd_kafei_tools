@@ -7,7 +7,7 @@ class ChangeTexLocProperty(bpy.types.PropertyGroup):
     new_folder: bpy.props.StringProperty(
         name="贴图文件夹名称",
         description="新贴图文件夹名称，区分大小写，忽略空格",
-        default='texture',
+        default='textures',
         maxlen=100
     )
     batch: bpy.props.PointerProperty(type=BatchProperty)
