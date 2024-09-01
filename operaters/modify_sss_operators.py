@@ -25,7 +25,7 @@ def is_valid_material(material):
 
 def reset_bsdf_sss(nodes):
     for node in nodes:
-        if node and node.type == 'BSDF_PRINCIPLED':
+        if node and node.bl_idname == 'ShaderNodeBsdfPrincipled':
             if not node.inputs["Subsurface"].is_linked:
                 node.inputs["Subsurface"].default_value = 0
 
@@ -55,7 +55,7 @@ def main(operator, context):
         output_node = None
         linked_node = None
         for node in nodes:
-            if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
+            if node.bl_idname == 'ShaderNodeOutputMaterial' and node.is_active_output:
                 # 确认表面插槽是否被连接
                 for link in node_tree.links:
                     if link.to_node == node and link.to_socket.name == "Surface":
@@ -70,12 +70,11 @@ def main(operator, context):
 
         if strategy == "RESET":
             reset_bsdf_sss(nodes)
-        else:
-            if strategy == "INTELLIGENCE":
-                # 处理原理化BSDF节点
-                processed = process_bsdf(linked_node)
-                if processed:
-                    continue
+        elif strategy == "INTELLIGENCE":
+            # 处理原理化BSDF节点
+            processed = process_bsdf(linked_node)
+            if processed:
+                continue
 
             # 如果已经强制处理过，则不再处理
             processed = is_force_processed(linked_node, node_tree)
@@ -84,6 +83,12 @@ def main(operator, context):
 
             # 强制处理
             force_process(node_tree, output_node)
+
+    if strategy == "INTELLIGENCE":
+        result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
+        if len(result) > 0:
+            operator.report(type={'WARNING'}, message=f'{result}')
+            operator.report(type={'WARNING'}, message=f'检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑')
 
 
 def get_materials(objs):
@@ -97,6 +102,49 @@ def get_materials(objs):
                 continue
             materials.append(material)
     return materials
+
+
+# 类型 https://docs.blender.org/api/current/bpy.types.ShaderNode.html#bpy.types.ShaderNode
+# 节点 https://docs.blender.org/api/current/bpy.types.Node.html#bpy.types.Node.type
+def check_material_node_existing_by_type(materials, node_type):
+    """校验指定类型节点是否被材质使用"""
+    # 节点组 -> 是否含有指定类型节点
+    checked_groups = {}
+    results = []
+
+    def check_nodes(nodes, checked_groups):
+        for node in nodes:
+            # 如果节点类型匹配，则立即返回
+            if node.bl_idname == node_type:
+                return True
+
+            # 如果是节点组，检查组内的节点
+            if node.bl_idname == 'ShaderNodeGroup' and node.node_tree:
+                node_tree_id = id(node.node_tree)
+
+                # 如果节点组已经被校验过
+                if node_tree_id in checked_groups:
+                    if checked_groups[node_tree_id]:
+                        return True  # 匹配则立即返回
+                    else:
+                        continue  # 不匹配则跳过该节点的检查
+
+                # 检查该组内的节点，并记录结果
+                checked_groups[node_tree_id] = check_nodes(node.node_tree.nodes, checked_groups)
+
+                # 如果匹配则立即返回
+                if checked_groups[node_tree_id]:
+                    return True
+
+        return False
+
+    # 检查每个材质中的节点树
+    for material in materials:
+        node_tree = material.node_tree
+        if node_tree:
+            if check_nodes(node_tree.nodes, checked_groups):
+                results.append(material.name)
+    return results
 
 
 def force_process(node_tree, output_node):
@@ -133,14 +181,14 @@ def force_process(node_tree, output_node):
 
 def is_force_processed(node, node_tree):
     """如果强制处理过，则不再处理"""
-    if node and node.type == 'MIX_SHADER':
+    if node and node.bl_idname == 'ShaderNodeMixShader':
         mix_shader_node = node
         # 检查混合着色器节点的第二个输入插槽是否连接到次表面散射节点
         sss_connected = False
         if mix_shader_node.inputs[2].is_linked:
             for link in node_tree.links:
                 if link.to_socket == mix_shader_node.inputs[2]:
-                    if link.from_node.type == 'SUBSURFACE_SCATTERING':
+                    if link.from_node.bl_idname == 'ShaderNodeSubsurfaceScattering':
                         sss_connected = True
                         break
         if sss_connected and mix_shader_node.inputs[0].default_value < 0.002:
@@ -150,7 +198,7 @@ def is_force_processed(node, node_tree):
 
 def process_bsdf(node):
     """处理原理化BSDF节点，只要类型是原理化BSDF，即返回True"""
-    if node and node.type == 'BSDF_PRINCIPLED':
+    if node and node.bl_idname == 'ShaderNodeBsdfPrincipled':
         if not node.inputs["Subsurface"].is_linked:
             if node.inputs["Metallic"].default_value >= 1:
                 node.inputs["Metallic"].default_value = 0.999
