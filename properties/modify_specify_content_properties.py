@@ -42,8 +42,8 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
         subtype='COLOR',
         size=4,
         min=0.0,  # 最小值为0
-        max=1.0,  # 最大值为1
-        default=(0, 0, 0, 1)
+        max=1.0,  # 最大值为0   # 说是最大值，但会受到HEX等影响而大于1，并不能完全拦住，但能防止一下子拉到一个较高值
+        default=(1, 1, 1, 1)    # RGBA
 
     )
 
