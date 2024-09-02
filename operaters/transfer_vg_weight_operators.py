@@ -21,6 +21,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
 
         source_vg_name = props.source_vg_name
         target_vg_name = props.target_vg_name
+        selected_v_only = props.selected_v_only
 
         if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -46,6 +47,8 @@ class TransferVgWeightOperator(bpy.types.Operator):
             target_vg_index = target_vg.index
 
             for vert in obj.data.vertices:
+                if selected_v_only and not vert.select:
+                    continue
                 v_index = vert.index
                 groups = [vgs.group for vgs in vert.groups]  # vert.groups 返回顶点组id和对应权重（只读）
                 if source_vg_index in groups:
