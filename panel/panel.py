@@ -16,7 +16,7 @@ from ..utils import *
 
 class TransferPresetPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_transfer_preset"
-    bl_label = "通用预设传递"
+    bl_label = "通用预设处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
@@ -38,51 +38,67 @@ class TransferPresetPanel(bpy.types.Panel):
         common_param_col = col.column()
         common_param_box = common_param_col.box()
         direction = props.direction
-        if direction == 'PMX2PMX':
-            source_col = common_param_box.column()
-            source_col.prop(props, "source")
-            target_col = common_param_box.column()
-            target_col.prop(props, "target")
 
-        material_flag_col = common_param_box.column()
-        material_flag_col.prop(props, "material_flag")
+        if direction in ['PMX2ABC', 'PMX2PMX']:
+            if direction == 'PMX2ABC':
+                source_pmx2abc_col = common_param_box.column()
+                source_pmx2abc_col.prop(props, "source_pmx2abc")
+            if direction == 'PMX2PMX':
+                source_col = common_param_box.column()
+                source_col.prop(props, "source")
+                target_col = common_param_box.column()
+                target_col.prop(props, "target")
 
-        uv_flag_col = common_param_box.column()
-        uv_flag_col.prop(props, "uv_flag")
-        vgs_col = common_param_box.column()
-        vgs_col.prop(props, "vgs_flag")
+            material_flag_col = common_param_box.column()
+            material_flag_col.prop(props, "material_flag")
 
-        modifiers_col = common_param_box.column()
-        modifiers_col.prop(props, "modifiers_flag")
+            uv_flag_col = common_param_box.column()
+            uv_flag_col.prop(props, "uv_flag")
+            vgs_col = common_param_box.column()
+            vgs_col.prop(props, "vgs_flag")
 
-        if direction == 'PMX2ABC':
-            toon_shading_flag_col = common_param_box.column()
-            toon_shading_flag_col.prop(props, "toon_shading_flag")
+            modifiers_col = common_param_box.column()
+            modifiers_col.prop(props, "modifiers_flag")
 
-        if props.toon_shading_flag:
-            toon_shading_flag_col = common_param_box.column()
-            box = toon_shading_flag_col.box()
-            box.prop(props, "face_locator")
-            face_col = box.column()
+            normal_flag_col = None
+            if direction == 'PMX2ABC':
+                normal_flag_col = common_param_box.column()
+                normal_flag_col.prop(props, "normal_flag")
 
-            face_col.prop(props, "auto_face_location")
-            auto_face_location = props.auto_face_location
-            if not auto_face_location:
-                face_box = box.box()
-                face_box.prop(props, "face_object")
-                # 顶点组太多了，让用户手动输入名称
-                face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
+                toon_shading_flag_col = common_param_box.column()
+                toon_shading_flag_col.prop(props, "toon_shading_flag")
 
-            material_flag_col.enabled = False
-            uv_flag_col.enabled = False
-            vgs_col.enabled = False
-            modifiers_col.enabled = False
-        else:
-            material_flag_col.enabled = True
-            uv_flag_col.enabled = True
-            vgs_col.enabled = True
-            modifiers_col.enabled = True
+            if props.toon_shading_flag:
+                toon_shading_flag_col = common_param_box.column()
+                box = toon_shading_flag_col.box()
+                box.prop(props, "face_locator")
+                face_col = box.column()
 
+                face_col.prop(props, "auto_face_location")
+                auto_face_location = props.auto_face_location
+                if not auto_face_location:
+                    face_box = box.box()
+                    face_box.prop(props, "face_object")
+                    # 顶点组太多了，让用户手动输入名称
+                    face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
+
+                material_flag_col.enabled = False
+                uv_flag_col.enabled = False
+                vgs_col.enabled = False
+                modifiers_col.enabled = False
+                normal_flag_col.enabled = False
+            else:
+                material_flag_col.enabled = True
+                uv_flag_col.enabled = True
+                vgs_col.enabled = True
+                modifiers_col.enabled = True
+                normal_flag_col.enabled = True
+
+        if direction == 'ABC2ABC':
+            abc_filepath_col = common_param_box.column()
+            abc_filepath_col.prop(props, "abc_filepath")
+            selected_only_col = common_param_box.column()
+            selected_only_col.prop(props, "selected_only")
         row = layout.row()
         row.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
 
@@ -312,8 +328,8 @@ class ChangeTexLocPanel(bpy.types.Panel):
         change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
-class AddSsbPanel:
-    # class AddSsbPanel(bpy.types.Panel):
+# class AddSsbPanel:
+class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "追加次标准骨骼"
     bl_space_type = 'VIEW_3D'

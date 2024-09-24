@@ -8,6 +8,7 @@ def auto_fill(self, context):
         self.uv_flag = True
         self.vgs_flag = True
         self.modifiers_flag = True
+        self.normal_flag = True
 
         if self.face_locator is None:
             root = find_pmx_root()
@@ -31,6 +32,11 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         description="源物体",
         type=bpy.types.Object
     )
+    source_pmx2abc: bpy.props.PointerProperty(
+        name="源物体",
+        description="源物体",
+        type=bpy.types.Object
+    )
     target: bpy.props.PointerProperty(
         name="目标物体",
         description="目标物体",
@@ -44,7 +50,8 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
             # pmx -> abc 较为常用
             ('PMX2ABC', 'pmx -> abc', "将pmx源物体的材质传递到abc目标物体上"),
             # pmx -> pmx 一定配合强校验，可解决网格顺序不同、网格内容修改后重新导入产生的重复上材质问题
-            ('PMX2PMX', 'pmx -> pmx', "将pmx源物体的材质传递到pmx目标物体上")
+            ('PMX2PMX', 'pmx -> pmx', "将pmx源物体的材质传递到pmx目标物体上"),
+            ('ABC2ABC', 'abc -> abc', "根据缓存文件重新设定缓存修改器参数")
         ],
         update=lambda self, context: update_preset(self, context)
     )
@@ -72,6 +79,12 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         description="将源物体拥有的修改器传递到目标物体上",
         default=True,
         update=lambda self, context: self.check_selection(context, "modifiers_flag")
+    )
+    normal_flag: bpy.props.BoolProperty(
+        name="法向",
+        description="将源物体拥有的自定义拆边法向数据传递到目标物体上",
+        default=True,
+        update=lambda self, context: self.check_selection(context, "normal_flag")
     )
     toon_shading_flag: bpy.props.BoolProperty(
         name="三渲二",
@@ -102,6 +115,19 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         description="源模型面部顶点组"
     )
 
+    abc_filepath: bpy.props.StringProperty(
+        name="缓存文件",
+        description="缓存文件地址",
+        subtype='FILE_PATH',
+        default=''
+    )
+
+    selected_only: bpy.props.BoolProperty(
+        name="仅选中",
+        description="影响范围为选中物体",
+        default=True,
+    )
+
     @staticmethod
     def register():
         bpy.types.Scene.mmd_kafei_tools_transfer_preset = bpy.props.PointerProperty(type=TransferPresetProperty)
@@ -112,7 +138,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
 
     def check_selection(self, context, changed_property):
         """检查选项，至少保持一个选项被选中"""
-        if not (self.material_flag or self.uv_flag or self.vgs_flag or self.modifiers_flag):
+        if not (self.material_flag or self.uv_flag or self.vgs_flag or self.modifiers_flag or self.normal_flag):
             if changed_property == "material_flag":
                 self.material_flag = True
             elif changed_property == "uv_flag":
@@ -121,3 +147,5 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
                 self.vgs_flag = True
             elif changed_property == "modifiers_flag":
                 self.modifiers_flag = True
+            elif changed_property == "normal_flag":
+                self.normal_flag = True

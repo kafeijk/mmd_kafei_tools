@@ -195,7 +195,11 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
 def check_transfer_preset_props(operator, props):
     direction = props.direction
     if direction == 'PMX2ABC':
-        pmx_root = find_pmx_root()
+        source_pmx2abc = props.source_pmx2abc
+        if source_pmx2abc is None:
+            operator.report(type={'ERROR'}, message=f'请输入源物体！')
+            return False
+        pmx_root = find_pmx_root_with_child(source_pmx2abc)
         if pmx_root is None:
             operator.report(type={'ERROR'}, message=f'没有找到pmx对象！')
             return False
@@ -257,6 +261,18 @@ def check_transfer_preset_props(operator, props):
         if source_root == target_root:
             operator.report(type={'ERROR'}, message=f'源物体与目标物体（祖先）相同！')
             return False
+    elif direction == 'ABC2ABC':
+        abc_filepath = props.abc_filepath
+        if not abc_filepath:
+            operator.report(type={'ERROR'}, message=f'请输入缓存文件地址！')
+            return False
+        if not os.path.exists(abc_filepath):
+            operator.report(type={'ERROR'}, message=f'缓存文件地址不存在！')
+            return False
+        if "abc" not in os.path.splitext(abc_filepath)[1]:
+            operator.report(type={'ERROR'}, message=f'请输入abc缓存文件地址！')
+            return False
+
     return True
 
 
@@ -365,10 +381,20 @@ def link_normal(mapping, direction):
     拆边法向的常见场景是通过合并顶点重新计算法向，修复面与面之间的折痕，但是这样会更改拓扑结构，所以插件不支持这个操作。需要用户在检查模型阶段完成修复操作，或手动添加数据传递修改器
     将修复完成后的pmx模型重新导入后，该模型已经具备了修复后的法向，所以PMX->PMX的情况下无需传递法向
 
-    更新：在blender3.x以上的环境下，我们无法自由选择读取（缓存的）什么数据。所以暂时不考虑法向的传递
+    # 更新：在blender3.x以上的环境下，我们无法自由选择读取（缓存的）什么数据。所以暂时不考虑法向的传递
+    更新：虽然可能需要二次导出abc文件（第一次mmd中无法向烘焙，第二次在其它3D软件中导入导出abc文件以适配blender3.x以上的缓存修改器），但依然可能会有abc文件过大的情况，或者保存abc文件的需求。
     """
     if direction == "PMX2PMX":
         return
+
+    # 记录物体修改器显示情况，然后关闭修改器的显示，防止对后续传递造成影响（如焊接等修改器会使source target拓扑不一致）
+    # 物体 -> 物体修改器是否显示
+    obj_mod_show_map = {}
+    for source, target in mapping.items():
+        obj_mod_show_map[source.name] = [mod.show_viewport for mod in source.modifiers]
+        for mod in source.modifiers:
+            mod.show_viewport = False
+
     for source, target in mapping.items():
         deselect_all_objects()
         select_and_activate(target)
@@ -379,12 +405,16 @@ def link_normal(mapping, direction):
         modifier.mix_mode = 'REPLACE'
         modifier.mix_factor = 1.0
 
+        # 将DataTransfer修改器移动到第一位
+        bpy.ops.object.modifier_move_to_index(modifier=modifier.name, index=0)
+
+        # 如果“TOPOLOGY的设置”在“修改器移动到第一位”之前，则会提示“源网格与目标网格面拐数量不一致，此类情形无法使用 '拓扑' 映射”，但最终依然能够正确传递
+        # 为了避免出现令人困惑的输出，将“TOPOLOGY的设置”放在“修改器移动到第一位”之后
         modifier.use_loop_data = True
         modifier.data_types_loops = {'CUSTOM_NORMAL'}
         modifier.loop_mapping = 'TOPOLOGY'
 
-        # 将DataTransfer修改器移动到第一位，然后执行生成数据层，然后应用掉该修改器
-        bpy.ops.object.modifier_move_to_index(modifier=modifier.name, index=0)
+        # 执行生成数据层，然后应用掉该修改器
         bpy.ops.object.datalayout_transfer(modifier=modifier.name)
         bpy.ops.object.modifier_apply(modifier=modifier.name)
 
@@ -392,6 +422,90 @@ def link_normal(mapping, direction):
         cache_modifiers = modifiers_by_type(target, "MESH_SEQUENCE_CACHE")
         for cache_modifier in cache_modifiers:
             cache_modifier.read_data = {'VERT', 'UV', 'COLOR'}
+
+    # 恢复物体修改器显示情况
+    for source, target in mapping.items():
+        source_mod_show_list = obj_mod_show_map.get(source.name)
+        for index, mod in enumerate(source.modifiers):
+            mod.show_viewport = source_mod_show_list[index]
+
+
+def get_obj_with_cache_modifier(selected=True):
+    if selected:
+        objs = bpy.context.selected_objects
+    else:
+        objs = bpy.data.objects
+    cache_objs = []
+    for obj in objs:
+        if obj.type != 'MESH':
+            continue
+        if not any(mod.type == 'MESH_SEQUENCE_CACHE' for mod in obj.modifiers):
+            continue
+        cache_objs.append(obj)
+    return cache_objs
+
+
+def import_abc_file(filepath):
+    """导入abc文件"""
+    bpy.ops.wm.alembic_import(filepath=filepath)
+    return bpy.context.selected_objects
+
+
+def match_caches(source_caches, target_caches):
+    """遍历abc文件和场景列表，配对顶点数一致的物体"""
+    for source in source_caches:
+        if source.type != 'MESH':
+            continue
+        source_verts = len(source.data.vertices)
+        for target in target_caches:
+            target_verts = len(target.data.vertices)
+            if source_verts != target_verts:
+                continue
+
+            source_mods = modifiers_by_type(source, 'MESH_SEQUENCE_CACHE')
+            target_mods = modifiers_by_type(target, 'MESH_SEQUENCE_CACHE')
+            source_mod = source_mods[0] if source_mods else None
+            target_mod = target_mods[0] if target_mods else None
+            if source_mod is None or target_mod is None:
+                continue
+
+            # 传递MeshSequenceCache参数
+            target_mod.cache_file = source_mod.cache_file
+            target_mod.object_path = source_mod.object_path
+            target_mod.read_data = source_mod.read_data
+
+    for source in reversed(source_caches):
+        bpy.data.objects.remove(source, do_unlink=True)
+
+
+def reset_cache_param(abc_filepath, selected):
+    """
+    重新设置缓存修改器参数
+
+    可能出现匹配不上的情况，这可能是多次修改等操作导致的顶点数不一致的问题（一般情况下相差几个顶点吧）
+
+    可以通过二次烘焙来使abc文件适配blender3.x以上版本，但是对顶点数不一致的物体无法生效
+    """
+
+    # 记录选择状态
+    active_object = bpy.context.active_object
+    selected_objects = [obj for obj in bpy.context.selected_objects]
+
+    # 获取含有MeshSequenceCache修改器的物体
+    target_caches = get_obj_with_cache_modifier(selected=selected)
+
+    # 导入abc文件 todo 要不要捕获异常
+    source_caches = import_abc_file(abc_filepath)
+
+    # 匹配并传递参数
+    if source_caches:
+        match_caches(source_caches, target_caches)
+
+    # 恢复选择状态
+    deselect_all_objects()
+    for obj in selected_objects:
+        select_and_activate(obj)
+    select_and_activate(active_object)
 
 
 def main(operator, context):
@@ -416,90 +530,101 @@ def main(operator, context):
     target_armature = None
     target_objects = None
     source_target_map = {}
-    if direction == 'PMX2ABC':
-        source_root = find_pmx_root()
-        source_armature = find_pmx_armature(source_root)
-        source_objects = find_pmx_objects(source_armature)
-        # 排除MESH类型面部定位器对后续流程的影响
-        if toon_shading_flag and face_locator.type == 'MESH':
-            source_objects.remove(face_locator)
-        target_objects = find_abc_objects()
-        sort_pmx_objects(source_objects)
-        sort_abc_objects(target_objects)
-        if len(source_objects) == len(target_objects):
-            source_target_map = dict(zip(source_objects, target_objects))
-        else:
+
+    if direction in ['PMX2ABC', 'PMX2PMX']:
+        if direction == 'PMX2ABC':
+            source_pmx2abc = props.source_pmx2abc
+            source_root = find_pmx_root_with_child(source_pmx2abc)
+            source_armature = find_pmx_armature(source_root)
+            source_objects = find_pmx_objects(source_armature)
+            # 排除MESH类型面部定位器对后续流程的影响
+            if toon_shading_flag and face_locator.type == 'MESH':
+                source_objects.remove(face_locator)
+            target_objects = find_abc_objects()
+            sort_pmx_objects(source_objects)
+            sort_abc_objects(target_objects)
+            if len(source_objects) == len(target_objects):
+                source_target_map = dict(zip(source_objects, target_objects))
+            else:
+                source_target_map = matching(source_objects, target_objects, direction)
+        elif direction == 'PMX2PMX':
+            # 通过名称可以进行快速的配对，但是，如果pmx网格内容/顺序修改了，无法进行 abc -> pmx 的反向配对
+            # 通过顶点数量进行配对，可能会出现顶点数相同但网格内容不同的情况，如左目右目（但几率非常低）
+            # 通过顶点数进行初步判断，再通过顶点局部位置是否相同（含误差）进行二次判断（相较其他方法慢一些），可以排除无关物体带来的影响，可以尽可能的双向配对
+            # unit_test_compare可以对两个MESH进行比较，但是结果是String类型的描述，而且描述比较模糊无法获取到完整的信息
+            # 不再提供是否进行强校验的参数，PMX2ABC默认名称配对，PMX2PMX默认强校验
+            source_root = find_pmx_root_with_child(props.source)
+            source_armature = find_pmx_armature(source_root)
+            source_objects = find_pmx_objects(source_armature)
+            target_root = find_pmx_root_with_child(props.target)
+            target_armature = find_pmx_armature(target_root)
+            target_objects = find_pmx_objects(target_armature)
             source_target_map = matching(source_objects, target_objects, direction)
-    elif direction == 'PMX2PMX':
-        # 通过名称可以进行快速的配对，但是，如果pmx网格内容/顺序修改了，无法进行 abc -> pmx 的反向配对
-        # 通过顶点数量进行配对，可能会出现顶点数相同但网格内容不同的情况，如左目右目（但几率非常低）
-        # 通过顶点数进行初步判断，再通过顶点局部位置是否相同（含误差）进行二次判断（相较其他方法慢一些），可以排除无关物体带来的影响，可以尽可能的双向配对
-        # unit_test_compare可以对两个MESH进行比较，但是结果是String类型的描述，而且描述比较模糊无法获取到完整的信息
-        # 不再提供是否进行强校验的参数，PMX2ABC默认名称配对，PMX2PMX默认强校验
-        source_root = find_pmx_root_with_child(props.source)
-        source_armature = find_pmx_armature(source_root)
-        source_objects = find_pmx_objects(source_armature)
-        target_root = find_pmx_root_with_child(props.target)
-        target_armature = find_pmx_armature(target_root)
-        target_objects = find_pmx_objects(target_armature)
-        source_target_map = matching(source_objects, target_objects, direction)
 
-    # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
-    if len(source_target_map) == 0:
-        if toon_shading_flag:
-            raise RuntimeError(
-                f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
-        else:
-            raise RuntimeError(
-                f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
+        # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
+        if len(source_target_map) == 0:
+            if toon_shading_flag:
+                raise RuntimeError(
+                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
+            else:
+                raise RuntimeError(
+                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
 
-    # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
-    # 记录源物体和目标物体的可见性
-    display_list = source_objects + target_objects
-    display_list.append(source_root)
-    display_list.append(source_armature)
-    if direction == 'PMX2PMX':
-        display_list.append(target_root)
-        display_list.append(target_armature)
-    visibility_map = show_objects(display_list)
+        # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
+        # 记录源物体和目标物体的可见性
+        display_list = source_objects + target_objects
+        display_list.append(source_root)
+        display_list.append(source_armature)
+        if direction == 'PMX2PMX':
+            display_list.append(target_root)
+            display_list.append(target_armature)
+        visibility_map = show_objects(display_list)
 
-    uv_flag = props.uv_flag
-    if uv_flag:
-        # 关联源物体UV到目标物体上面
-        link_uv(operator, source_target_map, direction)
+        uv_flag = props.uv_flag
+        if uv_flag:
+            # 关联源物体UV到目标物体上面
+            link_uv(operator, source_target_map, direction)
 
-    material_flag = props.material_flag
-    if material_flag:
-        # 关联源物体材质到目标物体上面
-        link_material(source_target_map)
-        # 关联源物体材质到目标物体上面（多材质槽情况下）
-        link_multi_slot_materials(operator, source_target_map, direction)
+        material_flag = props.material_flag
+        if material_flag:
+            # 关联源物体材质到目标物体上面
+            link_material(source_target_map)
+            # 关联源物体材质到目标物体上面（多材质槽情况下）
+            link_multi_slot_materials(operator, source_target_map, direction)
 
-    # 关联源物体顶点组及顶点权重到目标物体上面（正序）
-    vgs_flag = props.vgs_flag
-    if vgs_flag:
-        link_vertices_group(source_armature, target_armature, source_target_map, direction)
-        link_vertices_weight(source_armature, target_armature, source_target_map, direction)
+        # 关联源物体顶点组及顶点权重到目标物体上面（正序）
+        vgs_flag = props.vgs_flag
+        if vgs_flag:
+            link_vertices_group(source_armature, target_armature, source_target_map, direction)
+            link_vertices_weight(source_armature, target_armature, source_target_map, direction)
 
-    # 复制pmx修改器到abc上面（同时保留网格序列缓存修改器，删除骨架修改器）
-    modifiers_flag = props.modifiers_flag
-    if modifiers_flag:
-        link_modifiers(source_target_map, direction)
+        # 复制pmx修改器到abc上面（同时保留网格序列缓存修改器，删除骨架修改器）
+        modifiers_flag = props.modifiers_flag
+        if modifiers_flag:
+            link_modifiers(source_target_map, direction)
 
-    face_object = props.face_object
-    face_vg = props.face_vg
-    auto_face_location = props.auto_face_location
-    # 三渲二面部定位器处理
-    if toon_shading_flag and direction == 'PMX2ABC':
-        process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
+        normal_flag = props.normal_flag
+        if normal_flag:
+            link_normal(source_target_map, direction)
 
-    # 为abc模型创建父级物体，创建父级可以更好地操作与管理导入的abc模型
-    if direction == 'PMX2ABC':
-        create_abc_parent(source_root, source_target_map)
+        face_object = props.face_object
+        face_vg = props.face_vg
+        auto_face_location = props.auto_face_location
+        # 三渲二面部定位器处理
+        if toon_shading_flag and direction == 'PMX2ABC':
+            process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
 
-    # 恢复原有可见性
-    for obj, visibility in visibility_map.items():
-        set_visibility(obj, visibility)
+        # 为abc模型创建父级物体，创建父级可以更好地操作与管理导入的abc模型
+        if direction == 'PMX2ABC':
+            create_abc_parent(source_root, source_target_map)
+
+        # 恢复原有可见性
+        for obj, visibility in visibility_map.items():
+            set_visibility(obj, visibility)
+    elif direction in ['ABC2ABC']:
+        abc_filepath = props.abc_filepath
+        selected_only = props.selected_only
+        reset_cache_param(abc_filepath, selected_only)
 
 
 def create_abc_parent(source_root, source_target_map):
