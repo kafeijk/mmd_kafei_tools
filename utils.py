@@ -58,8 +58,11 @@ def select_and_activate(obj):
     """选中并激活物体"""
     if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
         bpy.ops.object.mode_set(mode='OBJECT')
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
+    try:
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+    except RuntimeError:    # RuntimeError: 错误: 物体 'xxx' 不在视图层 'ViewLayer'中, 所以无法选中!
+        pass
 
 
 def deselect_all_objects():
