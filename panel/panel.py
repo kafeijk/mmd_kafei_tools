@@ -149,7 +149,7 @@ class ModifyColorspacePanel(bpy.types.Panel):
 
 class ModifySssPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_modify_sss"
-    bl_label = "修复次表面问题"
+    bl_label = "次表面简易修复"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
