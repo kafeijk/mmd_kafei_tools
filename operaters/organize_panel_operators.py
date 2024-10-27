@@ -46,6 +46,10 @@ class OrganizePanelOperator(bpy.types.Operator):
             if not armature:
                 self.report(type={'ERROR'}, message=f'请选择MMD模型')
                 return False
+            objs = find_pmx_objects(armature)
+            if not objs:
+                self.report(type={'ERROR'}, message=f'未找到MMD模型的网格对象')
+                return False
         return True
 
 
@@ -78,8 +82,20 @@ def reorder_bone_panel(pmx_root, props):
     armature = find_pmx_armature(pmx_root)
     objs = find_pmx_objects(armature)
 
-    # 首个拥有骨架修改器的Mesh对象
-    pmx_obj = next((obj for obj in objs if obj.modifiers.get('mmd_bone_order_override')), objs[0])
+    # 获取含有mmd_bone_order_override骨架修改器的首个对象，如果没有，则新建修改器
+    pmx_obj = None
+    for obj in objs:
+        if obj.modifiers.get('mmd_bone_order_override', None):
+            pmx_obj = obj
+            break
+    if not pmx_obj:
+        pmx_obj = objs[0]
+        armature_mod = pmx_obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
+        armature_mod.show_in_editmode = False
+        armature_mod.show_viewport = False
+        armature_mod.show_render = False
+        pmx_obj.modifiers.move(len(pmx_obj.modifiers) - 1, 0)
+
     # 顶点组名称列表
     vgs = get_vgs(pmx_obj)
     vgs_dict = {value: index for index, value in enumerate(vgs)}
