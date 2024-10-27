@@ -7,7 +7,7 @@ from ..operaters.remove_uv_map_operators import RemoveUvMapOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
 from ..operaters.render_preview_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
-from ..operaters.select_bone_operators import SelectBoneOperator
+from ..operaters.small_feature_operators import SmallFeatureOperator
 from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
@@ -60,7 +60,6 @@ class TransferPresetPanel(bpy.types.Panel):
             modifiers_col = common_param_box.column()
             modifiers_col.prop(props, "modifiers_flag")
 
-            normal_flag_col = None
             if direction == 'PMX2ABC':
                 normal_flag_col = common_param_box.column()
                 normal_flag_col.prop(props, "normal_flag")
@@ -68,31 +67,31 @@ class TransferPresetPanel(bpy.types.Panel):
                 toon_shading_flag_col = common_param_box.column()
                 toon_shading_flag_col.prop(props, "toon_shading_flag")
 
-            if props.toon_shading_flag:
-                toon_shading_flag_col = common_param_box.column()
-                box = toon_shading_flag_col.box()
-                box.prop(props, "face_locator")
-                face_col = box.column()
+                if props.toon_shading_flag:
+                    toon_shading_flag_col = common_param_box.column()
+                    box = toon_shading_flag_col.box()
+                    box.prop(props, "face_locator")
+                    face_col = box.column()
 
-                face_col.prop(props, "auto_face_location")
-                auto_face_location = props.auto_face_location
-                if not auto_face_location:
-                    face_box = box.box()
-                    face_box.prop(props, "face_object")
-                    # 顶点组太多了，让用户手动输入名称
-                    face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
+                    face_col.prop(props, "auto_face_location")
+                    auto_face_location = props.auto_face_location
+                    if not auto_face_location:
+                        face_box = box.box()
+                        face_box.prop(props, "face_object")
+                        # 顶点组太多了，让用户手动输入名称
+                        face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
 
-                material_flag_col.enabled = False
-                uv_flag_col.enabled = False
-                vgs_col.enabled = False
-                modifiers_col.enabled = False
-                normal_flag_col.enabled = False
-            else:
-                material_flag_col.enabled = True
-                uv_flag_col.enabled = True
-                vgs_col.enabled = True
-                modifiers_col.enabled = True
-                normal_flag_col.enabled = True
+                    material_flag_col.enabled = False
+                    uv_flag_col.enabled = False
+                    vgs_col.enabled = False
+                    modifiers_col.enabled = False
+                    normal_flag_col.enabled = False
+                else:
+                    material_flag_col.enabled = True
+                    uv_flag_col.enabled = True
+                    vgs_col.enabled = True
+                    modifiers_col.enabled = True
+                    normal_flag_col.enabled = True
 
         if direction == 'ABC2ABC':
             abc_filepath_col = common_param_box.column()
@@ -203,39 +202,13 @@ class TransferVgWeightPanel(bpy.types.Panel):
         operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
 
 
-class SelectBonePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_select_bone"
-    bl_label = "骨骼选择"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 4
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_select_bone
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-
-        category_col = col.column()
-        category_col.prop(props, "category")
-
-        operators_col = col.column()
-        operators_col.operator(SelectBoneOperator.bl_idname, text=SelectBoneOperator.bl_label)
-
-
 class RemoveSpecifyContentPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_remove_specify_content"
     bl_label = "物体操作"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 5
+    bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -283,6 +256,32 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
 
         operator_col = col.column()
         operator_col.operator(ModifySpecifyContentOperator.bl_idname, text=ModifySpecifyContentOperator.bl_label)
+
+
+class SmallFeaturePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_sf"
+    bl_label = "小功能"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_tools"
+    bl_order = 5
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_sf
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        option_col = col.column()
+        option_col.prop(props, "option")
+
+        operators_col = col.column()
+        operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
 
 
 class PrePostProcessingPanel(bpy.types.Panel):
