@@ -478,34 +478,171 @@ def match_caches(source_caches, target_caches):
         bpy.data.objects.remove(source, do_unlink=True)
 
 
-def reset_cache_param(abc_filepath, selected):
+def reset_cache_param(abc_filepath, selected_only, operator):
     """
-    重新设置缓存修改器参数
+    重新设置缓存修改器参数，可能出现匹配不上的情况，这可能是多次修改等操作导致的顶点数不一致的问题（一般情况下相差几个顶点吧，暂不做额外处理）
 
-    可能出现匹配不上的情况，这可能是多次修改等操作导致的顶点数不一致的问题（一般情况下相差几个顶点吧）
-
-    可以通过二次烘焙来使abc文件适配blender3.x以上版本，但是对顶点数不一致的物体无法生效
+    # 网格对象：
+    # 如果物体使用的缓存文件不同，则根据缓存文件分组
+    # 如果使用的缓存文件相同，则根据xform_0_material_0 分组
+    # 缓存对象：
+    # 则根据xform_0_material_0分组
     """
 
     # 记录选择状态
     active_object = bpy.context.active_object
     selected_objects = [obj for obj in bpy.context.selected_objects]
 
-    # 获取含有MeshSequenceCache修改器的物体
-    target_caches = get_obj_with_cache_modifier(selected=selected)
+    if selected_only:
+        target_objs = bpy.context.selected_objects
+    else:
+        target_objs = bpy.data.objects
 
-    # 导入abc文件 todo 要不要捕获异常
-    source_caches = import_abc_file(abc_filepath)
+    # 目标角色 -> 角色信息 map
+    target_character_map, obj_info_map, target_obj_flag_map, non_compliant_list = get_character_map(target_objs)
 
-    # 匹配并传递参数
-    if source_caches:
-        match_caches(source_caches, target_caches)
+    # 导入abc文件
+    source_objs = import_abc_file(abc_filepath)
+    source_character_map, _, _, _ = get_character_map(source_objs)
 
-    # 恢复选择状态
-    deselect_all_objects()
-    for obj in selected_objects:
-        select_and_activate(obj)
-    select_and_activate(active_object)
+    source_target_map = {}
+    # 源角色与目标角色的网格number，网格数一致即可，网格number可（因未选中）缺省，可（因网格复制）冗余
+    for source_character, source_infos in source_character_map.items():
+        for target_character, target_infos in target_character_map.items():
+            # 单个目标角色只能被使用一次，如果有多个相同源角色，则应复制多份目标角色
+            if target_character in source_target_map.values():
+                continue
+
+            if match_info(source_infos, target_infos):
+                # 记录映射关系
+                source_target_map[source_character] = target_character
+                # 关联缓存
+                link_cache(source_infos, target_infos, target_obj_flag_map)
+                break
+
+    # 对未配对但和已配对对象拥有相同父级的对象进行优化
+    # 如果执行后仍有未匹配的物体，那么可能是因为
+    #   顶点数不一致导致整体配对失败
+    #   Ctrl C/V 导致的缓存名称不匹配而配对失败（应该用Shift + D）
+    for target_name, flag in target_obj_flag_map.items():
+        if flag:
+            continue
+        target_info = obj_info_map[target_name]
+        target_infos = [target_info]
+        target_obj = bpy.data.objects.get(target_name)
+        if target_obj.parent:
+            source2_objs = target_obj.parent.children
+            source2_infos = []
+            for source2_obj in source2_objs:
+                if target_info == source2_obj:
+                    continue
+                source2_infos.append(obj_info_map[source2_obj.name])
+            # 自己和自己配对（由于之前已经配对过一次，所以这里配对使用的是旧number顺序）
+            if match_info(source2_infos, target_infos):
+                link_cache(source2_infos, target_infos, target_obj_flag_map)
+
+    for source_obj in source_objs:
+        bpy.data.objects.remove(source_obj, do_unlink=True)
+
+    if selected_only:
+        deselect_all_objects()
+        for obj in selected_objects:
+            select_and_activate(obj)
+        if active_object:
+            select_and_activate(active_object)
+
+    # 输出异常信息
+    if all(target_obj_flag_map.values()) and not non_compliant_list:
+        pass
+    else:
+        msg = ''
+        if non_compliant_list:
+            msg = msg + f'以下物体缓存信息无效：\n{non_compliant_list}\n'
+        false_keys = [key for key, value in target_obj_flag_map.items() if not value]
+        if false_keys:
+            msg = msg + f'以下物体配对失败，请检查网格顶点数或缓存文件名称：\n{false_keys}'
+        operator.report({'WARNING'}, msg)
+        operator.report({'WARNING'}, f'存在未成功配对对象，点击查看报告↑↑↑')
+
+
+def match_info(source_infos, target_infos):
+    """在number一致的情况下校验顶点数是否一致，以判断是否为同一角色"""
+    for source_info in source_infos:
+        for target_info in target_infos:
+            source_number = source_info[5]  # 网格顺序number
+            source_v_number = source_info[1]  # 顶点数
+
+            target_number = target_info[5]
+            target_v_number = target_info[1]
+
+            if source_number == target_number:
+                if source_v_number != target_v_number:
+                    return False
+    return True
+
+
+def link_cache(source_infos, target_infos, target_obj_flag_map):
+    for source_info in source_infos:
+        for target_info in target_infos:
+            source_number = source_info[5]  # 网格顺序number
+            target_number = target_info[5]
+
+            if source_number != target_number:
+                continue
+
+            source_obj = bpy.data.objects.get(source_info[0])
+            target_obj = bpy.data.objects.get(target_info[0])
+
+            target_obj_flag_map[target_info[0]] = True
+
+            source_mod = source_obj.modifiers.get(source_info[2])
+            target_mod = target_obj.modifiers.get(target_info[2])
+
+            # 仅修改cache_file.filepath，不修改cache_file，这样替换单一角色动作的时候，其它角色不会受到影响
+            target_mod.cache_file.filepath = source_mod.cache_file.filepath
+            target_mod.object_path = source_mod.object_path
+
+
+def get_character_map(objs):
+    # 角色 -> 角色信息 map
+    character_map = {}
+    # 网格对象 -> 网格对象信息
+    obj_info_map = {}
+    # 目标网格 ->是否关联完毕 map
+    obj_flag_map = {}
+    # 不合规列表
+    non_compliant_list = []
+    for obj in objs:
+        if obj.type != 'MESH':
+            continue
+        for mod in obj.modifiers:
+            if mod.type != 'MESH_SEQUENCE_CACHE':
+                continue
+            cache_file = mod.cache_file
+            if not cache_file:
+                non_compliant_list.append(obj.name)
+                continue
+
+            cache_file_name = mod.cache_file.name
+            object_path = mod.object_path
+
+            pattern = r'/xform_(\d+)_material_(\d+)/mesh_(\d+)_material_(\d+)'
+            match = re.match(pattern, object_path)
+            if not match:
+                non_compliant_list.append(obj.name)
+                continue
+            numbers = match.groups()
+            character_number = numbers[0]  # 代表角色类别的部分
+            obj_number = numbers[1]  # 代表网格对象顺序的部分
+
+            obj_flag_map[obj.name] = False
+
+            info = [obj.name, len(obj.data.vertices), mod.name, cache_file_name, character_number, obj_number]
+            obj_info_map[obj.name] = info
+
+            key = f'CACHE_{cache_file_name}_NUMBER_{character_number}'  # 根据缓存名称和物体路径来决定角色
+            character_map.setdefault(key, []).append(info)
+    return character_map, obj_info_map, obj_flag_map, non_compliant_list
 
 
 def main(operator, context):
@@ -624,7 +761,7 @@ def main(operator, context):
     elif direction in ['ABC2ABC']:
         abc_filepath = props.abc_filepath
         selected_only = props.selected_only
-        reset_cache_param(abc_filepath, selected_only)
+        reset_cache_param(abc_filepath, selected_only, operator)
 
 
 def create_abc_parent(source_root, source_target_map):
