@@ -293,7 +293,7 @@ def get_mesh_stats(obj):
     return vert_count, edge_count, face_count, loop_count
 
 
-def matching(sources, targets, direction):
+def matching(sources, targets, direction, tolerance=0):
     """尽可能的对物体配对
         4w面  循环80w次  耗时0.7秒
         13w面 循环230w次 耗时2.3秒 20w面应该是常用模型的较大值了
@@ -301,38 +301,17 @@ def matching(sources, targets, direction):
     """
     start_time = time.time()
     source_targets_map = {}
-    for source in sources:
-        for target in targets:
-            source_stats = get_mesh_stats(source)
-            target_stats = get_mesh_stats(target)
-            if source_stats != target_stats:
-                continue
 
-            vertices = {}
-            for vert in source.data.vertices:
-                for i in range(-1, 2):
-                    for j in range(-1, 2):
-                        for k in range(-1, 2):
-                            key = (
-                                truncate(vert.co.x) + i * 1,
-                                truncate(vert.co.y) + j * 1,
-                                truncate(vert.co.z) + k * 1)
-                            if key not in vertices:
-                                vertices[key] = 1
-                            else:
-                                vertices[key] = vertices[key] + 1
+    target_flag_map = {}
+    for target in targets:
+        target_flag_map[target] = False
 
-            match_count = 0
-            for vert in target.data.vertices:
-                key = gen_key(vert, direction[-3:])
-                if key in vertices:
-                    match_count += 1
-            if match_count / len(target.data.vertices) > 0.95:
-                # target是个列表，如果大于1，则还要按照名称来匹配
-                if source_targets_map.get(source, None):
-                    source_targets_map[source].append(target)
-                else:
-                    source_targets_map[source] = [target]
+    set_source_targets_map(direction, sources, targets, source_targets_map, target_flag_map)
+
+    for target, flag in target_flag_map.items():
+        if flag:
+            continue
+        set_source_targets_map(direction, sources, [target], source_targets_map, target_flag_map, tolerance=tolerance)
 
     # 遍历source_target_maps，如果key存在多个target（如发+、衣+等内容和发、衣校验的结果是一模一样的），则对这些内容进行二次校验
     # 如果key和value的名称相同，才进行配对，放入source_target_map（PMX2PMX的情况下）
@@ -356,6 +335,46 @@ def matching(sources, targets, direction):
                 source_target_map[source] = target_list[0]
     print(f"配对完成，用时: {time.time() - start_time} 秒")
     return source_target_map
+
+
+def set_source_targets_map(direction, sources, targets, source_targets_map, target_flag_map, tolerance=0):
+    for source in sources:
+        for target in targets:
+
+            # 考虑到后面会针对每个顶点的位置来匹配，这里仅比较顶点数
+            source_v_count = len(source.data.vertices)
+            target_v_count = len(target.data.vertices)
+            if tolerance == 0:
+                if source_v_count != target_v_count:
+                    continue
+            else:
+                if abs(source_v_count - target_v_count) / max(abs(source_v_count), abs(target_v_count)) > tolerance:
+                    continue
+
+            vertices = {}
+            for vert in source.data.vertices:
+                for i in range(-1, 2):
+                    for j in range(-1, 2):
+                        for k in range(-1, 2):
+                            key = (
+                                truncate(vert.co.x) + i * 1,
+                                truncate(vert.co.y) + j * 1,
+                                truncate(vert.co.z) + k * 1)
+                            if key not in vertices:
+                                vertices[key] = 1
+                            else:
+                                vertices[key] = vertices[key] + 1
+
+            match_count = 0
+            for vert in target.data.vertices:
+                key = gen_key(vert, direction[-3:])
+                if key in vertices:
+                    match_count += 1
+            if (tolerance == 0 and match_count / len(target.data.vertices) == 1) or (
+                    tolerance != 0 and match_count / len(target.data.vertices) >= (1 - tolerance)):
+                target_flag_map[target] = True
+                # target是个列表，如果大于1，则还要按照名称来匹配
+                source_targets_map.setdefault(source, []).append(target)
 
 
 def gen_key(vert, object_type):
@@ -655,6 +674,10 @@ def main(operator, context):
     # 参数校验
     props = scene.mmd_kafei_tools_transfer_preset
     direction = props.direction
+    # 获取误差值，仅在PMX2PMX时生效
+    tolerance = props.tolerance
+    if direction != 'PMX2PMX':
+        tolerance = 0
     if check_transfer_preset_props(operator, props) is False:
         return
     toon_shading_flag = props.toon_shading_flag
@@ -696,7 +719,7 @@ def main(operator, context):
             target_root = find_pmx_root_with_child(props.target)
             target_armature = find_pmx_armature(target_root)
             target_objects = find_pmx_objects(target_armature)
-            source_target_map = matching(source_objects, target_objects, direction)
+            source_target_map = matching(source_objects, target_objects, direction, tolerance=tolerance)
 
         # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
         if len(source_target_map) == 0:

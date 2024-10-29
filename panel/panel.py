@@ -60,6 +60,10 @@ class TransferPresetPanel(bpy.types.Panel):
             modifiers_col = common_param_box.column()
             modifiers_col.prop(props, "modifiers_flag")
 
+            if direction == 'PMX2PMX':
+                tolerance_col = common_param_box.column()
+                tolerance_col.prop(props, "tolerance")
+
             if direction == 'PMX2ABC':
                 normal_flag_col = common_param_box.column()
                 normal_flag_col.prop(props, "normal_flag")

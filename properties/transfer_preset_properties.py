@@ -128,6 +128,14 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         default=True,
     )
 
+    tolerance: bpy.props.FloatProperty(
+        name="误差",
+        description="在匹配失败时根据误差值尝试重新匹配",
+        default=0.0,
+        min=0.0,
+        max=1
+    )
+
     @staticmethod
     def register():
         bpy.types.Scene.mmd_kafei_tools_transfer_preset = bpy.props.PointerProperty(type=TransferPresetProperty)
