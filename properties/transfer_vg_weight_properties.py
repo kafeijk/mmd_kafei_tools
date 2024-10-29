@@ -15,7 +15,7 @@ class TransferVgWeightProperty(bpy.types.PropertyGroup):
     # 这个穿模本不应该发生，需排除左足D对右侧的影响，但涂权重手残费劲（裤子受到足D，臀骨，下半身的影响），直接通过框选顶点的方式处理更方便些
     selected_v_only: bpy.props.BoolProperty(
         name="仅选中顶点",
-        description="权重转移时，影响范围为选中的顶点",
+        description="权重转移时，影响范围为编辑模式下被选中的顶点",
         default=False
 
     )

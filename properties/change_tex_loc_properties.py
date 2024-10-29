@@ -6,7 +6,7 @@ from .batch_properties import BatchProperty
 class ChangeTexLocProperty(bpy.types.PropertyGroup):
     new_folder: bpy.props.StringProperty(
         name="贴图文件夹名称",
-        description="新贴图文件夹名称，区分大小写，忽略空格",
+        description="新贴图文件夹名称，区分大小写，忽略首尾空格",
         default='textures',
         maxlen=100
     )

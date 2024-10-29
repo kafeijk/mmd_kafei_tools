@@ -42,6 +42,7 @@ class ChangeTexLocOperator(bpy.types.Operator):
 
 def do_change_tex_loc(pmx_root, props, filepath):
     new_folder = props.new_folder
+    new_folder = new_folder.strip()
     remove_empty = props.remove_empty
     # 修改纹理和球体纹理路径（sph）
     change_texture_filepaths(filepath, new_folder)
