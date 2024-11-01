@@ -32,7 +32,7 @@ def find_pmx_armature(pmx_root):
 
 
 def find_pmx_objects(pmx_armature):
-    return list((child for child in pmx_armature.children if child.type == 'MESH'))
+    return list((child for child in pmx_armature.children if child.type == 'MESH' and child.mmd_type == 'NONE'))
 
 
 def find_abc_objects():
@@ -61,7 +61,7 @@ def select_and_activate(obj):
     try:
         obj.select_set(True)
         bpy.context.view_layer.objects.active = obj
-    except RuntimeError:    # RuntimeError: 错误: 物体 'xxx' 不在视图层 'ViewLayer'中, 所以无法选中!
+    except RuntimeError:  # RuntimeError: 错误: 物体 'xxx' 不在视图层 'ViewLayer'中, 所以无法选中!
         pass
 
 
