@@ -312,7 +312,10 @@ def convert_materials(pmx_armature, force_center):
         nodes = node_tree.nodes
         for node in nodes:
             if node.type == 'BSDF_PRINCIPLED':
-                specular_node = node.inputs['Specular']
+                if bpy.app.version < (4, 0, 0):
+                    specular_node = node.inputs['Specular']
+                else:
+                    specular_node = node.inputs['Specular IOR Level']
                 specular_node.default_value = 0
                 if alpha == 1:
                     continue
