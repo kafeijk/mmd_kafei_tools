@@ -1,5 +1,9 @@
 from ..utils import *
 
+if bpy.app.version < (4, 0, 0):
+    SUBSURFACE = 'Subsurface'
+else:
+    SUBSURFACE = 'Subsurface Weight'
 
 class ModifySssOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.modify_sss"
@@ -26,8 +30,8 @@ def is_valid_material(material):
 def reset_bsdf_sss(nodes):
     for node in nodes:
         if node and node.bl_idname == 'ShaderNodeBsdfPrincipled':
-            if not node.inputs["Subsurface"].is_linked:
-                node.inputs["Subsurface"].default_value = 0
+            if not node.inputs[SUBSURFACE].is_linked:
+                node.inputs[SUBSURFACE].default_value = 0
 
 
 def main(operator, context):
@@ -40,25 +44,23 @@ def main(operator, context):
     scene = context.scene
     props = scene.mmd_kafei_tools_modify_sss
     strategy = props.strategy
-
     # 获取待处理的材质
     materials = get_materials(objs)
-
     for material in materials:
         if not is_valid_material(material):
             continue
 
         node_tree = material.node_tree
         nodes = node_tree.nodes
-
         # 找到当前被使用的材质输出节点
         output_node = None
         linked_node = None
+
         for node in nodes:
             if node.bl_idname == 'ShaderNodeOutputMaterial' and node.is_active_output:
                 # 确认表面插槽是否被连接
                 for link in node_tree.links:
-                    if link.to_node == node and link.to_socket.name == "Surface":
+                    if link.to_node == node and link.to_socket.name == 'Surface':
                         output_node = node
                         linked_node = link.from_node
                         break
@@ -199,11 +201,11 @@ def is_force_processed(node, node_tree):
 def process_bsdf(node):
     """处理原理化BSDF节点，只要类型是原理化BSDF，即返回True"""
     if node and node.bl_idname == 'ShaderNodeBsdfPrincipled':
-        if not node.inputs["Subsurface"].is_linked:
+        if not node.inputs[SUBSURFACE].is_linked:
             if node.inputs["Metallic"].default_value >= 1:
                 node.inputs["Metallic"].default_value = 0.999
-            if node.inputs["Subsurface"].default_value == 0:
-                node.inputs["Subsurface"].default_value = 0.001
+            if node.inputs[SUBSURFACE].default_value == 0:
+                node.inputs[SUBSURFACE].default_value = 0.001
         return True
     else:
         return False

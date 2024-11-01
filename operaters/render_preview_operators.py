@@ -18,7 +18,15 @@ class LoadRenderPresetOperator(bpy.types.Operator):
 
         # 渲染属性
         # 渲染引擎
-        bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+        if bpy.app.version < (4, 0, 0):
+            bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+            # 运动模糊
+            bpy.context.scene.eevee.use_motion_blur = False
+        else:
+            bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
+            bpy.context.scene.render.use_motion_blur = False
+
+
         # 采样
         bpy.context.scene.eevee.taa_render_samples = 32
         bpy.context.scene.eevee.taa_samples = 16
@@ -31,8 +39,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         bpy.context.scene.eevee.sss_samples = 7
         # 屏幕空间反射 todo 是否关闭待确认
         bpy.context.scene.eevee.use_ssr = False
-        # 运动模糊
-        bpy.context.scene.eevee.use_motion_blur = False
+
         # 阴影
         bpy.context.scene.eevee.shadow_cube_size = '1024'
         bpy.context.scene.eevee.shadow_cascade_size = '1024'
