@@ -1,7 +1,6 @@
 from ..operaters.modify_specify_content_operators import ModifySpecifyContentOperator
 from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
 from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
-from ..operaters.modify_sss_operators import ModifySssOperator
 from ..operaters.organize_panel_operators import OrganizePanelOperator
 from ..operaters.remove_uv_map_operators import RemoveUvMapOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
@@ -151,29 +150,6 @@ class ModifyColorspacePanel(bpy.types.Panel):
         operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
 
 
-class ModifySssPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_modify_sss"
-    bl_label = "次表面简易修复"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 2
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_modify_sss
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-
-        strategy_col = col.column()
-        strategy_col.prop(props, "strategy")
-        modify_sss_col = col.column()
-        modify_sss_col.operator(ModifySssOperator.bl_idname, text=ModifySssOperator.bl_label)
 
 
 class TransferVgWeightPanel(bpy.types.Panel):
