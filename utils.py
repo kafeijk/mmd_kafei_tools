@@ -153,6 +153,22 @@ def move_to_target_collection_recursive(obj, target_collection):
         move_to_target_collection_recursive(child, target_collection)
 
 
+def find_layer_collection_by_name(layer_collection, collection_name):
+    """递归查询集合"""
+    # 如果当前集合名称匹配
+    if layer_collection.name == collection_name:
+        return layer_collection
+
+    # 遍历子集合，递归查找
+    for child in layer_collection.children:
+        result = find_layer_collection_by_name(child, collection_name)
+        if result:
+            return result
+
+    # 如果没有找到匹配的集合，返回 None
+    return None
+
+
 def get_collection(collection_name):
     """获取指定名称集合，没有则新建，然后激活"""
     if collection_name in bpy.data.collections:
@@ -161,7 +177,8 @@ def get_collection(collection_name):
         collection = bpy.data.collections.new(collection_name)
         bpy.context.scene.collection.children.link(collection)
 
-    bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection_name]
+    layer_collection = find_layer_collection_by_name(bpy.context.view_layer.layer_collection, collection_name)
+    bpy.context.view_layer.active_layer_collection = layer_collection
     return collection
 
 
