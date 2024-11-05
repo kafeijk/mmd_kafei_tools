@@ -235,33 +235,47 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
     return file_list
 
 
-def recursive_search_by_img(directory, suffix, ext, threshold):
+def recursive_search_img(directory, suffix, threshold, search_strategy, conflict_strategy, ext):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型"""
     file_list = []
     pmx_count = 0
-    skip_count = 0
     for root, dirs, files in os.walk(directory):
+        flag = False
         for file in files:
-            if file.endswith('.pmx'):
+            if file.endswith('.pmx') or file.endswith('.pmd'):
+                flag = True
                 pmx_count += 1
-                file_path = os.path.join(root, file)
-                file_size = os.path.getsize(file_path)  # 获取文件大小（字节）
-                if file_size < threshold * 1024:
-                    skip_count += 1
-                    continue
-                # 获取 file 的名称（去掉扩展名）
-                file_name = os.path.splitext(file)[0]
-                # 构建图像名称
-                image_name = file_name + suffix + ext
-                # 构建图像路径
-                image_path = os.path.join(root, image_name)
-                # 如果图像在 pmx 目录中存在，则跳过，否则添加 pmx 文件路径到列表
-                if os.path.exists(image_path):
-                    skip_count += 1
-                    continue
-                file_list.append(os.path.join(root, file))
-    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{skip_count}")
+        if flag:
+            model_files = [f for f in files
+                           if (f.endswith('.pmx') or f.endswith('.pmd'))
+                           and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
+
+            # 如果满足条件的model_files有多个，取最新的还是取全部
+            if search_strategy == 'LATEST':
+                most_recent_file = max(model_files, key=lambda x: os.path.getmtime(os.path.join(root, x)))
+                if is_render(root, most_recent_file, suffix, ext, conflict_strategy):
+                    file_list.append(os.path.join(root, most_recent_file))
+            elif search_strategy == 'ALL':
+                for model_file in model_files:
+                    if is_render(root, model_file, suffix, ext, conflict_strategy):
+                        file_list.append(os.path.join(root, model_file))
+    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{pmx_count - len(file_list)}")
     return file_list
+
+
+def is_render(root, file, suffix, ext, conflict_strategy):
+    # 构建图像名称
+    image_name = os.path.splitext(file)[0] + suffix + ext
+    # 构建图像路径
+    image_path = os.path.join(root, image_name)
+    # 如果图像在 pmx 目录中存在，则跳过，否则添加 pmx 文件路径到列表
+    if not os.path.exists(image_path):
+        return True
+
+    if conflict_strategy == 'SKIP':
+        return False
+    elif conflict_strategy == 'OVERWRITE':
+        return True
 
 
 def import_pmx(filepath):
