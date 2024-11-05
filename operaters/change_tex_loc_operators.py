@@ -17,10 +17,6 @@ class ChangeTexLocOperator(bpy.types.Operator):
         batch = props.batch
         new_folder = props.new_folder
 
-        count = len(bpy.data.objects)
-        if count > 3:  # 灯光、相机、立方体
-            self.report(type={'ERROR'}, message=f'检测到场景中物体数量大于3，请在默认常规场景中执行！')
-            return False
         if not new_folder:
             self.report(type={'ERROR'}, message=f'请填写贴图文件夹名称')
             return False
@@ -42,11 +38,12 @@ class ChangeTexLocOperator(bpy.types.Operator):
 
 def do_change_tex_loc(pmx_root, props, filepath):
     new_folder = props.new_folder
+    new_folder = new_folder.strip()
     remove_empty = props.remove_empty
     # 修改纹理和球体纹理路径（sph）
-    change_texture_filepaths(filepath, new_folder)
+    change_texture_filepaths(pmx_root, filepath, new_folder)
     # 修改卡通纹理路径（toon）
-    change_toon_texture_filepaths(filepath, new_folder)
+    change_toon_texture_filepaths(pmx_root,filepath, new_folder)
     # 移动pmx目录下所有图像文件到指定目录中
     move_tex(filepath, new_folder)
     # 循环内删除空文件夹，不含递归，将删除空文件夹的操作范围限定在pmx目录中
@@ -54,27 +51,61 @@ def do_change_tex_loc(pmx_root, props, filepath):
         delete_empty_folders(os.path.dirname(filepath))
 
 
-def change_texture_filepaths(pmx_file, new_folder):
+def change_texture_filepaths(pmx_root, pmx_file, new_folder):
     pmx_path = os.path.dirname(pmx_file)
     tex_folder = os.path.join(pmx_path, new_folder)
-    for img in bpy.data.images:
-        ext = os.path.splitext(img.filepath)[1]
-        if ext.lower() == ".exr":  # 如果世界环境变紫，可能会对使用者造成困惑
-            continue
+
+    armature = find_pmx_armature(pmx_root)
+    objs = find_pmx_objects(armature)
+
+    images = []
+    for obj in objs:
+        for slot in obj.material_slots:
+            material = slot.material
+            if not material:  # 有材质槽但无材质
+                continue
+
+            node_tree = material.node_tree
+            if not node_tree:  # 有材质但无节点树
+                continue
+
+            nodes = node_tree.nodes
+            if not nodes:  # 有节点树但无节点
+                continue
+
+            for node in nodes:
+                if node.type != 'TEX_IMAGE':
+                    continue
+                if node.name not in ['mmd_base_tex', 'mmd_sphere_tex']:
+                    continue
+                # 获取纹理图像的路径
+                image = node.image
+                if image:
+                    images.append(image)
+
+    for img in images:
         directory, filename = os.path.split(img.filepath)
         new_filepath = os.path.join(tex_folder, filename)
         img.filepath = new_filepath
 
 
-def change_toon_texture_filepaths(pmx_file, new_folder):
+def change_toon_texture_filepaths(pmx_root,pmx_file, new_folder):
     pmx_path = os.path.dirname(pmx_file)
     tex_folder = os.path.join(pmx_path, new_folder)
-    for material in bpy.data.materials:
-        # 如果为空则不修改
-        if not material.mmd_material.toon_texture:
-            directory, filename = os.path.split(material.mmd_material.toon_texture)
-            new_filepath = os.path.join(tex_folder, filename)
-            material.mmd_material.toon_texture = new_filepath
+
+    armature = find_pmx_armature(pmx_root)
+    objs = find_pmx_objects(armature)
+    for obj in objs:
+        for slot in obj.material_slots:
+            material = slot.material
+            if not material:
+                continue
+
+            toon_texture = material.mmd_material.toon_texture
+            if toon_texture is not None and toon_texture.strip() != '':
+                directory, filename = os.path.split(material.mmd_material.toon_texture)
+                new_filepath = os.path.join(tex_folder, filename)
+                material.mmd_material.toon_texture = new_filepath
 
 
 def move_tex(pmx_file, new_folder):

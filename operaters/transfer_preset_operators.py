@@ -1,9 +1,4 @@
-import math
-import random
-import time
-
 import bmesh
-from mathutils import Vector
 
 from ..utils import *
 
@@ -126,6 +121,12 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
         else:
             raise Exception(f"在PMX模型中未找到属于顶点组{vg_name}且权重为1的至少三个非重合顶点。")
 
+    select_and_activate(face_obj)
+    bpy.ops.object.mode_set(mode='EDIT')
+    # 取消所有选中的面、边和顶点
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+
     bm = bmesh.new()
     bm.from_mesh(face_obj.data)
     # 根据备选三点父级位置（source）获取备选三点父级位置（target）
@@ -149,12 +150,17 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
 
     # 三点父级对应顶点
     min_z_vertex = min(face_area, key=lambda v: v.co.z)
+    face_area.remove(min_z_vertex)
     min_x_vertex = min(face_area, key=lambda v: v.co.x)
+    face_area.remove(min_x_vertex)
     max_x_vertex = max(face_area, key=lambda v: v.co.x)
+    face_area.remove(max_x_vertex)
+
     min_z_vertex.select = True
     min_x_vertex.select = True
     max_x_vertex.select = True
     parents = [min_z_vertex, min_x_vertex, max_x_vertex]
+    parent_indexes = [v.index for v in parents]
 
     # 清除面部定位器之前的父级（保持变换）
     world_loc = locator.matrix_world.to_translation()
@@ -169,14 +175,10 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     avg_position = Vector(sum((face_obj.matrix_world @ v.co for v in parents), Vector())) / len(parents)
     locator.location = avg_position
 
-    # 将三点父级对应顶点放入顶点组中
-    vertex_group = face_obj.vertex_groups.new(name="FACE_VERTEX_3")
-    parent_indexes = [v.index for v in parents]
-    vertex_group.add(parent_indexes, 1.0, 'REPLACE')
-
     # 设置三点父级
     bm.to_mesh(face_obj.data)
     bm.free()
+    deselect_all_objects()
     select_and_activate(face_obj)
     bpy.ops.object.mode_set(mode='EDIT')
     show_object(locator)
@@ -184,25 +186,21 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     bpy.ops.object.vertex_parent_set()
     bpy.ops.object.mode_set(mode='OBJECT')
 
-    set_visibility(locator, False, True, False, True)
+    # 将三点父级对应顶点放入顶点组中（顺序在bm.to_mesh(face_obj.data)后面，否则添加顶点失败）
+    vertex_group = face_obj.vertex_groups.new(name="FACE_VERTEX_3")
+    vertex_group.add(parent_indexes, 1.0, 'REPLACE')
 
-
-def check_locator(locator):
-    if locator is None:
-        raise Exception(f'未找到面部定位器对象')
-    # 先仅考虑骨骼父级的情况
-    if locator.parent_type != 'BONE':
-        raise Exception(f'面部定位器的父级类型不受支持。支持类型：骨骼（BONE），当前类型：{locator.parent_type}')
-    vg_name = locator.parent_bone
-    if vg_name is None or vg_name == '':
-        raise Exception(f'面部定位器未绑定到父级骨骼')
-    return True
+    set_visibility(locator, (False, True, False, True))
 
 
 def check_transfer_preset_props(operator, props):
     direction = props.direction
     if direction == 'PMX2ABC':
-        pmx_root = find_pmx_root()
+        source_pmx2abc = props.source_pmx2abc
+        if source_pmx2abc is None:
+            operator.report(type={'ERROR'}, message=f'请输入源物体！')
+            return False
+        pmx_root = find_pmx_root_with_child(source_pmx2abc)
         if pmx_root is None:
             operator.report(type={'ERROR'}, message=f'没有找到pmx对象！')
             return False
@@ -227,7 +225,7 @@ def check_transfer_preset_props(operator, props):
         # 排除面部定位器对操作流程的影响
         if toon_shading_flag:
             if face_locator is None:
-                operator.report(type={'ERROR'}, message=f'未找到面部定位器对象！')
+                operator.report(type={'ERROR'}, message=f'请输入面部定位器对象！')
                 return False
             # 先仅考虑骨骼父级的情况
             if face_locator.parent_type != 'BONE':
@@ -264,6 +262,18 @@ def check_transfer_preset_props(operator, props):
         if source_root == target_root:
             operator.report(type={'ERROR'}, message=f'源物体与目标物体（祖先）相同！')
             return False
+    elif direction == 'ABC2ABC':
+        abc_filepath = props.abc_filepath
+        if not abc_filepath:
+            operator.report(type={'ERROR'}, message=f'请输入缓存文件地址！')
+            return False
+        if not os.path.exists(abc_filepath):
+            operator.report(type={'ERROR'}, message=f'缓存文件地址不存在！')
+            return False
+        if "abc" not in os.path.splitext(abc_filepath)[1]:
+            operator.report(type={'ERROR'}, message=f'请输入abc缓存文件地址！')
+            return False
+
     return True
 
 
@@ -284,7 +294,7 @@ def get_mesh_stats(obj):
     return vert_count, edge_count, face_count, loop_count
 
 
-def matching(sources, targets, direction):
+def matching(sources, targets, direction, tolerance=0):
     """尽可能的对物体配对
         4w面  循环80w次  耗时0.7秒
         13w面 循环230w次 耗时2.3秒 20w面应该是常用模型的较大值了
@@ -292,38 +302,17 @@ def matching(sources, targets, direction):
     """
     start_time = time.time()
     source_targets_map = {}
-    for source in sources:
-        for target in targets:
-            source_stats = get_mesh_stats(source)
-            target_stats = get_mesh_stats(target)
-            if source_stats != target_stats:
-                continue
 
-            vertices = {}
-            for vert in source.data.vertices:
-                for i in range(-1, 2):
-                    for j in range(-1, 2):
-                        for k in range(-1, 2):
-                            key = (
-                                truncate(vert.co.x) + i * 1,
-                                truncate(vert.co.y) + j * 1,
-                                truncate(vert.co.z) + k * 1)
-                            if key not in vertices:
-                                vertices[key] = 1
-                            else:
-                                vertices[key] = vertices[key] + 1
+    target_flag_map = {}
+    for target in targets:
+        target_flag_map[target] = False
 
-            match_count = 0
-            for vert in target.data.vertices:
-                key = gen_key(vert, direction[-3:])
-                if key in vertices:
-                    match_count += 1
-            if match_count / len(target.data.vertices) > 0.95:
-                # target是个列表，如果大于1，则还要按照名称来匹配
-                if source_targets_map.get(source, None):
-                    source_targets_map[source].append(target)
-                else:
-                    source_targets_map[source] = [target]
+    set_source_targets_map(direction, sources, targets, source_targets_map, target_flag_map)
+
+    for target, flag in target_flag_map.items():
+        if flag:
+            continue
+        set_source_targets_map(direction, sources, [target], source_targets_map, target_flag_map, tolerance=tolerance)
 
     # 遍历source_target_maps，如果key存在多个target（如发+、衣+等内容和发、衣校验的结果是一模一样的），则对这些内容进行二次校验
     # 如果key和value的名称相同，才进行配对，放入source_target_map（PMX2PMX的情况下）
@@ -349,6 +338,46 @@ def matching(sources, targets, direction):
     return source_target_map
 
 
+def set_source_targets_map(direction, sources, targets, source_targets_map, target_flag_map, tolerance=0):
+    for source in sources:
+        for target in targets:
+
+            # 考虑到后面会针对每个顶点的位置来匹配，这里仅比较顶点数
+            source_v_count = len(source.data.vertices)
+            target_v_count = len(target.data.vertices)
+            if tolerance == 0:
+                if source_v_count != target_v_count:
+                    continue
+            else:
+                if abs(source_v_count - target_v_count) / max(abs(source_v_count), abs(target_v_count)) > tolerance:
+                    continue
+
+            vertices = {}
+            for vert in source.data.vertices:
+                for i in range(-1, 2):
+                    for j in range(-1, 2):
+                        for k in range(-1, 2):
+                            key = (
+                                truncate(vert.co.x) + i * 1,
+                                truncate(vert.co.y) + j * 1,
+                                truncate(vert.co.z) + k * 1)
+                            if key not in vertices:
+                                vertices[key] = 1
+                            else:
+                                vertices[key] = vertices[key] + 1
+
+            match_count = 0
+            for vert in target.data.vertices:
+                key = gen_key(vert, direction[-3:])
+                if key in vertices:
+                    match_count += 1
+            if (tolerance == 0 and match_count / len(target.data.vertices) == 1) or (
+                    tolerance != 0 and match_count / len(target.data.vertices) >= (1 - tolerance)):
+                target_flag_map[target] = True
+                # target是个列表，如果大于1，则还要按照名称来匹配
+                source_targets_map.setdefault(source, []).append(target)
+
+
 def gen_key(vert, object_type):
     if object_type == "PMX":
         return (
@@ -362,6 +391,280 @@ def gen_key(vert, object_type):
             truncate(vert.co.z * 0.08))
 
 
+def link_normal(mapping, direction):
+    """
+    传递源物体的自定义拆边法向信息到目标物体身上。
+    该操作的目的是通过传递自定义拆边法向，配合abc烘焙时不导出法向信息，以此来减少abc文件的体积与烘焙时间。
+    传入的mapping是配对完成后的内容，拓扑一致，所以映射方式为拓扑
+
+    源物体的锐边信息需要同步吗？不需要，如果源物体有锐边，推荐重新导出pmx进行预设的构建。
+    拆边法向的常见场景是通过合并顶点重新计算法向，修复面与面之间的折痕，但是这样会更改拓扑结构，所以插件不支持这个操作。需要用户在检查模型阶段完成修复操作，或手动添加数据传递修改器
+    将修复完成后的pmx模型重新导入后，该模型已经具备了修复后的法向，所以PMX->PMX的情况下无需传递法向
+
+    # 更新：在blender3.x以上的环境下，我们无法自由选择读取（缓存的）什么数据。所以暂时不考虑法向的传递
+    更新：虽然可能需要二次导出abc文件（第一次mmd中无法向烘焙，第二次在其它3D软件中导入导出abc文件以适配blender3.x以上的缓存修改器），但依然可能会有abc文件过大的情况，或者保存abc文件的需求。
+    """
+    if direction == "PMX2PMX":
+        return
+
+    # 记录物体修改器显示情况，然后关闭修改器的显示，防止对后续传递造成影响（如焊接等修改器会使source target拓扑不一致）
+    # 物体 -> 物体修改器是否显示
+    obj_mod_show_map = {}
+    for source, target in mapping.items():
+        obj_mod_show_map[source.name] = [mod.show_viewport for mod in source.modifiers]
+        for mod in source.modifiers:
+            mod.show_viewport = False
+
+    for source, target in mapping.items():
+        deselect_all_objects()
+        select_and_activate(target)
+
+        # 为target创建DataTransfer修改器，源为source，混合模式为替换，混合系数为1，传递内容为面拐数据中的自定义法向，映射方式为最近的面插值
+        modifier = target.modifiers.new(name="custom_normal_transfer", type='DATA_TRANSFER')
+        modifier.object = source
+        modifier.mix_mode = 'REPLACE'
+        modifier.mix_factor = 1.0
+
+        # 将DataTransfer修改器移动到第一位
+        bpy.ops.object.modifier_move_to_index(modifier=modifier.name, index=0)
+
+        # 如果“TOPOLOGY的设置”在“修改器移动到第一位”之前，则会提示“源网格与目标网格面拐数量不一致，此类情形无法使用 '拓扑' 映射”，但最终依然能够正确传递
+        # 为了避免出现令人困惑的输出，将“TOPOLOGY的设置”放在“修改器移动到第一位”之后
+        modifier.use_loop_data = True
+        modifier.data_types_loops = {'CUSTOM_NORMAL'}
+        modifier.loop_mapping = 'TOPOLOGY'
+
+        # 执行生成数据层，然后应用掉该修改器
+        bpy.ops.object.datalayout_transfer(modifier=modifier.name)
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+        # 获取target网格序列缓存修改器，取消面的读取
+        cache_modifiers = modifiers_by_type(target, "MESH_SEQUENCE_CACHE")
+        for cache_modifier in cache_modifiers:
+            cache_modifier.read_data = {'VERT', 'UV', 'COLOR'}
+
+    # 恢复物体修改器显示情况
+    for source, target in mapping.items():
+        source_mod_show_list = obj_mod_show_map.get(source.name)
+        for index, mod in enumerate(source.modifiers):
+            mod.show_viewport = source_mod_show_list[index]
+
+
+def get_obj_with_cache_modifier(selected=True):
+    if selected:
+        objs = bpy.context.selected_objects
+    else:
+        objs = bpy.data.objects
+    cache_objs = []
+    for obj in objs:
+        if obj.type != 'MESH':
+            continue
+        if not any(mod.type == 'MESH_SEQUENCE_CACHE' for mod in obj.modifiers):
+            continue
+        cache_objs.append(obj)
+    return cache_objs
+
+
+def import_abc_file(filepath):
+    """导入abc文件"""
+    bpy.ops.wm.alembic_import(filepath=filepath)
+    return bpy.context.selected_objects
+
+
+def match_caches(source_caches, target_caches):
+    """遍历abc文件和场景列表，配对顶点数一致的物体"""
+    for source in source_caches:
+        if source.type != 'MESH':
+            continue
+        source_verts = len(source.data.vertices)
+        for target in target_caches:
+            target_verts = len(target.data.vertices)
+            if source_verts != target_verts:
+                continue
+
+            source_mods = modifiers_by_type(source, 'MESH_SEQUENCE_CACHE')
+            target_mods = modifiers_by_type(target, 'MESH_SEQUENCE_CACHE')
+            source_mod = source_mods[0] if source_mods else None
+            target_mod = target_mods[0] if target_mods else None
+            if source_mod is None or target_mod is None:
+                continue
+
+            # 传递MeshSequenceCache参数
+            target_mod.cache_file = source_mod.cache_file
+            target_mod.object_path = source_mod.object_path
+            target_mod.read_data = source_mod.read_data
+
+    for source in reversed(source_caches):
+        bpy.data.objects.remove(source, do_unlink=True)
+
+
+def reset_cache_param(abc_filepath, selected_only, operator):
+    """
+    重新设置缓存修改器参数，可能出现匹配不上的情况，这可能是多次修改等操作导致的顶点数不一致的问题（一般情况下相差几个顶点吧，暂不做额外处理）
+
+    # 网格对象：
+    # 如果物体使用的缓存文件不同，则根据缓存文件分组
+    # 如果使用的缓存文件相同，则根据xform_0_material_0 分组
+    # 缓存对象：
+    # 则根据xform_0_material_0分组
+    """
+
+    # 记录选择状态
+    active_object = bpy.context.active_object
+    selected_objects = [obj for obj in bpy.context.selected_objects]
+
+    if selected_only:
+        target_objs = bpy.context.selected_objects
+    else:
+        target_objs = bpy.data.objects
+
+    # 目标角色 -> 角色信息 map
+    target_character_map, obj_info_map, target_obj_flag_map, non_compliant_list = get_character_map(target_objs)
+
+    # 导入abc文件
+    source_objs = import_abc_file(abc_filepath)
+    source_character_map, _, _, _ = get_character_map(source_objs)
+
+    source_target_map = {}
+    # 源角色与目标角色的网格number，网格数一致即可，网格number可（因未选中）缺省，可（因网格复制）冗余
+    for source_character, source_infos in source_character_map.items():
+        for target_character, target_infos in target_character_map.items():
+            # 单个目标角色只能被使用一次，如果有多个相同源角色，则应复制多份目标角色
+            if target_character in source_target_map.values():
+                continue
+
+            if match_info(source_infos, target_infos):
+                # 记录映射关系
+                source_target_map[source_character] = target_character
+                # 关联缓存
+                link_cache(source_infos, target_infos, target_obj_flag_map)
+                break
+
+    # 对未配对但和已配对对象拥有相同父级的对象进行优化
+    # 如果执行后仍有未匹配的物体，那么可能是因为
+    #   顶点数不一致导致整体配对失败
+    #   Ctrl C/V 导致的缓存名称不匹配而配对失败（应该用Shift + D）
+    for target_name, flag in target_obj_flag_map.items():
+        if flag:
+            continue
+        target_info = obj_info_map[target_name]
+        target_infos = [target_info]
+        target_obj = bpy.data.objects.get(target_name)
+        if target_obj.parent:
+            source2_objs = target_obj.parent.children
+            source2_infos = []
+            for source2_obj in source2_objs:
+                if target_info == source2_obj:
+                    continue
+                source2_infos.append(obj_info_map[source2_obj.name])
+            # 自己和自己配对（由于之前已经配对过一次，所以这里配对使用的是旧number顺序）
+            if match_info(source2_infos, target_infos):
+                link_cache(source2_infos, target_infos, target_obj_flag_map)
+
+    for source_obj in source_objs:
+        bpy.data.objects.remove(source_obj, do_unlink=True)
+
+    if selected_only:
+        deselect_all_objects()
+        for obj in selected_objects:
+            select_and_activate(obj)
+        if active_object:
+            select_and_activate(active_object)
+
+    # 输出异常信息
+    if all(target_obj_flag_map.values()) and not non_compliant_list:
+        pass
+    else:
+        msg = ''
+        if non_compliant_list:
+            msg = msg + f'以下物体缓存信息无效：\n{non_compliant_list}\n'
+        false_keys = [key for key, value in target_obj_flag_map.items() if not value]
+        if false_keys:
+            msg = msg + f'以下物体配对失败，请检查网格顶点数或缓存文件名称：\n{false_keys}'
+        operator.report({'WARNING'}, msg)
+        operator.report({'WARNING'}, f'存在未成功配对对象，点击查看报告↑↑↑')
+
+
+def match_info(source_infos, target_infos):
+    """在number一致的情况下校验顶点数是否一致，以判断是否为同一角色"""
+    for source_info in source_infos:
+        for target_info in target_infos:
+            source_number = source_info[5]  # 网格顺序number
+            source_v_number = source_info[1]  # 顶点数
+
+            target_number = target_info[5]
+            target_v_number = target_info[1]
+
+            if source_number == target_number:
+                if source_v_number != target_v_number:
+                    return False
+    return True
+
+
+def link_cache(source_infos, target_infos, target_obj_flag_map):
+    for source_info in source_infos:
+        for target_info in target_infos:
+            source_number = source_info[5]  # 网格顺序number
+            target_number = target_info[5]
+
+            if source_number != target_number:
+                continue
+
+            source_obj = bpy.data.objects.get(source_info[0])
+            target_obj = bpy.data.objects.get(target_info[0])
+
+            target_obj_flag_map[target_info[0]] = True
+
+            source_mod = source_obj.modifiers.get(source_info[2])
+            target_mod = target_obj.modifiers.get(target_info[2])
+
+            # 仅修改cache_file.filepath，不修改cache_file，这样替换单一角色动作的时候，其它角色不会受到影响
+            target_mod.cache_file.filepath = source_mod.cache_file.filepath
+            target_mod.object_path = source_mod.object_path
+
+
+def get_character_map(objs):
+    # 角色 -> 角色信息 map
+    character_map = {}
+    # 网格对象 -> 网格对象信息
+    obj_info_map = {}
+    # 目标网格 ->是否关联完毕 map
+    obj_flag_map = {}
+    # 不合规列表
+    non_compliant_list = []
+    for obj in objs:
+        if obj.type != 'MESH':
+            continue
+        for mod in obj.modifiers:
+            if mod.type != 'MESH_SEQUENCE_CACHE':
+                continue
+            cache_file = mod.cache_file
+            if not cache_file:
+                non_compliant_list.append(obj.name)
+                continue
+
+            cache_file_name = mod.cache_file.name
+            object_path = mod.object_path
+
+            pattern = r'/xform_(\d+)_material_(\d+)/mesh_(\d+)_material_(\d+)'
+            match = re.match(pattern, object_path)
+            if not match:
+                non_compliant_list.append(obj.name)
+                continue
+            numbers = match.groups()
+            character_number = numbers[0]  # 代表角色类别的部分
+            obj_number = numbers[1]  # 代表网格对象顺序的部分
+
+            obj_flag_map[obj.name] = False
+
+            info = [obj.name, len(obj.data.vertices), mod.name, cache_file_name, character_number, obj_number]
+            obj_info_map[obj.name] = info
+
+            key = f'CACHE_{cache_file_name}_NUMBER_{character_number}'  # 根据缓存名称和物体路径来决定角色
+            character_map.setdefault(key, []).append(info)
+    return character_map, obj_info_map, obj_flag_map, non_compliant_list
+
+
 def main(operator, context):
     # pmx -> abc 操作频率较高，仅用名称配对即可
     # pmx -> pmx 在换头类角色上材质/网格顺序内容变动的情况下 能够很好地适应。
@@ -372,6 +675,10 @@ def main(operator, context):
     # 参数校验
     props = scene.mmd_kafei_tools_transfer_preset
     direction = props.direction
+    # 获取误差值，仅在PMX2PMX时生效
+    tolerance = props.tolerance
+    if direction != 'PMX2PMX':
+        tolerance = 0
     if check_transfer_preset_props(operator, props) is False:
         return
     toon_shading_flag = props.toon_shading_flag
@@ -384,91 +691,101 @@ def main(operator, context):
     target_armature = None
     target_objects = None
     source_target_map = {}
-    if direction == 'PMX2ABC':
-        source_root = find_pmx_root()
-        source_armature = find_pmx_armature(source_root)
-        source_objects = find_pmx_objects(source_armature)
-        # 排除MESH类型面部定位器对后续流程的影响
-        if toon_shading_flag and face_locator.type == 'MESH':
-            source_objects.remove(face_locator)
-        target_objects = find_abc_objects()
-        sort_pmx_objects(source_objects)
-        sort_abc_objects(target_objects)
-        if len(source_objects) == len(target_objects):
-            source_target_map = dict(zip(source_objects, target_objects))
-        else:
-            source_target_map = matching(source_objects, target_objects, direction)
-    elif direction == 'PMX2PMX':
-        # 通过名称可以进行快速的配对，但是，如果pmx网格内容/顺序修改了，无法进行 abc -> pmx 的反向配对
-        # 通过顶点数量进行配对，可能会出现顶点数相同但网格内容不同的情况，如左目右目（但几率非常低）
-        # 通过顶点数进行初步判断，再通过顶点局部位置是否相同（含误差）进行二次判断（相较其他方法慢一些），可以排除无关物体带来的影响，可以尽可能的双向配对
-        # unit_test_compare可以对两个MESH进行比较，但是结果是String类型的描述，而且描述比较模糊无法获取到完整的信息
-        # 不再提供是否进行强校验的参数，PMX2ABC默认名称配对，PMX2PMX默认强校验
-        source_root = find_pmx_root_with_child(props.source)
-        source_armature = find_pmx_armature(source_root)
-        source_objects = find_pmx_objects(source_armature)
-        target_root = find_pmx_root_with_child(props.target)
-        target_armature = find_pmx_armature(target_root)
-        target_objects = find_pmx_objects(target_armature)
-        source_target_map = matching(source_objects, target_objects, direction)
 
-    # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
-    if len(source_target_map) == 0:
-        if toon_shading_flag:
-            raise RuntimeError(f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
-        else:
-            raise RuntimeError(f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
+    if direction in ['PMX2ABC', 'PMX2PMX']:
+        if direction == 'PMX2ABC':
+            source_pmx2abc = props.source_pmx2abc
+            source_root = find_pmx_root_with_child(source_pmx2abc)
+            source_armature = find_pmx_armature(source_root)
+            source_objects = find_pmx_objects(source_armature)
+            # 排除MESH类型面部定位器对后续流程的影响
+            if toon_shading_flag and face_locator.type == 'MESH':
+                source_objects.remove(face_locator)
+            target_objects = find_abc_objects()
+            sort_pmx_objects(source_objects)
+            sort_abc_objects(target_objects)
+            if len(source_objects) == len(target_objects):
+                source_target_map = dict(zip(source_objects, target_objects))
+            else:
+                source_target_map = matching(source_objects, target_objects, direction)
+        elif direction == 'PMX2PMX':
+            # 通过名称可以进行快速的配对，但是，如果pmx网格内容/顺序修改了，无法进行 abc -> pmx 的反向配对
+            # 通过顶点数量进行配对，可能会出现顶点数相同但网格内容不同的情况，如左目右目（但几率非常低）
+            # 通过顶点数进行初步判断，再通过顶点局部位置是否相同（含误差）进行二次判断（相较其他方法慢一些），可以排除无关物体带来的影响，可以尽可能的双向配对
+            # unit_test_compare可以对两个MESH进行比较，但是结果是String类型的描述，而且描述比较模糊无法获取到完整的信息
+            # 不再提供是否进行强校验的参数，PMX2ABC默认名称配对，PMX2PMX默认强校验
+            source_root = find_pmx_root_with_child(props.source)
+            source_armature = find_pmx_armature(source_root)
+            source_objects = find_pmx_objects(source_armature)
+            target_root = find_pmx_root_with_child(props.target)
+            target_armature = find_pmx_armature(target_root)
+            target_objects = find_pmx_objects(target_armature)
+            source_target_map = matching(source_objects, target_objects, direction, tolerance=tolerance)
 
-    # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
-    # 记录源物体和目标物体的可见性
-    display_list = source_objects + target_objects
-    display_list.append(source_root)
-    display_list.append(source_armature)
-    if direction == 'PMX2PMX':
-        display_list.append(target_root)
-        display_list.append(target_armature)
-    visibility_map = show_objects(display_list)
+        # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
+        if len(source_target_map) == 0:
+            if toon_shading_flag:
+                raise RuntimeError(
+                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
+            else:
+                raise RuntimeError(
+                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
 
-    material_flag = props.material_flag
-    if material_flag:
-        # 关联源物体UV到目标物体上面
-        link_uv(operator, source_target_map, direction)
-        # 关联源物体材质到目标物体上面
-        link_material(source_target_map)
-        # 关联源物体材质到目标物体上面（多材质槽情况下）
-        link_multi_slot_materials(operator, source_target_map, direction)
+        # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
+        # 记录源物体和目标物体的可见性
+        display_list = source_objects + target_objects
+        display_list.append(source_root)
+        display_list.append(source_armature)
+        if direction == 'PMX2PMX':
+            display_list.append(target_root)
+            display_list.append(target_armature)
+        visibility_map = show_objects(display_list)
 
-    # 为每个目标物体对象赋予顶点色，新建uv并使这些uv孤岛比例平均化
-    gen_skin_uv_flag = props.gen_skin_uv_flag
-    if gen_skin_uv_flag:
-        skin_uv_name = props.skin_uv_name
-        gen_skin_uv(operator, source_target_map, skin_uv_name)
+        uv_flag = props.uv_flag
+        if uv_flag:
+            # 关联源物体UV到目标物体上面
+            link_uv(operator, source_target_map, direction)
 
-    # 关联源物体顶点组及顶点权重到目标物体上面（正序）
-    vgs_flag = props.vgs_flag
-    if vgs_flag:
-        link_vertices_group(source_armature, target_armature, source_target_map, direction)
-        link_vertices_weight(source_armature, target_armature, source_target_map, direction)
+        material_flag = props.material_flag
+        if material_flag:
+            # 关联源物体材质到目标物体上面
+            link_material(source_target_map)
+            # 关联源物体材质到目标物体上面（多材质槽情况下）
+            link_multi_slot_materials(operator, source_target_map, direction)
 
-    # 复制pmx修改器到abc上面（同时保留网格序列缓存修改器，删除骨架修改器）
-    modifiers_flag = props.modifiers_flag
-    if modifiers_flag:
-        link_modifiers(source_target_map, direction)
+        # 关联源物体顶点组及顶点权重到目标物体上面（正序）
+        vgs_flag = props.vgs_flag
+        if vgs_flag:
+            link_vertices_group(source_armature, target_armature, source_target_map, direction)
+            link_vertices_weight(source_armature, target_armature, source_target_map, direction)
 
-    face_object = props.face_object
-    face_vg = props.face_vg
-    auto_face_location = props.auto_face_location
-    # 三渲二面部定位器处理
-    if toon_shading_flag and direction == 'PMX2ABC':
-        process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
+        # 复制pmx修改器到abc上面（同时保留网格序列缓存修改器，删除骨架修改器）
+        modifiers_flag = props.modifiers_flag
+        if modifiers_flag:
+            link_modifiers(source_target_map, direction)
 
-    # 为abc创建父级物体
-    if direction == 'PMX2ABC':
-        create_abc_parent(source_root, source_target_map)
+        normal_flag = props.normal_flag
+        if normal_flag:
+            link_normal(source_target_map, direction)
 
-    # 恢复原有可见性
-    for obj, visibility in visibility_map.items():
-        set_visibility(obj, visibility[0], visibility[1], visibility[2], visibility[3])
+        face_object = props.face_object
+        face_vg = props.face_vg
+        auto_face_location = props.auto_face_location
+        # 三渲二面部定位器处理
+        if toon_shading_flag and direction == 'PMX2ABC':
+            process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
+
+        # 为abc模型创建父级物体，创建父级可以更好地操作与管理导入的abc模型
+        if direction == 'PMX2ABC':
+            create_abc_parent(source_root, source_target_map)
+
+        # 恢复原有可见性
+        for obj, visibility in visibility_map.items():
+            set_visibility(obj, visibility)
+    elif direction in ['ABC2ABC']:
+        abc_filepath = props.abc_filepath
+        selected_only = props.selected_only
+        reset_cache_param(abc_filepath, selected_only, operator)
 
 
 def create_abc_parent(source_root, source_target_map):
@@ -483,7 +800,15 @@ def create_abc_parent(source_root, source_target_map):
             abc_root = bpy.data.objects.new(case_insensitive_replace("pmx", "abc", source_root.name), None)
         else:
             abc_root = bpy.data.objects.new(source_root.name + " abc", None)
-        bpy.context.collection.objects.link(abc_root)
+
+        # 需要将parent移动到child所在集合
+        # 在使用时出现过child在集合a而parent新建在集合b的情况（因为b处于激活的状态），这样会对用户产生困扰
+        # 由于一般情况下child不会分散在各个集合，所以任选其一作为参考即可
+        for target in source_target_map.values():
+            if len(target.users_collection) > 0:
+                target.users_collection[0].objects.link(abc_root)
+                break
+
         # 设置父级
         for target in source_target_map.values():
             target.parent = abc_root
@@ -518,6 +843,9 @@ def modifiers_by_type(obj, typename):
 
 def link_uv(operator, source_target_map, direction):
     """关联源物体UV到目标物体上面"""
+    # 用物体的顶点数等数据是否相等来校验两个物体是否是一样的进而传递UV等内容，并不准确。
+    # （比如将物体拆边后，虽然顶点数边数不一致，但依然能够传递UV），但这里不考虑这些内容
+
     # 移除之前生成的uv对后续重复执行造成的影响
     target_uvs_to_remove = {}
     for source, target in source_target_map.items():
@@ -606,69 +934,6 @@ def link_material(source_target_map):
         # 关联材质
         bpy.ops.object.make_links_data(type='MATERIAL')
     deselect_all_objects()
-
-
-def gen_skin_uv(operator, mapping, skin_uv_name):
-    """为每个目标物体对象赋予顶点色，新建uv并使这些uv孤岛比例平均化"""
-    if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-    # 移除之前生成的uv对后续重复执行造成的影响
-    #   如果target没执行过材质传递，skin_uv_name可能从source传递过来
-    #   如果target执行过材质传递，skin_uv_name可能会重复生成导致UV数量达到上限
-    for _, target in mapping.items():
-        for uv_layer in target.data.uv_layers:
-            if uv_layer.name == skin_uv_name:
-                target.data.uv_layers.remove(uv_layer)
-                break
-
-    # 记录各物体原始的活动的uv及用于渲染的uv
-    obj_active_uv_map = {}
-    obj_render_uv_map = {}
-    for _, target in mapping.items():
-        for index, uv_layer in enumerate(target.data.uv_layers):
-            if uv_layer.active:
-                obj_active_uv_map[target.name] = index
-            if uv_layer.active_render:
-                obj_render_uv_map[target.name] = index
-
-    # 待执行孤岛比例平均化的对象列表
-    candidate_objs = []
-    for _, target in mapping.items():
-        deselect_all_objects()
-        # 进入顶点绘制模式再返回物体模式
-        select_and_activate(target)
-        bpy.ops.object.mode_set(mode='VERTEX_PAINT')
-        bpy.ops.object.mode_set(mode='OBJECT')
-        # 新建并激活uv
-        target_mesh = target.data
-        new_uv = target_mesh.uv_layers.new(name=skin_uv_name)
-        if new_uv:
-            new_uv.active = True
-            new_uv.active_render = True
-            # 只有成功创建UV的物体才会被添加进列表，否则后续操作会破坏其原始UV的布局
-            candidate_objs.append(target)
-        else:
-            operator.report(type={'WARNING'},
-                            message=f'未能成功创建皮肤UV，请检查。物体：{target.name}，当前UV数量：{len(target.data.uv_layers)}')
-
-    # 孤岛比例平均化
-    deselect_all_objects()
-    for candidate_obj in candidate_objs:
-        select_and_activate(candidate_obj)
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.uv.average_islands_scale()
-    bpy.ops.mesh.select_all(action='DESELECT')
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    # 恢复各物体原始的活动的uv及用于渲染的uv，未成功创建UV的物体无需恢复
-    for candidate_obj in candidate_objs:
-        candidate_mesh = candidate_obj.data
-        active_uv_index = obj_active_uv_map[candidate_obj.name]
-        render_uv_index = obj_render_uv_map[candidate_obj.name]
-        candidate_mesh.uv_layers[active_uv_index].active = True
-        candidate_mesh.uv_layers[render_uv_index].active_render = True
 
 
 def link_vertices_group(source_armature, target_armature, mapping, direction):

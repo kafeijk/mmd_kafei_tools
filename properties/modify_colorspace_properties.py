@@ -54,7 +54,7 @@ class ModifyColorspaceProperty(bpy.types.PropertyGroup):
     )
     keywords: bpy.props.StringProperty(
         name="关键词",
-        description="贴图名称关键词，英文逗号隔开，没有填写代表所有图像都将被修改",
+        description="贴图名称关键词，用于搜索贴图。可填写多个关键词，用英文逗号隔开。没有填写则代表所有图像都将被修改为指定色彩空间",
         default='diffuse'
     )
     selected_only: bpy.props.BoolProperty(

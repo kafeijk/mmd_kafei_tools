@@ -1,52 +1,11 @@
+import math
 import os
 import time
-from enum import Enum
 
 import bpy
-import re
+from mathutils import Vector
 
-ABC_NAME_PATTERN = re.compile(r'xform_(\d+)_material_(\d+)')
-PMX_NAME_PATTERN = re.compile(r'(?P<prefix>[0-9A-Z]{3}_)(?P<name>.*?)(?P<suffix>\.\d{3})?$')
-# 最大重试次数
-MAX_RETRIES = 5
-# 导入pmx生成的txt文件pattern
-TXT_INFO_PATTERN = re.compile(r'(.*)(_e(\.\d{3})?)$')
-# 临时集合名称
-TMP_COLLECTION_NAME = "KAFEI临时集合"
-# 默认精度
-PRECISION = 0.0001
-# 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
-IMG_TYPE_EXT_MAP = {
-    "BMP": ".bmp",
-    "IRIS": ".rgb",
-    "PNG": ".png",
-    "JPEG": ".jpg",
-    "JPEG2000": ".jp2",
-    "TARGA": ".tga",
-    "TARGA_RAW": ".tga",
-    "CINEON": ".cin",
-    "DPX": ".dpx",
-    "OPEN_EXR_MULTILAYER": ".exr",
-    "OPEN_EXR": ".exr",
-    "HDR": ".hdr",
-    "TIFF": ".tif",
-    "WEBP": ".webp"
-}
-
-PMX_BAKE_BONES = ['全ての親', 'センター',
-                    '左足ＩＫ', '左つま先ＩＫ', '右足ＩＫ', '右つま先ＩＫ',
-                    '上半身', '上半身3', '上半身2', '首', '頭', '左目', '右目',
-                    '左肩', '左腕', '左腕捩', '左ひじ', '左手捩', '左手首',
-                    '右肩', '右腕', '右腕捩', '右ひじ', '右手捩', '右手首',
-                    '左親指０', '左親指１', '左親指２', '左人指１', '左人指２', '左人指３', '左中指１', '左中指２', '左中指３',
-                    '左薬指１', '左薬指２', '左薬指３', '左小指１', '左小指２', '左小指３',
-                    '右親指０', '右親指１', '右親指２', '右人指１', '右人指２', '右人指３', '右中指１', '右中指２', '右中指３',
-                    '右薬指１', '右薬指２', '右薬指３', '右小指１', '右小指２', '右小指３',
-                    '下半身',
-                  # 足骨 -> 足D骨
-                  '左足D', '左ひざD', '左足首D', '左足先EX', '右足D', '右ひざD', '右足首D', '右足先EX']
-# 文件名非法字符
-INVALID_CHARS = '<>:"/\\|?*'
+from .constants import *
 
 
 def find_pmx_root():
@@ -56,13 +15,16 @@ def find_pmx_root():
 
 def find_pmx_root_with_child(child):
     """根据child寻找pmx对应空物体"""
-    if child is None:
+    if not child:
         return None
-    while child.parent:
-        child = child.parent
-    if child.mmd_type != 'ROOT':
-        return None
-    return child
+
+    parent = child
+    while parent:
+        if parent.mmd_type == 'ROOT':
+            return parent
+        parent = parent.parent
+
+    return None
 
 
 def find_pmx_armature(pmx_root):
@@ -70,13 +32,18 @@ def find_pmx_armature(pmx_root):
 
 
 def find_pmx_objects(pmx_armature):
-    return list((child for child in pmx_armature.children if child.type == 'MESH'))
+    return list((child for child in pmx_armature.children if child.type == 'MESH' and child.mmd_type == 'NONE'))
 
 
 def find_abc_objects():
     """获取场景中的abc对象"""
     abc_objects = [obj for obj in bpy.context.scene.objects if ABC_NAME_PATTERN.match(obj.name)]
     return abc_objects
+
+
+def find_rigid_body_parent(root):
+    """寻找刚体对象"""
+    return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'RIGID_GRP_OBJ', root.children), None)
 
 
 def sort_pmx_objects(objects):
@@ -91,8 +58,11 @@ def select_and_activate(obj):
     """选中并激活物体"""
     if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
         bpy.ops.object.mode_set(mode='OBJECT')
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
+    try:
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+    except RuntimeError:  # RuntimeError: 错误: 物体 'xxx' 不在视图层 'ViewLayer'中, 所以无法选中!
+        pass
 
 
 def deselect_all_objects():
@@ -104,17 +74,22 @@ def deselect_all_objects():
     bpy.context.view_layer.objects.active = None
 
 
+def record_visibility(obj):
+    """记录物体的可见性"""
+    return obj.hide_select, obj.hide_get(), obj.hide_viewport, obj.hide_render
+
+
 def show_object(obj):
     """显示物体。在视图取消禁用选择，在视图中取消隐藏，在视图中取消禁用，在渲染中取消禁用"""
-    set_visibility(obj, False, False, False, False)
+    set_visibility(obj, (False, False, False, False))
 
 
 def hide_object(obj):
     """显示物体。在视图取消禁用选择，在视图中取消隐藏，在视图中取消禁用，在渲染中取消禁用"""
-    set_visibility(obj, True, True, True, True)
+    set_visibility(obj, (True, True, True, True))
 
 
-def set_visibility(obj, hide_select_flag, hide_set_flag, hide_viewport_flag, hide_render_flag):
+def set_visibility(obj, visibility):
     """设置Blender物体的可见性相关属性"""
     # 如果不在当前视图层，则跳过，如"在视图层中排除该集合"的情况下
     view_layer = bpy.context.view_layer
@@ -122,13 +97,13 @@ def set_visibility(obj, hide_select_flag, hide_set_flag, hide_viewport_flag, hid
     if obj.name not in view_layer.objects:
         return
     # 是否可选
-    obj.hide_select = hide_select_flag
+    obj.hide_select = visibility[0]
     # 是否在视图中隐藏
-    obj.hide_set(hide_set_flag)
+    obj.hide_set(visibility[1])
     # 是否在视图中禁用
-    obj.hide_viewport = hide_viewport_flag
+    obj.hide_viewport = visibility[2]
     # 是否在渲染中禁用
-    obj.hide_render = hide_render_flag
+    obj.hide_render = visibility[3]
 
 
 def walk_island(vert):
@@ -178,6 +153,22 @@ def move_to_target_collection_recursive(obj, target_collection):
         move_to_target_collection_recursive(child, target_collection)
 
 
+def find_layer_collection_by_name(layer_collection, collection_name):
+    """递归查询集合"""
+    # 如果当前集合名称匹配
+    if layer_collection.name == collection_name:
+        return layer_collection
+
+    # 遍历子集合，递归查找
+    for child in layer_collection.children:
+        result = find_layer_collection_by_name(child, collection_name)
+        if result:
+            return result
+
+    # 如果没有找到匹配的集合，返回 None
+    return None
+
+
 def get_collection(collection_name):
     """获取指定名称集合，没有则新建，然后激活"""
     if collection_name in bpy.data.collections:
@@ -186,36 +177,61 @@ def get_collection(collection_name):
         collection = bpy.data.collections.new(collection_name)
         bpy.context.scene.collection.children.link(collection)
 
-    bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection_name]
+    layer_collection = find_layer_collection_by_name(bpy.context.view_layer.layer_collection, collection_name)
+    bpy.context.view_layer.active_layer_collection = layer_collection
     return collection
 
 
-def recursive_search(directory, suffix, threshold):
+def recursive_search(directory, suffix, threshold, search_strategy, conflict_strategy):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型 todo 之后看看能不能更通用些"""
     file_list = []
     pmx_count = 0
-    skip_count = 0
     for root, dirs, files in os.walk(directory):
+        flag = False
+
         for file in files:
-            if file.endswith('.pmx'):
+            if file.endswith('.pmx') or file.endswith('.pmd'):
+                flag = True
                 pmx_count += 1
-                file_path = os.path.join(root, file)
-                file_size = os.path.getsize(file_path)  # 获取文件大小（字节）
-                if file_size < threshold * 1024:
-                    skip_count += 1
-                    continue
-                other_files = [f for f in os.listdir(root) if f.endswith('.pmx')]
-                if len(other_files) > 1:
-                    most_recent_file = max(other_files, key=lambda x: os.path.getmtime(os.path.join(root, x)))
-                    if most_recent_file != file:
-                        skip_count += 1
+        if flag:
+            curr_list = []  # 当前目录下符合条件的文件
+            model_files = [f for f in files
+                           if (f.endswith('.pmx') or f.endswith('.pmd'))
+                           and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
+
+            # 如果满足条件的model_files有多个，取最新的还是取全部
+            if search_strategy == 'LATEST':
+                most_recent_file = max(model_files, key=lambda x: os.path.getmtime(os.path.join(root, x)))
+                curr_list.append(most_recent_file)
+            elif search_strategy == 'ALL':
+                for model_file in model_files:
+                    curr_list.append(model_file)
+            # 如果含有相同的名称后缀，是排除（不处理）还是放行（覆盖）
+            files_to_remove = []
+            for file in reversed(curr_list):
+                if os.path.splitext(file)[0].endswith(suffix):
+                    if conflict_strategy == 'SKIP':
+                        files_to_remove.append(file)
+                    elif conflict_strategy == 'OVERWRITE':
+                        pass
+
+                    # 针对检索模式为“全部”的情况下，原文件和目标文件同时存在时的处理
+                    # 无论是SKIP还是OVERWRITE，如果选择了ALL，都应该排除source_file的影响
+                    # 如果选择SKIP时，不排除source_file的影响的话，即使跳过了名称冲突的文件，也会因为source_file的存在而被复写
+                    # 如果选择OVERWRITE时，应该对冲突的文件进行复写而不是source_file
+                    if search_strategy != 'ALL':
                         continue
-                    elif suffix in os.path.splitext(most_recent_file)[0]:
-                        print(f"{os.path.splitext(most_recent_file)[0]}已经预处理完毕")
-                        skip_count += 1
+                    if suffix == '':
                         continue
-                file_list.append(file_path)
-    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{skip_count}")
+                    source_file = file.replace(suffix, '')
+                    if source_file in curr_list:
+                        files_to_remove.append(source_file)
+            for file in reversed(files_to_remove):
+                curr_list.remove(file)
+
+            for file in curr_list:
+                file_list.append(os.path.join(root, file))
+    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{pmx_count - len(file_list)}")
     return file_list
 
 
@@ -369,17 +385,27 @@ def is_plugin_enabled(plugin_name):
 def batch_process(func, props, f_flag=False):
     batch = props.batch
     directory = batch.directory
+    search_strategy = batch.search_strategy
     abs_path = bpy.path.abspath(directory)
     threshold = batch.threshold
     suffix = batch.suffix
+    conflict_strategy = batch.conflict_strategy
     start_time = time.time()
-    file_list = recursive_search(abs_path, suffix, threshold)
+    file_list = recursive_search(abs_path, suffix, threshold, search_strategy, conflict_strategy)
     file_count = len(file_list)
     for index, filepath in enumerate(file_list):
         get_collection(TMP_COLLECTION_NAME)
         file_base_name = os.path.basename(filepath)
         ext = os.path.splitext(filepath)[1]
-        new_filepath = os.path.splitext(filepath)[0] + suffix + ext
+        if ".pmd" == ext:
+            ext = ".pmx"  # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
+
+        # 如果新文件名已经包含指定后缀，则对原文件进行覆盖
+        if os.path.splitext(filepath)[0].endswith(suffix):
+            new_filepath = os.path.splitext(filepath)[0] + ext
+        else:
+            new_filepath = os.path.splitext(filepath)[0] + suffix + ext
+
         curr_time = time.time()
         import_pmx(filepath)
         pmx_root = bpy.context.active_object
@@ -387,34 +413,55 @@ def batch_process(func, props, f_flag=False):
             func(pmx_root, props, filepath)
         else:
             func(pmx_root, props)
+
+        deselect_all_objects()
+        select_and_activate(pmx_root)
         export_pmx(new_filepath)
-        clean_scene()
+
+        current_time = time.time() - curr_time
+        total_time = time.time() - start_time
         print(
-            f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{time.time() - curr_time}秒，总耗时: {time.time() - start_time} 秒")
-    print(f"目录\"{abs_path}\" 处理完成，总耗时: {time.time() - start_time} 秒")
+            f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{current_time:.6f}秒，总耗时: {total_time:.6f} 秒")
+        clean_scene()
+
+    total_time = time.time() - start_time
+    print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
 
 
-def show_batch_props(box, batch):
-    batch_row = box.row()
-    batch_row.prop(batch, "flag")
-    batch_flag = batch.flag
-    if not batch_flag:
-        return
-    batch_box = box.box()
-    directory_row = batch_box.row()
-    directory_row.prop(batch, "directory")
-    threshold_row = batch_box.row()
-    threshold_row.prop(batch, "threshold")
-    suffix_row = batch_box.row()
-    suffix_row.prop(batch, "suffix")
-    return batch_box
+def show_batch_props(col, show_flag, create_box, batch):
+    if show_flag:
+        batch_col = col.column()
+        batch_col.prop(batch, "flag")
+        batch_flag = batch.flag
+        if not batch_flag:
+            return
+    if create_box:
+        batch_ui = col.box()
+    else:
+        batch_ui = col
+
+    directory_col = batch_ui.column()
+    directory_col.prop(batch, "directory")
+    search_strategy_col = batch_ui.column()
+    search_strategy_col.prop(batch, "search_strategy")
+    threshold_col = batch_ui.column()
+    threshold_col.prop(batch, "threshold")
+    suffix_col = batch_ui.column()
+    suffix_col.prop(batch, "suffix")
+    conflict_strategy_col = batch_ui.column()
+    conflict_strategy_col.prop(batch, "conflict_strategy")
+    return batch_ui
 
 
 def check_batch_props(operator, batch):
     suffix = batch.suffix
     directory = batch.directory
 
-    if not is_plugin_enabled("mmd_tools"):
+    if bpy.app.version < (4, 0, 0) and not is_plugin_enabled("mmd_tools"):
+        operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
+        return False
+    if bpy.app.version >= (4, 0, 0) and not (
+            is_plugin_enabled("bl_ext.user_default.mmd_tools") or is_plugin_enabled("mmd_tools")):
         operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
         return False
 
@@ -442,6 +489,7 @@ def check_batch_props(operator, batch):
 
 def restore_selection(selected_objects, active_object):
     """ 恢复选中状态"""
+    deselect_all_objects()
     for selected_object in selected_objects:
         select_and_activate(selected_object)
     # 如果物体是隐藏的，选择了它，selected_objects无法获取到隐藏物体，active_object也无法获取到隐藏物体（但是为什么控制台可以获取到呢）
@@ -454,3 +502,227 @@ def restore_selection(selected_objects, active_object):
 def case_insensitive_replace(pattern, replacement, string):
     """忽略大小写替换"""
     return re.sub(pattern, replacement, string, flags=re.IGNORECASE)
+
+
+## 日本語で左右を命名されている名前をblender方式のL(R)に変更する
+def convertNameToLR(name, use_underscore=False):
+    m = CONVERT_NAME_TO_L_REGEXP.match(name)
+    delimiter = '_' if use_underscore else '.'
+    if m:
+        name = m.group(1) + m.group(2) + delimiter + 'L'
+    m = CONVERT_NAME_TO_R_REGEXP.match(name)
+    if m:
+        name = m.group(1) + m.group(2) + delimiter + 'R'
+    return name
+
+
+def set_tail(armature, parent_name, child_name):
+    parent = armature.data.edit_bones.get(parent_name, None)
+    if not parent:
+        return
+    child = armature.data.edit_bones.get(child_name, None)
+    if not child:
+        return
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+
+def move_after_target_vg(obj, target_index):
+    """将活动顶点组移动到指定索引的顶点组的后面"""
+    delta = obj.vertex_groups.active_index - (min(target_index, len(obj.vertex_groups) - 1))
+    if delta > 0:
+        direction = 'UP'
+        delta_fix = abs(delta) - 1
+    else:
+        direction = 'DOWN'
+        delta_fix = abs(delta)
+    for i in range(delta_fix):
+        bpy.ops.object.vertex_group_move(direction=direction)
+
+
+def get_target_bone(armature, edit_bone):
+    # a connected child bone is preferred
+    for child in edit_bone.children:
+        if (
+                child.use_connect
+                or bool(child.get('mmd_bone_use_connect'))
+                or (
+                all(armature.pose.bones[child.name].lock_location)
+                and math.isclose(0.0, (child.head - edit_bone.tail).length))
+        ):
+            return child
+    return None
+
+
+def set_target_bone(bone, root_bone):
+    """设置骨骼末端指向，参数均为edit_bone"""
+
+    root_bone.bone.use_connect = True
+
+
+def create_frame(mmd_root, name):
+    frames = mmd_root.display_item_frames
+    frame, index = ItemOp.add_after(frames, max(1, mmd_root.active_display_item_frame))
+    frame.name = name
+    mmd_root.active_display_item_frame = index
+    return frame
+
+
+class ItemOp:
+    @staticmethod
+    def add_after(items, index):
+        index_end = len(items)
+        index = max(0, min(index_end, index + 1))
+        items.add()
+        items.move(index_end, index)
+        return items[index], index
+
+
+def do_add_item(frame, item_type, item_name, morph_type=None, order=None):
+    items = frame.data
+    item, index = ItemOp.add_after(items, frame.active_item)
+    item.type = item_type
+    item.name = item_name
+    if morph_type:
+        item.morph_type = morph_type
+    frame.active_item = index
+    if order is not None:  # order为0时应判断为True
+        if order < 0:
+            order = len(items) - 1
+        items.move(index, order)
+        frame.active_item = order
+    return item
+
+
+def add_item(armature, assignee, base, offset):
+    pmx_root = find_pmx_root_with_child(armature)
+    mmd_root = pmx_root.mmd_root
+    found_frame, found_item = find_bone_item(pmx_root, base)
+
+    if found_frame is not None and found_item is not None:
+        frames = mmd_root.display_item_frames
+        do_add_item(frames[found_frame], 'BONE', assignee, order=found_item + offset)
+        return True
+    return False
+
+
+def add_item_after(armature, assignee, base):
+    return add_item(armature, assignee, base, offset=1)
+
+
+def add_item_before(armature, assignee, base):
+    return add_item(armature, assignee, base, offset=0)
+
+
+def find_bone_item(pmx_root, bone_name):
+    mmd_root = pmx_root.mmd_root
+    for i, frame in enumerate(mmd_root.display_item_frames):
+        # 不含 root 和 表情
+        if i < 2:
+            continue
+        for j, item in enumerate(frame.data):
+            if bone_name == item.name:
+                return i, j
+    return None, None
+
+
+class FnBone(object):
+    AUTO_LOCAL_AXIS_ARMS = ('左肩', '左腕', '左ひじ', '左手首', '右腕', '右肩', '右ひじ', '右手首')
+    AUTO_LOCAL_AXIS_FINGERS = ('親指', '人指', '中指', '薬指', '小指')
+    AUTO_LOCAL_AXIS_SEMI_STANDARD_ARMS = (
+        '左腕捩', '左手捩', '左肩P', '左ダミー', '右腕捩', '右手捩', '右肩P', '右ダミー')
+
+    @classmethod
+    def update_auto_bone_roll(cls, edit_bone):
+        # make a triangle face (p1,p2,p3)
+        p1 = edit_bone.head.copy()
+        p2 = edit_bone.tail.copy()
+        p3 = p2.copy()
+        # translate p3 in xz plane
+        # the normal vector of the face tracks -Y direction
+        xz = Vector((p2.x - p1.x, p2.z - p1.z))
+        xz.normalize()
+        theta = math.atan2(xz.y, xz.x)
+        norm = edit_bone.vector.length
+        p3.z += norm * math.cos(theta)
+        p3.x -= norm * math.sin(theta)
+        # calculate the normal vector of the face
+        y = (p2 - p1).normalized()
+        z_tmp = (p3 - p1).normalized()
+        x = y.cross(z_tmp)  # normal vector
+        # z = x.cross(y)
+        cls.update_bone_roll(edit_bone, y.xzy, x.xzy)
+
+    @classmethod
+    def update_bone_roll(cls, edit_bone, mmd_local_axis_x, mmd_local_axis_z):
+        axes = cls.get_axes(mmd_local_axis_x, mmd_local_axis_z)
+        idx, val = max([(i, edit_bone.vector.dot(v)) for i, v in enumerate(axes)], key=lambda x: abs(x[1]))
+        edit_bone.align_roll(axes[(idx - 1) % 3 if val < 0 else (idx + 1) % 3])
+
+    @staticmethod
+    def get_axes(mmd_local_axis_x, mmd_local_axis_z):
+        x_axis = Vector(mmd_local_axis_x).normalized().xzy
+        z_axis = Vector(mmd_local_axis_z).normalized().xzy
+        y_axis = z_axis.cross(x_axis).normalized()
+        z_axis = x_axis.cross(y_axis).normalized()  # correction
+        return (x_axis, y_axis, z_axis)
+
+
+matmul = (lambda a, b: a * b) if bpy.app.version < (2, 80, 0) else (lambda a, b: a.__matmul__(b))
+
+
+def to_pmx_axis(armature, scale, axis, bone_name):
+    """todo 调研代码逻辑。不是很懂"""
+    world_mat = armature.matrix_world
+    pmx_matrix = world_mat * scale
+    pmx_matrix_rot = pmx_matrix.to_3x3()
+    pose_bone = armature.pose.bones.get(bone_name)
+    m = matmul(pose_bone.matrix, pose_bone.bone.matrix_local.inverted()).to_3x3()
+    return matmul(matmul(pmx_matrix_rot, m), Vector(axis).xzy).normalized()
+
+
+def create_tmp_obj(armature, collection):
+    # 新建Mesh并删除所有顶点
+    bpy.ops.object.mode_set(mode='OBJECT')
+    deselect_all_objects()
+    bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=True)
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.delete(type='VERT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+    tmp_obj = bpy.context.active_object
+    tmp_obj.name = "tmp_plane"
+    # 设置parent为armature
+    tmp_obj.parent = armature
+    move_to_target_collection_recursive(tmp_obj, collection)
+    return tmp_obj
+
+
+def copy_obj(obj):
+    new_mesh = obj.data.copy()
+    new_obj = obj.copy()
+    new_obj.data = new_mesh
+    col = obj.users_collection[0]
+    col.objects.link(new_obj)
+    return new_obj
+
+
+def int2base(x, base, width=0):
+    """
+    Method to convert an int to a base
+    Source: http://stackoverflow.com/questions/2267362
+    """
+    import string
+    digs = string.digits + string.ascii_uppercase
+    assert (2 <= base <= len(digs))
+    digits, negtive = '', False
+    if x <= 0:
+        if x == 0:
+            return '0' * max(1, width)
+        x, negtive, width = -x, True, width - 1
+    while x:
+        digits = digs[x % base] + digits
+        x //= base
+    digits = '0' * (width - len(digits)) + digits
+    if negtive:
+        digits = '-' + digits
+    return digits

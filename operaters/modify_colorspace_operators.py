@@ -1,3 +1,4 @@
+
 from ..utils import *
 
 
@@ -72,6 +73,8 @@ class ModifyColorspaceOperator(bpy.types.Operator):
                     for node in nodes:
                         if node.type == 'TEX_IMAGE':
                             image = node.image
+                            if not image:
+                                continue    # 有图像纹理节点但是没有图像
                             images.add(image)
             for image in images:
                 if len(keyword_list) == 0:

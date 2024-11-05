@@ -1,5 +1,3 @@
-import math
-
 import mathutils
 
 from ..utils import *
@@ -20,7 +18,14 @@ class LoadRenderPresetOperator(bpy.types.Operator):
 
         # 渲染属性
         # 渲染引擎
-        bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+        if bpy.app.version < (4, 0, 0):
+            bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+            # 运动模糊
+            bpy.context.scene.eevee.use_motion_blur = False
+        else:
+            bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
+            bpy.context.scene.render.use_motion_blur = False
+
         # 采样
         bpy.context.scene.eevee.taa_render_samples = 32
         bpy.context.scene.eevee.taa_samples = 16
@@ -33,8 +38,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         bpy.context.scene.eevee.sss_samples = 7
         # 屏幕空间反射 todo 是否关闭待确认
         bpy.context.scene.eevee.use_ssr = False
-        # 运动模糊
-        bpy.context.scene.eevee.use_motion_blur = False
+
         # 阴影
         bpy.context.scene.eevee.shadow_cube_size = '1024'
         bpy.context.scene.eevee.shadow_cascade_size = '1024'
@@ -148,7 +152,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
             # 隐藏场景中所有灯光
             lights = [obj for obj in bpy.context.scene.objects if obj.type == 'LIGHT']
             for light in lights:
-                set_visibility(light, False, True, False, True)
+                set_visibility(light, (False, True, False, True))
 
 
 class GenPreviewCameraOperator(bpy.types.Operator):
@@ -268,6 +272,8 @@ class RenderPreviewOperator(bpy.types.Operator):
 
 def convert_materials(pmx_armature, force_center):
     pmx_objects = find_pmx_objects(pmx_armature)
+    if not pmx_objects:
+        return
 
     # 材质名称与MMDShaderDev的alpha值的映射
     material_alpha_map = {}
@@ -307,7 +313,10 @@ def convert_materials(pmx_armature, force_center):
         nodes = node_tree.nodes
         for node in nodes:
             if node.type == 'BSDF_PRINCIPLED':
-                specular_node = node.inputs['Specular']
+                if bpy.app.version < (4, 0, 0):
+                    specular_node = node.inputs['Specular']
+                else:
+                    specular_node = node.inputs['Specular IOR Level']
                 specular_node.default_value = 0
                 if alpha == 1:
                     continue
@@ -320,7 +329,10 @@ def convert_materials(pmx_armature, force_center):
     # 如果强制居中，则按材质分开，删除不透明度为0的物体
     if force_center:
         # 按材质分开
-        bpy.ops.mmd_tools.separate_by_materials()
+        if len(pmx_objects[0].material_slots) > 1:
+            deselect_all_objects()
+            select_and_activate(pmx_objects[0])
+            bpy.ops.mmd_tools.separate_by_materials()
         # 重新获取场景中的物体
         pmx_objects = find_pmx_objects(pmx_armature)
         objs_to_remove = set()
