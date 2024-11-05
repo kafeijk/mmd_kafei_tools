@@ -197,6 +197,8 @@ class RenderPreviewOperator(bpy.types.Operator):
         abs_path = bpy.path.abspath(directory)
         threshold = batch.threshold
         suffix = batch.suffix
+        search_strategy = batch.search_strategy
+        conflict_strategy = batch.conflict_strategy
 
         force_center = props.force_center
         output_format = bpy.context.scene.render.image_settings.file_format
@@ -207,7 +209,8 @@ class RenderPreviewOperator(bpy.types.Operator):
             # 批量渲染
             start_time = time.time()
             # 同一文件夹下出现"角色的多个pmx差分"或者"角色武器放在一起"很常见，所以搜索到的每个符合条件的pmx文件都会被渲染
-            file_list = recursive_search_by_img(abs_path, suffix, IMG_TYPE_EXT_MAP[output_format], threshold)
+            file_list = recursive_search_img(abs_path, suffix, threshold, search_strategy, conflict_strategy,
+                                             IMG_TYPE_EXT_MAP[output_format])
             file_count = len(file_list)
             for index, filepath in enumerate(file_list):
                 # 获取临时集合
