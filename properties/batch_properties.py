@@ -34,9 +34,9 @@ class BatchProperty(bpy.types.PropertyGroup):
             ("ALL", "全部", "获取所有文件")],
         default="LATEST"
     )
-    conflict_strategy:bpy.props.EnumProperty(
+    conflict_strategy: bpy.props.EnumProperty(
         name="冲突时",
-        description="检索到的文件中，如果已经包含指定名称的后缀，应该如何处理",
+        description="如果目录中已存在具有指定名称后缀的同名文件，应该如何处理",
         items=[
             ("SKIP", "不处理", "跳过对这些文件的后续处理"),
             ("OVERWRITE", "覆盖", "继续对这些文件进行后续处理，产生的新文件会覆盖原文件")],
