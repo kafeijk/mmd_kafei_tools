@@ -178,6 +178,7 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     # 设置三点父级
     bm.to_mesh(face_obj.data)
     bm.free()
+    deselect_all_objects()
     select_and_activate(face_obj)
     bpy.ops.object.mode_set(mode='EDIT')
     show_object(locator)
