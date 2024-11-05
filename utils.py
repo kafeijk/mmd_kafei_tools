@@ -413,6 +413,9 @@ def batch_process(func, props, f_flag=False):
             func(pmx_root, props, filepath)
         else:
             func(pmx_root, props)
+
+        deselect_all_objects()
+        select_and_activate(pmx_root)
         export_pmx(new_filepath)
 
         current_time = time.time() - curr_time
@@ -454,7 +457,11 @@ def check_batch_props(operator, batch):
     suffix = batch.suffix
     directory = batch.directory
 
-    if not is_plugin_enabled("mmd_tools"):
+    if bpy.app.version < (4, 0, 0) and not is_plugin_enabled("mmd_tools"):
+        operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
+        return False
+    if bpy.app.version >= (4, 0, 0) and not (
+            is_plugin_enabled("bl_ext.user_default.mmd_tools") or is_plugin_enabled("mmd_tools")):
         operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
         return False
 

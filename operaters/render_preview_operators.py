@@ -26,7 +26,6 @@ class LoadRenderPresetOperator(bpy.types.Operator):
             bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
             bpy.context.scene.render.use_motion_blur = False
 
-
         # 采样
         bpy.context.scene.eevee.taa_render_samples = 32
         bpy.context.scene.eevee.taa_samples = 16
@@ -273,6 +272,8 @@ class RenderPreviewOperator(bpy.types.Operator):
 
 def convert_materials(pmx_armature, force_center):
     pmx_objects = find_pmx_objects(pmx_armature)
+    if not pmx_objects:
+        return
 
     # 材质名称与MMDShaderDev的alpha值的映射
     material_alpha_map = {}
@@ -328,7 +329,10 @@ def convert_materials(pmx_armature, force_center):
     # 如果强制居中，则按材质分开，删除不透明度为0的物体
     if force_center:
         # 按材质分开
-        bpy.ops.mmd_tools.separate_by_materials()
+        if len(pmx_objects[0].material_slots) > 1:
+            deselect_all_objects()
+            select_and_activate(pmx_objects[0])
+            bpy.ops.mmd_tools.separate_by_materials()
         # 重新获取场景中的物体
         pmx_objects = find_pmx_objects(pmx_armature)
         objs_to_remove = set()
