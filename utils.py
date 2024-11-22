@@ -1,5 +1,5 @@
+import importlib.util
 import math
-import os
 import time
 
 import bpy
@@ -740,3 +740,8 @@ def int2base(x, base, width=0):
     if negtive:
         digits = '-' + digits
     return digits
+
+
+def is_module_installed(module_name):
+    module_spec = importlib.util.find_spec(module_name)
+    return module_spec is not None

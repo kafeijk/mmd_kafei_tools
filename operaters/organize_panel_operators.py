@@ -18,46 +18,123 @@ class OrganizePanelOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_organize_panel
         if not self.check_props(props):
             return
-        batch = props.batch
-        batch_flag = batch.flag
-        if batch_flag:
-            batch_process(organize_panel, props, f_flag=False)
-        else:
-            active_object = bpy.context.active_object
-            pmx_root = find_ancestor(active_object)
-            organize_panel(pmx_root, props)
+        batch_process(organize_panel, props, f_flag=False)
 
     def check_props(self, props):
         batch = props.batch
-        batch_flag = batch.flag
-        if batch_flag:
-            if not check_batch_props(self, batch):
-                return False
-        else:
-            active_object = bpy.context.active_object
-            if not active_object:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型')
-                return False
-            pmx_root = find_ancestor(active_object)
-            if pmx_root.mmd_type != "ROOT":
-                self.report(type={'ERROR'}, message=f'请选择MMD模型')
-                return False
-            armature = find_pmx_armature(pmx_root)
-            if not armature:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型')
-                return False
-            objs = find_pmx_objects(armature)
-            if not objs:
-                self.report(type={'ERROR'}, message=f'未找到MMD模型的网格对象')
-                return False
+        if not check_batch_props(self, batch):
+            return False
         return True
 
 
 def organize_panel(pmx_root, props):
     reorder_bone_panel(pmx_root, props)
+    optimize_name(pmx_root, props)
     reorder_morph_panel(pmx_root, props)
     reorder_rigid_body_panel(pmx_root, props)
     reorder_display_panel(pmx_root, props)
+
+
+def is_shift_jis_char(char):
+    """
+    检查给定的单个字符是否属于 CP932（Shift_JIS 的扩展）编码字符集。
+
+    1. Shift_JIS 编码表及字符范围：
+       http://www.rikai.com/library/kanjitables/kanji_codes.sjis.shtml
+    2. CP932 与 Shift_JIS 的字符列表和差异：
+       http://mrxray.on.coocan.jp/Delphi/Others/Shift_JIS_Listi.htm#00
+    """
+
+    try:
+        char.encode('cp932')
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def are_all_shift_jis_chars(string):
+    """
+    检查字符串中的所有字符是否均为有效的 CP932 编码。
+    """
+    try:
+        string.encode('cp932')
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def get_unique_name(new_jp_name, jp_set):
+    match = re.match(r"^(.*?)(\d+)?$", new_jp_name)
+    base_name = match.group(1)  # 名称主体
+    suffix = int(match.group(2)) if match.group(2) else 0  # 初始数字后缀
+
+    # 寻找未被占用的名称
+    unique_name = new_jp_name
+    while unique_name in jp_set:
+        suffix += 1
+        unique_name = f"{base_name}{suffix}"
+
+    return unique_name
+
+
+def optimize_name(pmx_root, props):
+    bone_panel_flag = props.bone_panel_flag
+    if bone_panel_flag is False:
+        return
+
+    optimization_flag = props.optimization_flag
+    if optimization_flag is False:
+        return
+
+    if not is_module_installed("pypinyin"):
+        return
+
+    jp_set = set()
+    armature = find_pmx_armature(pmx_root)
+
+    for pb in armature.pose.bones:
+        if pb.is_mmd_shadow_bone:
+            continue
+
+        mmd_bone = pb.mmd_bone
+        jp_name = mmd_bone.name_j
+
+        # 优化日文名称
+        new_jp_name = get_optimized_jp_name(jp_name, jp_set)
+        mmd_bone.name_j = new_jp_name
+        jp_set.add(new_jp_name)
+
+
+def get_optimized_jp_name(jp_name, jp_set):
+    from pypinyin import pinyin, Style
+
+    # 如果日文名称为空，返回默认名称
+    if not jp_name:
+        return get_unique_name('新規ボーン', jp_set)
+
+    # MMD动作文件骨骼名称是用CP932进行编码的
+    # 参考链接：https://github.com/uimac/mmdbridge/blob/fa5d2fa52255bafd353fe71cdcfc5485c868d9fb/src/d3d9/vmd.cpp#L263
+    # 如果字符能被正确编码，则保留；如果字符为码表不兼容的中文汉字，则转为拼音；其余文字整体简单更名为"新規ボーン"
+    new_jp_name = ''
+    if are_all_shift_jis_chars(jp_name):
+        new_jp_name = jp_name
+    else:
+        for char in jp_name:
+            # 如果字符为码表不兼容的中文汉字，则转为拼音
+            if not is_shift_jis_char(char):
+                pinyin_result = pinyin(char, style=Style.NORMAL)
+                pinyin_text = ' '.join([item[0] for item in pinyin_result])
+
+                # 如果拼音与原字符不同，添加拼音
+                if pinyin_text and char != pinyin_text:
+                    new_jp_name += pinyin_text
+                else:
+                    return get_unique_name('新規ボーン', jp_set)  # 如果拼音转换失败，返回默认名称
+            else:
+                new_jp_name += char
+
+    # 确保名称唯一
+    return get_unique_name(new_jp_name, jp_set)
 
 
 def reorder_bone_panel(pmx_root, props):
@@ -603,8 +680,8 @@ def reorder_display_panel(pmx_root, props):
 
         # 新建显示枠
         common_frame_names = get_common_frame_names()
-        for common_frame_name in common_frame_names:
-            add_frame(pmx_root, common_frame_name)
+        for jp_name, eng_name in common_frame_names.items():
+            add_frame(pmx_root, jp_name, eng_name)
 
         # 添加显示枠内元素（常用）
         add_common_item(mmd_root, jp_bone_map, jp_bl_map, jp_processed_map, frame_items)
@@ -653,12 +730,13 @@ def reset_bone_frame(mmd_root):
     frames.move(frames.find('Root'), 0)
 
 
-def add_frame(pmx_root, frame_name):
+def add_frame(pmx_root, jp_name, eng_name):
     """增加指定名称的显示枠"""
     mmd_root = pmx_root.mmd_root
     frames = mmd_root.display_item_frames
     item, index = ItemOp.add_after(frames, len(frames) - 1)
-    item.name = frame_name
+    item.name = jp_name
+    item.name_e = eng_name
     mmd_root.active_display_item_frame = index
 
 

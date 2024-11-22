@@ -3,12 +3,20 @@ import bpy
 from .batch_properties import BatchProperty
 
 
+
 class OrganizePanelProperty(bpy.types.PropertyGroup):
     bone_panel_flag: bpy.props.BoolProperty(
         name="骨骼面板",
         description="整理骨骼面板",
         default=True,
         update=lambda self, context: self.check_selection(context, "bone_panel_flag")
+    )
+
+    optimization_flag: bpy.props.BoolProperty(
+        name="名称优化",
+        description="优化骨骼日文名称，避免使用时出现乱码\n优化骨骼英文名称，确保主要骨骼在英文模式下不为Null",
+        default=True,
+        update=lambda self, context: self.check_selection(context, "optimization_flag")
     )
     morph_panel_flag: bpy.props.BoolProperty(
         name="表情面板",
