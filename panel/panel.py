@@ -122,7 +122,7 @@ class ToolsPanel(bpy.types.Panel):
 
 class ModifyColorspacePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_modify_colorspace"
-    bl_label = "修改贴图色彩空间"
+    bl_label = "调整色彩空间"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
@@ -138,18 +138,23 @@ class ModifyColorspacePanel(bpy.types.Panel):
         layout.use_property_decorate = False
 
         col = layout.column()
+        keywords = props.keywords
 
-        colorspace_col = col.column()
-        colorspace_col.prop(props, "colorspace")
+        source_colorspace_col = col.column()
+        source_colorspace_col.prop(props, "source_colorspace")
+        if keywords:
+            source_colorspace_col.enabled = False
+        else:
+            source_colorspace_col.enabled = True
+
+        target_colorspace_col = col.column()
+        target_colorspace_col.prop(props, "target_colorspace")
+
         keywords_col = col.column()
         keywords_col.prop(props, "keywords")
-        selected_only_col = col.column()
-        selected_only_col.prop(props, "selected_only")
 
         operator_col = col.column()
         operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
-
-
 
 
 class TransferVgWeightPanel(bpy.types.Panel):
@@ -298,17 +303,17 @@ class ChangeTexLocPanel(bpy.types.Panel):
 
         new_folder_col = col.column()
         new_folder_col.prop(props, "new_folder")
-
-        show_batch_props(col, False, False, batch)
         remove_empty_col = col.column()
         remove_empty_col.prop(props, "remove_empty")
+
+        show_batch_props(col, False, True, batch)
 
         change_tex_loc_col = col.column()
         change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
 class AddSsbPanel:
-# class AddSsbPanel(bpy.types.Panel):
+    # class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "追加次标准骨骼"
     bl_space_type = 'VIEW_3D'
@@ -442,6 +447,15 @@ class OrganizePanelPanel(bpy.types.Panel):
         col = layout.column()
         bone_panel_flag_col = col.column()
         bone_panel_flag_col.prop(props, "bone_panel_flag")
+
+        if is_module_installed("pypinyin"):
+            optimization_flag_row = col.row()
+            optimization_flag_row.separator()
+            optimization_flag_row.separator()
+            optimization_flag_row.prop(props, "optimization_flag")
+            if props.bone_panel_flag is False:
+                optimization_flag_row.enabled = False
+
         morph_panel_flag_col = col.column()
         morph_panel_flag_col.prop(props, "morph_panel_flag")
         rigid_body_panel_flag_col = col.column()
@@ -463,7 +477,7 @@ class OrganizePanelPanel(bpy.types.Panel):
         if props.display_panel_flag is False:
             exp_flag_row.enabled = False
 
-        show_batch_props(col, True, True, batch)
+        show_batch_props(col, False, True, batch)
 
         organize_panel_col = col.column()
         organize_panel_col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
