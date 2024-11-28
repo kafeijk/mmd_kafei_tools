@@ -1088,8 +1088,10 @@ def create_waist_bone(armature, props, results):
     waist_pb.mmd_bone.transform_order = under_body_parent_pb.mmd_bone.transform_order
     # 如果骨骼的父级是下半身的parent且名称不是センター先，则将其亲骨改为腰骨（还需要排除临时骨骼对流程的影响）
     center_saki_pattern = r'^センター先(\.\d{3})?$'  # PE中允许同名但是blender中会重命名为.001
+    under_body_parent_eb = edit_bones.get(under_body_parent.name)
     for eb in edit_bones:
-        if eb.parent == under_body_eb.parent and not re.match(center_saki_pattern,
+        # 这里要获取的是under_body_parent_eb而不是under_body_eb.parent，因为under_body_eb可能先会被处理，其parent已经由center改为腰，会出现引用错误的情况
+        if eb.parent == under_body_parent_eb and not re.match(center_saki_pattern,
                                                               eb.name) and KAFEI_TMP_BONE_NAME not in eb.name:
             eb.parent = waist_eb
     # 设置显示枠
