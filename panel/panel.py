@@ -10,6 +10,8 @@ from ..operaters.small_feature_operators import SmallFeatureOperator
 from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
+from ..operaters.change_rest_pose_operators import ChangeRestPoseStartOperator
+from ..operaters.change_rest_pose_operators import ChangeRestPoseEndOperator
 from ..utils import *
 
 
@@ -267,6 +269,36 @@ class SmallFeaturePanel(bpy.types.Panel):
 
         operators_col = col.column()
         operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
+
+
+class ChangeRestPosePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_change_rest_pose"
+    bl_label = "初始姿势调整"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_tools"
+    bl_order = 6
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_change_rest_pose
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        h_joint_keyword_col = col.column()
+        h_joint_keyword_col.prop(props, "h_joint_keyword")
+        h_joint_strategy_col = col.column()
+        h_joint_strategy_col.prop(props, "h_joint_strategy")
+
+        operator_start_col = col.column()
+        operator_start_col.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
+        operator_end_col = col.column()
+        operator_end_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
 
 
 class PrePostProcessingPanel(bpy.types.Panel):

@@ -45,6 +45,8 @@ def find_rigid_body_parent(root):
     """寻找刚体对象"""
     return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'RIGID_GRP_OBJ', root.children), None)
 
+def find_joint_parent(root):
+    return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'JOINT_GRP_OBJ', root.children), None)
 
 def sort_pmx_objects(objects):
     objects.sort(key=lambda obj: obj.name)
