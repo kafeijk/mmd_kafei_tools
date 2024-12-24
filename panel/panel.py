@@ -13,6 +13,7 @@ from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
 from ..operaters.change_rest_pose_operators import ChangeRestPoseStartOperator
 from ..operaters.change_rest_pose_operators import ChangeRestPoseEndOperator
 from ..utils import *
+import addon_utils
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -124,7 +125,7 @@ class ToolsPanel(bpy.types.Panel):
 
 class ModifyColorspacePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_modify_colorspace"
-    bl_label = "调整色彩空间"
+    bl_label = "色彩空间调整"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
@@ -301,13 +302,26 @@ class ChangeRestPosePanel(bpy.types.Panel):
         operator_end_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
 
 
+class ModelModificationPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_tools"
+    bl_label = "模型修改"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'  # N面板
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_order = 2
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+
+
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
     bl_label = "预处理 / 后处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 2
+    bl_order = 3
 
     def draw(self, context):
         layout = self.layout
@@ -489,7 +503,6 @@ class OrganizePanelPanel(bpy.types.Panel):
         if props.bone_panel_flag is False:
             optimization_flag_row.enabled = False
 
-
         morph_panel_flag_col = col.column()
         morph_panel_flag_col.prop(props, "morph_panel_flag")
         rigid_body_panel_flag_col = col.column()
@@ -563,6 +576,40 @@ class RenderPreviewPanel(bpy.types.Panel):
         render_row = col.row()
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
         render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
+
+
+class AboutPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_about"
+    bl_label = "About"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_order = 3
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+        layout = self.layout
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.operator(
+            "wm.url_open",
+            text="用户文档",
+            icon='URL'
+        ).url = r"https://www.yuque.com/laibeikafeizaishuo/xgbdou/qtop1t7zzts9nzgv"
+
+        row = col.row(align=True)
+        row.operator(
+            "wm.url_open",
+            text="开源地址",
+            icon='URL'
+        ).url = r"https://github.com/kafeijk/mmd_kafei_tools/releases"
+
+        row = col.row(align=True)
+        row.label(
+            text='Version: ' + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
+                                    addon.bl_info['name'] == 'mmd_kafei_tools'][0]))
 
 
 if __name__ == "__main__":
