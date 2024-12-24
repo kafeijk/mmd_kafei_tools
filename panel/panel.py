@@ -301,20 +301,6 @@ class ChangeRestPosePanel(bpy.types.Panel):
         operator_end_col = col.column()
         operator_end_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
 
-
-class ModelModificationPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_tools"
-    bl_label = "模型修改"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'  # N面板
-    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 2
-
-    def draw(self, context):
-        scene = context.scene
-        layout = self.layout
-
-
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
     bl_label = "预处理 / 后处理"
