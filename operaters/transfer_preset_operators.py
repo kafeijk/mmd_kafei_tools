@@ -434,7 +434,7 @@ def link_normal(mapping, direction):
         modifier.data_types_loops = {'CUSTOM_NORMAL'}
         modifier.loop_mapping = 'TOPOLOGY'
 
-        # 执行生成数据层，然后应用掉该修改器
+        # 执行生成数据层，然后应用掉该修改器（4.2之前，法向传递时提示开启自动平滑着色，但开启与否不影响插件的最终执行结果，4.2之后无提示）
         bpy.ops.object.datalayout_transfer(modifier=modifier.name)
         bpy.ops.object.modifier_apply(modifier=modifier.name)
 
