@@ -12,6 +12,7 @@ from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
 from ..operaters.change_rest_pose_operators import ChangeRestPoseStartOperator
 from ..operaters.change_rest_pose_operators import ChangeRestPoseEndOperator
+from ..operaters.change_rest_pose_operators import ChangeRestPoseEnd2Operator
 from ..utils import *
 import addon_utils
 
@@ -160,36 +161,6 @@ class ModifyColorspacePanel(bpy.types.Panel):
         operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
 
 
-class TransferVgWeightPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_transfer_vg_weight"
-    bl_label = "权重转移"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 3
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_transfer_vg_weight
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-
-        source_vg_name_col = col.column()
-        source_vg_name_col.prop(props, "source_vg_name", icon='GROUP_VERTEX')
-        target_vg_name_col = col.column()
-        target_vg_name_col.prop(props, "target_vg_name", icon='GROUP_VERTEX')
-        selected_v_only_col = col.column()
-        selected_v_only_col.prop(props, "selected_v_only")
-
-        operator_col = col.column()
-        operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
-
-
 class RemoveSpecifyContentPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_remove_specify_content"
     bl_label = "物体操作"
@@ -272,13 +243,26 @@ class SmallFeaturePanel(bpy.types.Panel):
         operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
 
 
+class ModelModificationPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_model_modification"
+    bl_label = "模型修改"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'  # N面板
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_order = 2
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+
+
 class ChangeRestPosePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_change_rest_pose"
-    bl_label = "初始姿势调整"
+    bl_label = "初始姿态调整"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 6
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -296,10 +280,41 @@ class ChangeRestPosePanel(bpy.types.Panel):
         h_joint_strategy_col = col.column()
         h_joint_strategy_col.prop(props, "h_joint_strategy")
 
-        operator_start_col = col.column()
-        operator_start_col.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
-        operator_end_col = col.column()
-        operator_end_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        operator_col = col.column(align = True)
+        operator_col.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
+        operator_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        operator_col.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
+
+
+class TransferVgWeightPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_transfer_vg_weight"
+    bl_label = "权重转移"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_transfer_vg_weight
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        source_vg_name_col = col.column()
+        source_vg_name_col.prop(props, "source_vg_name", icon='GROUP_VERTEX')
+        target_vg_name_col = col.column()
+        target_vg_name_col.prop(props, "target_vg_name", icon='GROUP_VERTEX')
+        selected_v_only_col = col.column()
+        selected_v_only_col.prop(props, "selected_v_only")
+
+        operator_col = col.column()
+        operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
+
 
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
@@ -569,7 +584,7 @@ class AboutPanel(bpy.types.Panel):
     bl_label = "About"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_order = 3
+    bl_order = 4
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
     bl_options = {'DEFAULT_CLOSED'}
 

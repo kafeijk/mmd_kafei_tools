@@ -14,8 +14,8 @@ bpy.types.Object.original_location_lock = bpy.props.BoolVectorProperty(
 
 class ChangeRestPoseStartOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_start"
-    bl_label = "开始"
-    bl_description = "开始调整初始姿势"
+    bl_label = "绑定"
+    bl_description = "开始调整初始姿态"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -47,6 +47,12 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
         deselect_all_objects()
         select_and_activate(armature)
         bpy.ops.object.mode_set(mode='POSE')
+        # 姿态变换归零
+        bpy.ops.pose.select_all(action='SELECT')
+        bpy.ops.pose.loc_clear()
+        bpy.ops.pose.rot_clear()
+        bpy.ops.pose.scale_clear()
+        bpy.ops.pose.select_all(action='DESELECT')
 
         # 设置刚体约束
         set_rigidbody_cons(rigidbody_parent, armature)
@@ -173,8 +179,8 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
 
 class ChangeRestPoseEndOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_end"
-    bl_label = "结束"
-    bl_description = "结束调整初始姿势"
+    bl_label = "应用绑定"
+    bl_description = "应用刚体Joint"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -233,6 +239,124 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
         armature = find_pmx_armature(pmx_root)
         if not armature:
             self.report(type={'ERROR'}, message=f'模型缺少骨架！')
+            return False
+        return True
+
+
+class ChangeRestPoseEnd2Operator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.change_rest_pose_end2"
+    bl_label = "应用姿态"
+    bl_description = "应用当前姿态对网格和骨架的影响，需要手动选择受影响的MMD网格对象"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.end(context)
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def end(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_sf
+
+        # 校验是否选中MMD模型
+        if self.check_props(props) is False:
+            return
+
+        # 获取模型信息
+        selected_objects = bpy.context.selected_objects
+        roots = set()
+        for obj in selected_objects:
+            root = find_pmx_root_with_child(obj)
+            if not root:
+                continue
+            roots.add(root)
+        root = roots.pop()
+        armature = find_pmx_armature(root)
+        objs = find_pmx_objects(armature)
+        objs_in_range = []
+        for obj in objs:
+            for so in selected_objects:
+                if so.type == "MESH" and obj == so:
+                    objs_in_range.append(obj)
+
+        for obj in objs_in_range:
+            deselect_all_objects()
+            show_object(obj)
+            select_and_activate(obj)
+
+            # 清空修改器
+            obj.modifiers.clear()
+            # 清空形态键
+            if obj.data.shape_keys:
+                shape_keys = obj.data.shape_keys.key_blocks
+                for shape_key in reversed(shape_keys):
+                    obj.shape_key_remove(shape_key)
+
+            # 创建骨架修改器
+            armature_mod = obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
+            armature_mod.show_viewport = True
+            armature_mod.show_render = True
+            armature_mod.object = armature
+            # 应用修改器
+            bpy.ops.object.modifier_apply(modifier=armature_mod.name)
+            # 再次创建骨架修改器
+            armature_mod = obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
+            armature_mod.show_viewport = True
+            armature_mod.show_render = True
+            armature_mod.object = armature
+
+        deselect_all_objects()
+        show_object(armature)
+        select_and_activate(armature)
+        bpy.ops.object.mode_set(mode='POSE')
+        bpy.ops.pose.select_all(action='DESELECT')
+        bpy.ops.pose.armature_apply(selected=False)
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    def check_props(self, props):
+        selected_objects = bpy.context.selected_objects
+        if not selected_objects:
+            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            return False
+
+        roots = set()
+        for obj in selected_objects:
+            root = find_pmx_root_with_child(obj)
+            if not root:
+                continue
+            roots.add(root)
+        if not roots:
+            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            return False
+        if len(roots) > 1:
+            self.report(type={'ERROR'}, message=f'MMD模型数量大于1！')
+            return False
+
+        root = roots.pop()
+        armature = find_pmx_armature(root)
+        if not armature:
+            self.report(type={'ERROR'}, message=f'模型缺少骨架！')
+            return False
+
+        objs = find_pmx_objects(armature)
+        objs_in_range = []
+        at_least_one = False
+        for obj in objs:
+            for so in selected_objects:
+                if so.type == "MESH" and obj == so:
+                    at_least_one = True
+                    objs_in_range.append(obj)
+        if not at_least_one:
+            self.report(type={'ERROR'}, message=f'请选择受影响的MMD网格对象！')
+            return False
+
+        invalid_obj_names = []
+        for co in objs_in_range:
+            if co.data.shape_keys and len(co.data.shape_keys.key_blocks) > 1:
+                invalid_obj_names.append(co.name)
+
+        msg_str = "\n".join(invalid_obj_names)
+        if invalid_obj_names:
+            self.report(type={'ERROR'}, message=f'检测到形态键数量大于1的网格对象，请修改选择内容！\n{msg_str}')
             return False
         return True
 
