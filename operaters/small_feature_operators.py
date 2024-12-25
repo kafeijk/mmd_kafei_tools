@@ -24,13 +24,7 @@ class SmallFeatureOperator(bpy.types.Operator):
             return
 
         option = props.option
-        if option == 'BAKE_BONE':
-            self.select_bake_bone()
-        elif option == 'PHYSICAL_BONE':
-            self.select_physical_bone()
-        elif option == 'INVALID_RIGIDBODY_JOINT':
-            self.remove_invalid_rigidbody_joint()
-        elif option == 'SCENE_ROOT':
+        if option == 'SCENE_ROOT':
             self.gen_scene_root()
         elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             self.repair_sss(option)
@@ -84,76 +78,6 @@ class SmallFeatureOperator(bpy.types.Operator):
                 self.report(type={'WARNING'},
                             message=f'检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑')
 
-    def select_bake_bone(self):
-        """选择用于烘焙VMD的骨骼"""
-        obj = bpy.context.active_object
-        pmx_root = find_pmx_root_with_child(obj)
-        armature = find_pmx_armature(pmx_root)
-        # 选中骨架并进入姿态模式
-        deselect_all_objects()
-        show_object(armature)
-        select_and_activate(armature)
-        bpy.ops.object.mode_set(mode='POSE')
-        for bone in armature.pose.bones:
-            if bone.mmd_bone.name_j in PMX_BAKE_BONES:
-                bone.bone.select = True
-            else:
-                bone.bone.select = False
-
-    def select_physical_bone(self):
-        """选择用于烘焙VMD的骨骼"""
-        obj = bpy.context.active_object
-        root = find_pmx_root_with_child(obj)
-        armature = find_pmx_armature(root)
-        bl_names = get_physical_bone(root)
-        # 选中骨架并进入姿态模式
-        deselect_all_objects()
-        show_object(armature)
-        select_and_activate(armature)
-        bpy.ops.object.mode_set(mode='POSE')
-        for bone in armature.pose.bones:
-            if bone.name in bl_names:
-                bone.bone.select = True
-            else:
-                bone.bone.select = False
-
-    def remove_invalid_rigidbody_joint(self):
-        """选择用于烘焙VMD的骨骼"""
-        obj = bpy.context.active_object
-        root = find_pmx_root_with_child(obj)
-        armature = find_pmx_armature(root)
-        rigidbody_parent = find_rigid_body_parent(root)
-        joint_parent = find_joint_parent(root)
-
-        joint_rigid_bodies_map = {}
-
-        # （预先）删除无效关节（并记录有效关节）
-        for joint in reversed(joint_parent.children):
-            rigidbody1 = joint.rigid_body_constraint.object1
-            rigidbody2 = joint.rigid_body_constraint.object2
-            if any(r not in rigidbody_parent.children for r in [rigidbody1, rigidbody2]):
-                bpy.data.objects.remove(joint, do_unlink=True)
-            else:
-                joint_rigid_bodies_map[joint] = [rigidbody1, rigidbody2]
-
-        # 处理刚体
-        for rigidbody in reversed(rigidbody_parent.children):
-            bl_name = rigidbody.mmd_rigid.bone
-            # 当刚体没有关联的骨骼时，可能是本身设置错误，也可能是本来就没有关联的骨骼，这里不处理
-            if not bl_name:
-                continue
-            # 关联骨骼不存在则删除这个刚体
-            if bl_name not in armature.pose.bones:
-                bpy.data.objects.remove(rigidbody, do_unlink=True)
-
-        # 删除无效关节
-        joints_to_remove = []
-        for joint, rigid_bodies in joint_rigid_bodies_map.items():
-            if any(not r for r in rigid_bodies):
-                joints_to_remove.append(joint)
-        for joint in reversed(joints_to_remove):
-            bpy.data.objects.remove(joint, do_unlink=True)
-
     def gen_scene_root(self):
         """创建一个空物体，以实现对整个场景的统一控制"""
         if len(bpy.data.objects) == 0:
@@ -187,25 +111,12 @@ class SmallFeatureOperator(bpy.types.Operator):
 
     def check_props(self, props):
         option = props.option
-        if option in ("BAKE_BONE", "PHYSICAL_BONE", "INVALID_RIGIDBODY_JOINT"):
-            active_object = bpy.context.active_object
-            if not active_object:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
-                return False
-            pmx_root = find_pmx_root_with_child(active_object)
-            if not pmx_root:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
-                return False
-            armature = find_pmx_armature(pmx_root)
-            if not armature:
-                self.report(type={'ERROR'}, message=f'模型缺少骨架！')
-                return False
-            return True
-        elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
+        if option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             objs = bpy.context.selected_objects
             if len(objs) == 0:
                 self.report(type={'ERROR'}, message=f'请选择至少一个物体！')
-                return
+                return False
+        return True
 
 
 def is_valid_material(material):

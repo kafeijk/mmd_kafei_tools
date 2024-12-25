@@ -13,6 +13,12 @@ from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
 from ..operaters.change_rest_pose_operators import ChangeRestPoseStartOperator
 from ..operaters.change_rest_pose_operators import ChangeRestPoseEndOperator
 from ..operaters.change_rest_pose_operators import ChangeRestPoseEnd2Operator
+from ..operaters.bone_operators import FlipBoneOperator
+from ..operaters.bone_operators import DeleteInvalidRigidbodyJointOperator
+from ..operaters.bone_operators import SelectPhysicalBoneOperator
+from ..operaters.bone_operators import SelectBakeBoneOperator
+from ..operaters.bone_operators import SelectLinkedBoneOperator
+from ..operaters.bone_operators import SelectRingBoneOperator
 from ..utils import *
 import addon_utils
 
@@ -280,10 +286,50 @@ class ChangeRestPosePanel(bpy.types.Panel):
         h_joint_strategy_col = col.column()
         h_joint_strategy_col.prop(props, "h_joint_strategy")
 
-        operator_col = col.column(align = True)
+        operator_col = col.column(align=True)
         operator_col.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
         operator_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
         operator_col.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
+
+
+class BonePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_bone"
+    bl_label = "骨骼操作"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column(align=True)
+        operator_col = col.column(align=True)
+        # 翻转姿态 清理无效刚体Joint
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(FlipBoneOperator.bl_idname, text=FlipBoneOperator.bl_label, icon='PASTEFLIPDOWN')
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(DeleteInvalidRigidbodyJointOperator.bl_idname,
+                              text=DeleteInvalidRigidbodyJointOperator.bl_label, icon="TRASH")
+        # 选择 物理骨骼 烘焙骨骼
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(SelectPhysicalBoneOperator.bl_idname, text=SelectPhysicalBoneOperator.bl_label,
+                              icon="VIEWZOOM")
+        operator_row.operator(SelectBakeBoneOperator.bl_idname, text=SelectBakeBoneOperator.bl_label, icon="VIEWZOOM")
+        # 选择 关联骨骼 并排骨骼
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(SelectLinkedBoneOperator.bl_idname, text=SelectLinkedBoneOperator.bl_label,
+                              icon="VIEWZOOM")
+        operator_row.operator(SelectRingBoneOperator.bl_idname, text=SelectRingBoneOperator.bl_label, icon="VIEWZOOM")
+        # 选择 镜像骨骼
+        operator_row = operator_col.row(align=True)
+        operator_row.operator("pose.select_mirror", text="镜像骨骼", icon="VIEWZOOM")
+        operator_row.label(text="")  # 空白标签，占据空间
 
 
 class TransferVgWeightPanel(bpy.types.Panel):
@@ -292,7 +338,7 @@ class TransferVgWeightPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_model_modification"
-    bl_order = 2
+    bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
