@@ -1,3 +1,4 @@
+from ..tools.ApplyModifierForObjectWithShapeKeys import applyModifierForObjectWithShapeKeys
 from ..utils import *
 
 bpy.types.Object.original_location = bpy.props.FloatVectorProperty(
@@ -255,7 +256,7 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
 
     def end(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_sf
+        props = scene.mmd_kafei_tools_change_rest_pose
 
         # 校验是否选中MMD模型
         if self.check_props(props) is False:
@@ -272,37 +273,29 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
         root = roots.pop()
         armature = find_pmx_armature(root)
         objs = find_pmx_objects(armature)
-        objs_in_range = []
-        for obj in objs:
-            for so in selected_objects:
-                if so.type == "MESH" and obj == so:
-                    objs_in_range.append(obj)
+        force_apply = props.force_apply
 
-        for obj in objs_in_range:
+        for obj in objs:
             deselect_all_objects()
             show_object(obj)
             select_and_activate(obj)
 
-            # 清空修改器
-            obj.modifiers.clear()
-            # 清空形态键
-            if obj.data.shape_keys:
-                shape_keys = obj.data.shape_keys.key_blocks
-                for shape_key in reversed(shape_keys):
-                    obj.shape_key_remove(shape_key)
-
-            # 创建骨架修改器
-            armature_mod = obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
-            armature_mod.show_viewport = True
-            armature_mod.show_render = True
-            armature_mod.object = armature
-            # 应用修改器
-            bpy.ops.object.modifier_apply(modifier=armature_mod.name)
-            # 再次创建骨架修改器
-            armature_mod = obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
-            armature_mod.show_viewport = True
-            armature_mod.show_render = True
-            armature_mod.object = armature
+            if force_apply:
+                # 创建骨架修改器
+                armature_mod = self.create_armature_mod(obj, armature)
+                # 移动骨架修改器到首位
+                bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
+                # 强制应用修改器
+                applyModifierForObjectWithShapeKeys(context, [armature_mod.name], False)
+            else:
+                if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 1:
+                    continue
+                # 创建骨架修改器
+                armature_mod = self.create_armature_mod(obj, armature)
+                # 移动骨架修改器到首位
+                bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
+                # 应用修改器
+                bpy.ops.object.modifier_apply(modifier=armature_mod.name)
 
         deselect_all_objects()
         show_object(armature)
@@ -311,6 +304,17 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
         bpy.ops.pose.select_all(action='DESELECT')
         bpy.ops.pose.armature_apply(selected=False)
         bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 清理数据块，释放文件体积
+        if force_apply:
+            bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
+
+    def create_armature_mod(self, obj, armature):
+        armature_mod = obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
+        armature_mod.show_viewport = True
+        armature_mod.show_render = True
+        armature_mod.object = armature
+        return armature_mod
 
     def check_props(self, props):
         selected_objects = bpy.context.selected_objects
@@ -337,27 +341,6 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
             self.report(type={'ERROR'}, message=f'模型缺少骨架！')
             return False
 
-        objs = find_pmx_objects(armature)
-        objs_in_range = []
-        at_least_one = False
-        for obj in objs:
-            for so in selected_objects:
-                if so.type == "MESH" and obj == so:
-                    at_least_one = True
-                    objs_in_range.append(obj)
-        if not at_least_one:
-            self.report(type={'ERROR'}, message=f'请选择受影响的MMD网格对象！')
-            return False
-
-        invalid_obj_names = []
-        for co in objs_in_range:
-            if co.data.shape_keys and len(co.data.shape_keys.key_blocks) > 1:
-                invalid_obj_names.append(co.name)
-
-        msg_str = "\n".join(invalid_obj_names)
-        if invalid_obj_names:
-            self.report(type={'ERROR'}, message=f'检测到形态键数量大于1的网格对象，请修改选择内容！\n{msg_str}')
-            return False
         return True
 
 

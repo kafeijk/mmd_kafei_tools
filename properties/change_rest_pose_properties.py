@@ -21,6 +21,13 @@ class ChangeRestPoseProperty(bpy.types.PropertyGroup):
         ]
     )
 
+    force_apply: bpy.props.BoolProperty(
+        name="强制应用修改器",
+        description="强制应用修改器",
+        default=True
+    )
+
+
     @staticmethod
     def register():
         bpy.types.Scene.mmd_kafei_tools_change_rest_pose = bpy.props.PointerProperty(type=ChangeRestPoseProperty)
