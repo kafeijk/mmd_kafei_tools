@@ -19,10 +19,12 @@ from ..operaters.bone_operators import SelectPhysicalBoneOperator
 from ..operaters.bone_operators import SelectBakeBoneOperator
 from ..operaters.bone_operators import SelectLinkedBoneOperator
 from ..operaters.bone_operators import SelectRingBoneOperator
-from ..operaters.bone_operators import SelectExtendChildBoneOperator
+from ..operaters.bone_operators import SelectExtendChildrenBoneOperator
 from ..operaters.bone_operators import SelecExtendParentBoneOperator
-from ..operaters.bone_operators import SelecLessParentBoneOperator
-from ..operaters.bone_operators import SelecLessChildrenBoneOperator
+from ..operaters.bone_operators import SelectLessParentBoneOperator
+from ..operaters.bone_operators import SelectLessChildrenBoneOperator
+from ..operaters.bone_operators import SelectMoreBoneOperator
+from ..operaters.bone_operators import SelectLessBoneOperator
 from ..utils import *
 import addon_utils
 
@@ -283,30 +285,20 @@ class ChangeRestPosePanel(bpy.types.Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        # 主列布局
         col = layout.column()
 
-        # 添加一个分隔符，增加视觉层次感
-        col.separator()
+        prop_col = col.column()
+        prop_col.prop(props, "h_joint_strategy")
+        prop_col.prop(props, "force_apply")
 
-        # 第一组：H-joint相关设置
-        box = col.box()  # 使用 box 来将相关属性放在一起
-        box.prop(props, "h_joint_keyword")
-        box.prop(props, "h_joint_strategy")
-        operator_col = box.column(align=True)
-        operator_col.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
-        operator_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        operator_col = col.column(align=True)
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
+        operator_row.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
 
-        # 第三组：强制应用设置
-        box = col.box()  # 使用 box 来分隔设置区域
-        box.prop(props, "force_apply")
 
-        # 另一个操作按钮
-        operator_col = box.column(align=True)
-        operator_col.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
-
-        # 结束时添加一个分隔符，增强可读性
-        col.separator()
 
 
 class BonePanel(bpy.types.Panel):
@@ -352,21 +344,30 @@ class BonePanel(bpy.types.Panel):
         flip_bone_col.operator(FlipBoneOperator.bl_idname, text=FlipBoneOperator.bl_label, icon='PASTEFLIPDOWN')
         # mirror_bone_col.label(text="")  # 空白标签，占据空间
 
+        # 拓展 缩减选择
+        operator_row = operator_col.row(align=True)
+        more_col = operator_row.column(align=True)
+        more_col.operator(SelectMoreBoneOperator.bl_idname, text=SelectMoreBoneOperator.bl_label, icon="VIEWZOOM")
+        less_col = operator_row.column(align=True)
+        less_col.operator(SelectLessBoneOperator.bl_idname, text=SelectLessBoneOperator.bl_label, icon="VIEWZOOM")
+
         # 选择 父子骨骼
         operator_row = operator_col.row(align=True)
         extend_parent_col = operator_row.column(align=True)
         extend_parent_col.operator(SelecExtendParentBoneOperator.bl_idname, text=SelecExtendParentBoneOperator.bl_label,
                                    icon="VIEWZOOM")
         extend_children_col = operator_row.column(align=True)
-        extend_children_col.operator(SelectExtendChildBoneOperator.bl_idname, text=SelectExtendChildBoneOperator.bl_label,
-                                  icon="VIEWZOOM")
+        extend_children_col.operator(SelectExtendChildrenBoneOperator.bl_idname,
+                                     text=SelectExtendChildrenBoneOperator.bl_label,
+                                     icon="VIEWZOOM")
 
         less_parent_col = operator_row.column(align=True)
-        less_parent_col.operator(SelecLessParentBoneOperator.bl_idname, text=SelecLessParentBoneOperator.bl_label,
-                                  icon="VIEWZOOM")
+        less_parent_col.operator(SelectLessParentBoneOperator.bl_idname, text=SelectLessParentBoneOperator.bl_label,
+                                 icon="VIEWZOOM")
         less_children_col = operator_row.column(align=True)
-        less_children_col.operator(SelecLessChildrenBoneOperator.bl_idname, text=SelecLessChildrenBoneOperator.bl_label,
-                                  icon="VIEWZOOM")
+        less_children_col.operator(SelectLessChildrenBoneOperator.bl_idname,
+                                   text=SelectLessChildrenBoneOperator.bl_label,
+                                   icon="VIEWZOOM")
 
         # 翻转姿态 清理无效刚体Joint
         operator_row = operator_col.row(align=True)
@@ -382,7 +383,8 @@ class BonePanel(bpy.types.Panel):
             extend_children_col.enabled = True
             less_parent_col.enabled = True
             less_children_col.enabled = True
-
+            more_col.enabled = True
+            less_col.enabled = True
         else:
             link_bone_col.enabled = False
             ring_bone_bol.enabled = False
@@ -391,6 +393,8 @@ class BonePanel(bpy.types.Panel):
             extend_children_col.enabled = False
             less_parent_col.enabled = False
             less_children_col.enabled = False
+            more_col.enabled = False
+            less_col.enabled = False
 
 
 class TransferVgWeightPanel(bpy.types.Panel):

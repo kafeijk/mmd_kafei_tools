@@ -2,12 +2,6 @@ import bpy
 
 
 class ChangeRestPoseProperty(bpy.types.PropertyGroup):
-    h_joint_keyword: bpy.props.StringProperty(
-        name="横Joint关键词",
-        description="用于搜索横Joint的名称关键词",
-        default='横_',
-        maxlen=100
-    )
     h_joint_strategy: bpy.props.EnumProperty(
         name="横Joint变换策略",
         description="用何种方式重新设定横Joint的位置旋转",  # Joint的缩放值对最终结果无影响

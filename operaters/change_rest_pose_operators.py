@@ -1,3 +1,5 @@
+import mathutils
+
 from ..tools.ApplyModifierForObjectWithShapeKeys import applyModifierForObjectWithShapeKeys
 from ..utils import *
 
@@ -58,18 +60,15 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
         # 设置刚体约束
         set_rigidbody_cons(rigidbody_parent, armature)
         # 设置Joint控制器（约束、驱动）
-        self.set_joint_controller(props, joint_parent, rigidbody_parent)
+        self.set_joint_controller(props, root, armature, joint_parent, rigidbody_parent)
 
-    def set_joint_controller(self, props, joint_parent, rigidbody_parent):
-        h_joint_keyword = props.h_joint_keyword
+    def set_joint_controller(self, props, root, armature, joint_parent, rigidbody_parent):
         h_joint_strategy = props.h_joint_strategy
 
         v_joints = []  # 纵Joints
-        h_joints = []  # 横Joints
+        h_joints = self.find_h_joints(root, armature, joint_parent)  # 横Joints
         for joint in joint_parent.children:
-            if h_joint_keyword in joint.name:
-                h_joints.append(joint)
-            else:
+            if joint not in h_joints:
                 v_joints.append(joint)
 
         # 纵Joint约束为刚体A
@@ -83,6 +82,40 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
                 self.do_set_joint_driver(joint, rigidbody_parent)
             else:
                 pass
+
+    def find_h_joints(self, root, armature, joint_parent):
+        bl_names = get_physical_bone(root)
+        bone_chains = {}
+        h_joints = []
+        for pb_name in bl_names:
+            pb = armature.pose.bones.get(pb_name)
+            if not pb:
+                continue
+            ancestor = find_ancestor(pb)
+            bone_chains[pb.name] = ancestor
+
+        for joint in joint_parent.children:
+            r1 = joint.rigid_body_constraint.object1
+            r2 = joint.rigid_body_constraint.object2
+
+            if not r1 or not r2:
+                continue
+            bone1_name = r1.mmd_rigid.bone
+            bone2_name = r2.mmd_rigid.bone
+
+            ancestor1 = bone_chains.get(bone1_name)
+            ancestor2 = bone_chains.get(bone2_name)
+
+            if ancestor1 and ancestor2 and ancestor1 == ancestor2:
+                h_joints.append(joint)
+
+        return h_joints
+
+    def get_ancestor_linked(self, pb):
+        parent = pb.parent
+        while parent and parent.children == 1:
+            parent = parent.parent
+        return parent
 
     def do_set_joint_driver(self, joint, rigidbody_parent):
         rigidbody1 = joint.rigid_body_constraint.object1
@@ -226,8 +259,6 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
         # 应用（移除）横Joint驱动器
         apply_driver(joint_parent)
 
-        # 创建骨架修改器以方便后续
-
     def check_props(self, props):
         active_object = bpy.context.active_object
         if not active_object:
@@ -295,7 +326,7 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
                 # 移动骨架修改器到首位
                 bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
                 # 应用修改器
-                bpy.ops.object.modifier_apply(modifier=armature_mod.name)
+                bpy.ops.object.modifier_apply(modifier=armature_mod.name, single_user=True)
 
         deselect_all_objects()
         show_object(armature)
@@ -342,6 +373,73 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
             return False
 
         return True
+
+# todo 修正刚体旋转值？	xy轴向如何处理？ 关联刚体的平均值 圆形切向作为x
+# 是否加入该功能待定
+# class ChangeRigidRotationOperator(bpy.types.Operator):
+#     bl_idname = "mmd_kafei_tools.change_rigid_rotation"
+#     bl_label = "修正刚体朝向"
+#     bl_description = "修正刚体朝向"
+#     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+#
+#     def execute(self, context):
+#         self.start(context)
+#         return {'FINISHED'}  # 让Blender知道操作已成功完成
+#
+#     def start(self, context):
+#         scene = context.scene
+#         props = scene.mmd_kafei_tools_change_rest_pose
+#
+#         # 校验是否选中MMD模型
+#         # if self.check_props(props) is False:
+#         #     return
+#
+#         # 获取模型信息
+#         active_object = bpy.context.active_object
+#         root = find_pmx_root_with_child(active_object)
+#         armature = find_pmx_armature(root)
+#         rigidbody_parent = find_rigid_body_parent(root)
+#         joint_parent = find_joint_parent(root)
+#
+#         # 获取物理骨骼和刚体
+#         if rigidbody_parent is None:
+#             return []
+#         rigid_bodies = {}
+#         for rigidbody in rigidbody_parent.children:
+#             # 存在有刚体但没有关联骨骼的情况
+#             if rigidbody.mmd_rigid.bone == '':
+#                 continue
+#             # 0:骨骼 1:物理 2:物理+骨骼
+#             if rigidbody.mmd_rigid.type not in ('1', '2'):
+#                 continue
+#
+#             rigid_bodies[rigidbody.mmd_rigid.bone] = rigidbody
+#
+#         # 获取骨骼链
+#         bone_chains = {}
+#         for pb_name in rigid_bodies.keys():
+#             pb = armature.pose.bones.get(pb_name)
+#             if not pb:
+#                 continue
+#             ancestor = find_ancestor(pb)
+#             bone_chains[pb.name] = ancestor
+#
+#         for pb_name, rigidbody in rigid_bodies.items():
+#             pb = armature.pose.bones.get(pb_name)
+#             # 获取网格对象的局部轴向量（全局坐标系下）
+#             mesh_local_z = rigidbody.matrix_world.to_quaternion() @ mathutils.Vector((0, 0, 1))
+#
+#             # 获取骨骼对象的局部轴向量（全局坐标系下）
+#             bone_local_y = pb.matrix.to_quaternion() @ mathutils.Vector((0, -1, 0))
+#
+#             # 计算网格对象局部z轴和骨骼对象局部y轴之间的偏差（全局坐标系下）
+#             z_y_offset = mesh_local_z.rotation_difference(bone_local_y)
+#
+#             # 将偏差值应用到网格对象的全局旋转
+#             original_mode = rigidbody.rotation_mode
+#             rigidbody.rotation_mode = 'QUATERNION'
+#             rigidbody.rotation_quaternion = z_y_offset @ rigidbody.rotation_quaternion
+#             rigidbody.rotation_mode = original_mode
 
 
 def modify_root_trans_lock(obj, lock):

@@ -87,23 +87,9 @@ class SelectRingBoneOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class SelectExtendChildBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_extend_child_bone"
-    bl_label = "子级+"
-    bl_description = "拓展选择当前选中项的子骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "EXTEND_CHILD_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
-        select_bone_by_input(option)
-        return {'FINISHED'}
-
-
 class SelecExtendParentBoneOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.select_extend_parent_bone"
-    bl_label = "父级+"
+    bl_label = "父 +"
     bl_description = "拓展选择当前选中项的父骨骼"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
@@ -115,9 +101,23 @@ class SelecExtendParentBoneOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class SelecLessParentBoneOperator(bpy.types.Operator):
+class SelectExtendChildrenBoneOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_extend_children_bone"
+    bl_label = "子 +"
+    bl_description = "拓展选择当前选中项的子骨骼"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        option = "EXTEND_CHILDREN_BONE"
+        if check_props(self, option) is False:
+            return {'FINISHED'}
+        select_bone_by_input(option)
+        return {'FINISHED'}
+
+
+class SelectLessParentBoneOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.select_less_parent_bone"
-    bl_label = "父级-"
+    bl_label = "父 -"
     bl_description = "从当前选中项的父级开始缩减选择"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
@@ -129,9 +129,9 @@ class SelecLessParentBoneOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class SelecLessChildrenBoneOperator(bpy.types.Operator):
+class SelectLessChildrenBoneOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.select_less_children_bone"
-    bl_label = "子级-"
+    bl_label = "子 -"
     bl_description = "从当前选中项的子级开始缩减选择"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
@@ -143,8 +143,38 @@ class SelecLessChildrenBoneOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SelectMoreBoneOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_more_bone"
+    bl_label = "拓展选区"
+    bl_description = "拓展选择当前选中项的父子骨骼"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        option = "MORE_BONE"
+        if check_props(self, option) is False:
+            return {'FINISHED'}
+        select_bone_by_input(option)
+        return {'FINISHED'}
+
+
+class SelectLessBoneOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_less_bone"
+    bl_label = "缩减选区"
+    bl_description = "缩减选择当前选中项的父子骨骼"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        option = "LESS_BONE"
+        if check_props(self, option) is False:
+            return {'FINISHED'}
+        select_bone_by_input(option)
+        return {'FINISHED'}
+
+
 def check_props(operator, option):
-    if option in ("FLIP_BONE", "PHYSICAL_BONE", "BAKE_BONE", "LINKED_BONE", "RING_BONE", "INVALID_RIGIDBODY_JOINT"):
+    if option in ("FLIP_BONE", "PHYSICAL_BONE", "BAKE_BONE", "LINKED_BONE", "RING_BONE", "INVALID_RIGIDBODY_JOINT",
+                  "MORE_BONE", "EXTEND_CHILDREN_BONE", "EXTEND_PARENT_BONE",
+                  "LESS_BONE", "LESS_PARENT_BONE", "LESS_CHILDREN_BONE"):
         active_object = bpy.context.active_object
         if not active_object:
             operator.report(type={'ERROR'}, message=f'请选择MMD模型！')
@@ -175,7 +205,6 @@ def check_props(operator, option):
                 # 去除LR
                 if basename.endswith(('.L', '.R', '.l', '.r', '_L', '_R', '_l', '_r')):
                     curr_lr = basename[-1].lower()
-                    print(curr_lr)
                     if not lr:
                         lr = curr_lr
                     else:
@@ -190,41 +219,46 @@ def is_valid_bone(bone_info, pb):
     original_mode = bone_info[1]
     armature_layers = bone_info[2]
     if not pb:
-        print(1)
         return False
     # 骨骼被隐藏
     bone = pb.bone
     if original_mode == 'POSE':
         if bone.hide:
-            print(2)
             return False
     if original_mode == 'EDIT':
         hide_flag = eb_hide_map.get(pb.name)
         if hide_flag:
-            print(4)
             return False
 
     # 骨骼不在显示层
     layers = bone.layers
     active_layers = [i for i, layer in enumerate(layers) if layer]
     if all(not armature_layers[i] for i in active_layers):
-        print(5)
         return False
     return True
 
 
-def traverse_parent(bone_info, pb, pb_set, once):
+def traverse_parent_linked(bone_info, pb, pb_set):
     parent = pb.parent
     if is_valid_bone(bone_info, parent):
         # 如果父骨骼只有一个子骨骼，将其添加到列表
         if len(parent.children) == 1:
             pb_set.add(parent)
-            if once:
-                return
-            traverse_parent(bone_info, parent, pb_set, once)
+            traverse_parent_linked(bone_info, parent, pb_set)
         # 否则结束递归
         else:
             return
+
+
+def traverse_parent(bone_info, pb, pb_set, once):
+    parent = pb.parent
+    if is_valid_bone(bone_info, parent):
+        pb_set.add(parent)
+        if once:
+            return
+        traverse_parent(bone_info, parent, pb_set, once)
+    else:
+        return
 
 
 def traverse_children(bone_info, pb, pb_set, once):
@@ -455,6 +489,7 @@ def get_mirror_name(bl_name):
 
 
 def mirror_pose():
+    """翻转骨骼姿态，该部分从mmd_tools提取，原理不清楚，但流程相当于导出动作再镜像导入。"""
     obj = bpy.context.active_object
     pmx_root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(pmx_root)
@@ -558,23 +593,23 @@ def select_bake_bone():
         bpy.ops.object.mode_set(mode='EDIT')
 
 
-def get_end_bones(selected_pbs, pb2_set):
-    """获取末端子骨"""
+def get_end_bones(selected_pbs, pb_set):
+    """获取末端子骨，即子骨数量为0或子骨均未被选中"""
     for pb in selected_pbs:
-        print(pb.name)
         if len(pb.children) == 0:
-            pb2_set.add(pb)
+            pb_set.add(pb)
         else:
             selected_child_flag = False
-            for child in pb.children:  # 除非代码修改，否则隐藏骨不会被选中 无需校验is_valid_bone
+            for child in pb.children:
                 if child.bone.select:
                     selected_child_flag = True
                     break
             if not selected_child_flag:
-                pb2_set.add(pb)
+                pb_set.add(pb)
 
 
 def get_bone_info(armature, original_mode):
+    """获取骨骼信息：编辑模式下骨骼的隐藏状态 初始模式 骨骼所在层"""
     eb_hide_map = {}
     bpy.ops.object.mode_set(mode='EDIT')
     for eb in armature.data.edit_bones:
@@ -583,70 +618,125 @@ def get_bone_info(armature, original_mode):
 
 
 def select_bone_by_input(option):
-    """根据用户所选择的骨骼，来选择option相关骨骼"""
+    """根据用户所选择的骨骼，来选择option相关骨骼
+
+    关联骨骼：
+        Blender原逻辑：向上寻找父级，向下寻找子级，遇到非关联项则结束寻找
+        现逻辑：向上寻找父级，向下寻找子级，如果父级/子级存在分叉（多个子级）则结束查找
+    并排骨骼：
+        选择环绕骨骼，有点类似选择并排边，PE插件创建物理骨骼时名称存在“_纵向id_横向id”格式的后缀，以此来判别
+    镜像骨骼：
+        使用Blender原生函数，需根据姿态模式和编辑模式来选择具体函数（不同模式下函数不一样）
+    父 +：
+        向上一直寻找父级
+    子 +：
+        向下寻找子级，存在分叉（多个子级）则结束查找
+    父 -：
+        从选中项中的祖先节点开始缩减选择
+    子 -：
+        从选中项中的末端节点开始缩减选择
+
+    Blender原逻辑：以激活的节点为范围
+    现逻辑：以选中项为范围
+
+    在查找过程中，骨骼不存在，骨骼被隐藏，骨骼所在层未被选中，都被视为骨骼不存在。
+    在缩减选择时，若骨骼“不存在”，则需从选中项中排除这些骨骼，以防止这些骨骼对流程的影响。
+    就算激活骨骼未被选中，他也可能是激活骨骼。
+    """
+
+    # 获取基本信息
     original_mode = bpy.context.active_object.mode
     obj = bpy.context.active_object
     pmx_root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(pmx_root)
-    # 选中骨架并进入姿态模式
+
     deselect_all_objects()
     show_object(armature)
     select_and_activate(armature)
+
+    # 获取骨骼信息：编辑模式下骨骼的隐藏状态 初始模式 骨骼所在层
     bone_info = get_bone_info(armature, original_mode)
-    bpy.ops.object.mode_set(mode='POSE')
 
     pbs = armature.pose.bones
     selected_pbs = []
+    invalid_bone_set = set()
     for pb in pbs:
-        # blender逻辑中，关联查找不考虑被选中的隐藏骨骼，而查找父级子级时考虑，这里统一考虑
-        if pb.bone.select:
+        # Blender逻辑中，关联查找不考虑被选中的隐藏骨骼，而查找父级子级时考虑，这里统一考虑
+        if pb.bone.select and is_valid_bone(bone_info, pb):
             selected_pbs.append(pb)
+        else:
+            invalid_bone_set.add(pb)
 
     # 没有骨骼被选择则直接返回
     if not selected_pbs:
+        bpy.ops.object.mode_set(mode=original_mode)
         return
 
+    # 拓展选择时，需维持当前激活骨骼的激活状态，缩减选择时，若激活骨骼为将被缩减选择的骨骼，则无需保持激活状态。
     active_pb = None
     if armature.data.bones.active:
         active_pb = pbs.get(armature.data.bones.active.name)
 
-    pb_set = set()
-    pb2_set = set()
+    # 缩减选择时，查找范围排除无效骨骼
+    if option in ["LESS_PARENT_BONE", "LESS_CHILDREN_BONE", "LESS_BONE"]:
+        unselect_bone(armature, invalid_bone_set)
+    if active_pb not in selected_pbs:
+        unselect_bone(armature, {active_pb})
+
+    # 获取将被选择/取消选择的集合
+    selected_set = set()
+    unselected_set = set()
+    bpy.ops.object.mode_set(mode='POSE')
     if option == "LINKED_BONE":
         for selected_pb in selected_pbs:
-            traverse_parent(bone_info, selected_pb, pb_set, False)
-            traverse_children(bone_info, selected_pb, pb_set, False)
+            traverse_parent_linked(bone_info, selected_pb, selected_set)
+            traverse_children(bone_info, selected_pb, selected_set, False)
+    elif option == "RING_BONE":
+        get_ring_bone(bone_info, selected_pbs, pbs, selected_set)
     elif option == "EXTEND_PARENT_BONE":
         for selected_pb in selected_pbs:
-            traverse_parent(bone_info, selected_pb, pb_set, True)
-    elif option == "EXTEND_CHILD_BONE":
+            traverse_parent(bone_info, selected_pb, selected_set, True)
+    elif option == "EXTEND_CHILDREN_BONE":
         for selected_pb in selected_pbs:
-            traverse_children(bone_info, selected_pb, pb_set, True)
+            traverse_children(bone_info, selected_pb, selected_set, True)
+    elif option == "MORE_BONE":
+        for selected_pb in selected_pbs:
+            traverse_parent(bone_info, selected_pb, selected_set, True)
+            traverse_children(bone_info, selected_pb, selected_set, True)
     elif option == "LESS_PARENT_BONE":
         for pb in selected_pbs:
             ancestor = get_deselected_ancestor(bone_info, pb, selected_pbs)
-            pb2_set.add(ancestor)
+            unselected_set.add(ancestor)
     elif option == "LESS_CHILDREN_BONE":
-        get_end_bones(selected_pbs, pb2_set)
-    elif option == "RING_BONE":
-        get_ring_bone(bone_info, selected_pbs, pbs, pb_set)
+        get_end_bones(selected_pbs, unselected_set)
+    elif option == "LESS_BONE":
+        for pb in selected_pbs:
+            ancestor = get_deselected_ancestor(bone_info, pb, selected_pbs)
+            unselected_set.add(ancestor)
+        get_end_bones(selected_pbs, unselected_set)
 
-    if option in ["LESS_PARENT_BONE", "LESS_CHILDREN_BONE"]:
-        if original_mode == "POSE":
-            print(pb2_set)
-            for pb in pb2_set:
-                pb.bone.select = False
-        elif original_mode == "EDIT":
-            bpy.ops.object.mode_set(mode="EDIT")
-            for pb in pb2_set:
-                eb = armature.data.edit_bones.get(pb.name)
-                eb.select = False
-                eb.select_head = False
-                eb.select_tail = False
-
+    # 选择/取消选择
+    if option in ["LESS_PARENT_BONE", "LESS_CHILDREN_BONE", "LESS_BONE"]:
+        unselect_bone(armature, unselected_set)
     else:
-        for pb in pb_set:
+        for pb in selected_set:
             pb.bone.select = True
-        active_pb.bone.select = True
+        if active_pb in selected_pbs:
+            active_pb.bone.select = True
 
+    # 返回初始模式
     bpy.ops.object.mode_set(mode=original_mode)
+
+
+def unselect_bone(armature, pb_set):
+    """取消选择骨骼"""
+    bpy.ops.object.mode_set(mode="POSE")
+    for pb in pb_set:
+        pb.bone.select = False
+    bpy.ops.object.mode_set(mode="EDIT")
+    for pb in pb_set:
+        eb = armature.data.edit_bones.get(pb.name)
+        eb.select = False
+        eb.select_head = False
+        eb.select_tail = False
+
