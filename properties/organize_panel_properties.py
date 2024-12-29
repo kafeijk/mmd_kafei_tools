@@ -1,7 +1,11 @@
 import bpy
 
 from .batch_properties import BatchProperty
+from ..utils import is_module_installed
 
+
+def get_optimization_flag():
+    return is_module_installed("pypinyin")
 
 
 class OrganizePanelProperty(bpy.types.PropertyGroup):
@@ -14,9 +18,8 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
 
     optimization_flag: bpy.props.BoolProperty(
         name="名称优化",
-        description="优化骨骼日文名称，避免使用时出现乱码\n优化骨骼英文名称，确保主要骨骼在英文模式下不为Null",
-        default=True,
-        update=lambda self, context: self.check_selection(context, "optimization_flag")
+        description="优化骨骼日文名称，避免使用时出现乱码。该参数需安装pypinyin模块后生效，详见说明文档",
+        default=get_optimization_flag()
     )
     morph_panel_flag: bpy.props.BoolProperty(
         name="表情面板",
@@ -63,12 +66,6 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
 
     def check_selection(self, context, changed_property):
         """检查选项，如果都未选中则恢复原来的状态"""
-        if not (self.bone_flag or self.exp_flag):
-            if changed_property == "bone_flag":
-                self.bone_flag = True
-            elif changed_property == "exp_flag":
-                self.exp_flag = True
-
         if not (self.bone_panel_flag or self.morph_panel_flag or self.rigid_body_panel_flag or self.display_panel_flag):
             if changed_property == "bone_panel_flag":
                 self.bone_panel_flag = True
@@ -78,3 +75,23 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
                 self.rigid_body_panel_flag = True
             elif changed_property == "display_panel_flag":
                 self.display_panel_flag = True
+
+        # 上级选项失效后，子级选项随之失效
+        if changed_property == "display_panel_flag" and not self.display_panel_flag:
+            self.bone_flag = False
+            self.exp_flag = False
+        elif changed_property == "display_panel_flag" and self.display_panel_flag:
+            self.bone_flag = True
+            self.exp_flag = True
+
+        # 当display_panel_flag为True时，至少保证bone_flag子级选项有一个被勾选
+        if changed_property == "bone_flag" or changed_property == "exp_flag":
+            if not (self.bone_flag or self.exp_flag) and self.display_panel_flag:
+                if changed_property == "bone_flag":
+                    self.bone_flag = True
+                elif changed_property == "exp_flag":
+                    self.exp_flag = True
+
+        # 上级选项失效后，子级选项随之失效
+        if changed_property == "bone_panel_flag" and not self.bone_panel_flag:
+            self.optimization_flag = False

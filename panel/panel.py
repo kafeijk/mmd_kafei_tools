@@ -10,7 +10,23 @@ from ..operaters.small_feature_operators import SmallFeatureOperator
 from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
+from ..operaters.change_rest_pose_operators import ChangeRestPoseStartOperator
+from ..operaters.change_rest_pose_operators import ChangeRestPoseEndOperator
+from ..operaters.change_rest_pose_operators import ChangeRestPoseEnd2Operator
+from ..operaters.bone_operators import FlipBoneOperator
+from ..operaters.bone_operators import DeleteInvalidRigidbodyJointOperator
+from ..operaters.bone_operators import SelectPhysicalBoneOperator
+from ..operaters.bone_operators import SelectBakeBoneOperator
+from ..operaters.bone_operators import SelectLinkedBoneOperator
+from ..operaters.bone_operators import SelectRingBoneOperator
+from ..operaters.bone_operators import SelectExtendChildrenBoneOperator
+from ..operaters.bone_operators import SelecExtendParentBoneOperator
+from ..operaters.bone_operators import SelectLessParentBoneOperator
+from ..operaters.bone_operators import SelectLessChildrenBoneOperator
+from ..operaters.bone_operators import SelectMoreBoneOperator
+from ..operaters.bone_operators import SelectLessBoneOperator
 from ..utils import *
+import addon_utils
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -122,7 +138,7 @@ class ToolsPanel(bpy.types.Panel):
 
 class ModifyColorspacePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_modify_colorspace"
-    bl_label = "调整色彩空间"
+    bl_label = "色彩空间调整"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
@@ -155,36 +171,6 @@ class ModifyColorspacePanel(bpy.types.Panel):
 
         operator_col = col.column()
         operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
-
-
-class TransferVgWeightPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_transfer_vg_weight"
-    bl_label = "权重转移"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 3
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_transfer_vg_weight
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-
-        source_vg_name_col = col.column()
-        source_vg_name_col.prop(props, "source_vg_name", icon='GROUP_VERTEX')
-        target_vg_name_col = col.column()
-        target_vg_name_col.prop(props, "target_vg_name", icon='GROUP_VERTEX')
-        selected_v_only_col = col.column()
-        selected_v_only_col.prop(props, "selected_v_only")
-
-        operator_col = col.column()
-        operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
 
 
 class RemoveSpecifyContentPanel(bpy.types.Panel):
@@ -269,13 +255,185 @@ class SmallFeaturePanel(bpy.types.Panel):
         operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
 
 
+class ModelModificationPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_model_modification"
+    bl_label = "模型修改"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'  # N面板
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_order = 2
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+
+
+class ChangeRestPosePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_change_rest_pose"
+    bl_label = "初始姿态调整"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 1
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_change_rest_pose
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        prop_col = col.column()
+        prop_col.prop(props, "h_joint_strategy")
+        prop_col.prop(props, "force_apply")
+
+        operator_col = col.column(align=True)
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
+        operator_row.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
+
+
+
+
+class BonePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_bone"
+    bl_label = "骨骼操作"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column(align=True)
+        operator_col = col.column(align=True)
+
+        # 选择 物理骨骼 烘焙骨骼
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(SelectPhysicalBoneOperator.bl_idname, text=SelectPhysicalBoneOperator.bl_label,
+                              icon="VIEWZOOM")
+        operator_row.operator(SelectBakeBoneOperator.bl_idname, text=SelectBakeBoneOperator.bl_label, icon="VIEWZOOM")
+        # 选择 关联骨骼 并排骨骼
+        operator_row = operator_col.row(align=True)
+        link_bone_col = operator_row.column(align=True)
+        link_bone_col.operator(SelectLinkedBoneOperator.bl_idname, text=SelectLinkedBoneOperator.bl_label,
+                               icon="VIEWZOOM")
+        ring_bone_bol = operator_row.column(align=True)
+        ring_bone_bol.operator(SelectRingBoneOperator.bl_idname, text=SelectRingBoneOperator.bl_label, icon="VIEWZOOM")
+
+        # 选择 镜像骨骼
+        operator_row = operator_col.row(align=True)
+        mirror_bone_col = operator_row.column(align=True)
+        if bpy.context.active_object and bpy.context.active_object.mode == "EDIT":
+            mirror_bone_col.operator("armature.select_mirror", text="镜像骨骼", icon="VIEWZOOM")
+        else:
+            mirror_bone_col.operator("pose.select_mirror", text="镜像骨骼", icon="VIEWZOOM")
+        flip_bone_col = operator_row.column(align=True)
+        flip_bone_col.operator(FlipBoneOperator.bl_idname, text=FlipBoneOperator.bl_label, icon='PASTEFLIPDOWN')
+        # mirror_bone_col.label(text="")  # 空白标签，占据空间
+
+        # 拓展 缩减选择
+        operator_row = operator_col.row(align=True)
+        more_col = operator_row.column(align=True)
+        more_col.operator(SelectMoreBoneOperator.bl_idname, text=SelectMoreBoneOperator.bl_label, icon="VIEWZOOM")
+        less_col = operator_row.column(align=True)
+        less_col.operator(SelectLessBoneOperator.bl_idname, text=SelectLessBoneOperator.bl_label, icon="VIEWZOOM")
+
+        # 选择 父子骨骼
+        operator_row = operator_col.row(align=True)
+        extend_parent_col = operator_row.column(align=True)
+        extend_parent_col.operator(SelecExtendParentBoneOperator.bl_idname, text=SelecExtendParentBoneOperator.bl_label,
+                                   icon="VIEWZOOM")
+        extend_children_col = operator_row.column(align=True)
+        extend_children_col.operator(SelectExtendChildrenBoneOperator.bl_idname,
+                                     text=SelectExtendChildrenBoneOperator.bl_label,
+                                     icon="VIEWZOOM")
+
+        less_parent_col = operator_row.column(align=True)
+        less_parent_col.operator(SelectLessParentBoneOperator.bl_idname, text=SelectLessParentBoneOperator.bl_label,
+                                 icon="VIEWZOOM")
+        less_children_col = operator_row.column(align=True)
+        less_children_col.operator(SelectLessChildrenBoneOperator.bl_idname,
+                                   text=SelectLessChildrenBoneOperator.bl_label,
+                                   icon="VIEWZOOM")
+
+        # 翻转姿态 清理无效刚体Joint
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(DeleteInvalidRigidbodyJointOperator.bl_idname,
+                              text=DeleteInvalidRigidbodyJointOperator.bl_label, icon="TRASH")
+
+        active_object = bpy.context.active_object
+        if active_object and active_object.type == "ARMATURE" and active_object.mode in ["EDIT", "POSE"]:
+            link_bone_col.enabled = True
+            ring_bone_bol.enabled = True
+            flip_bone_col.enabled = True
+            extend_parent_col.enabled = True
+            extend_children_col.enabled = True
+            less_parent_col.enabled = True
+            less_children_col.enabled = True
+            more_col.enabled = True
+            less_col.enabled = True
+        else:
+            link_bone_col.enabled = False
+            ring_bone_bol.enabled = False
+            flip_bone_col.enabled = False
+            extend_parent_col.enabled = False
+            extend_children_col.enabled = False
+            less_parent_col.enabled = False
+            less_children_col.enabled = False
+            more_col.enabled = False
+            less_col.enabled = False
+
+
+class TransferVgWeightPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_transfer_vg_weight"
+    bl_label = "权重转移"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_transfer_vg_weight
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        source_vg_name_col = col.column()
+        source_vg_name_col.prop(props, "source_vg_name", icon='GROUP_VERTEX')
+        target_vg_name_col = col.column()
+        target_vg_name_col.prop(props, "target_vg_name", icon='GROUP_VERTEX')
+        selected_v_only_col = col.column()
+        selected_v_only_col.prop(props, "selected_v_only")
+
+        operator_col = col.column()
+        operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
+
+
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
     bl_label = "预处理 / 后处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 2
+    bl_order = 3
 
     def draw(self, context):
         layout = self.layout
@@ -448,13 +606,14 @@ class OrganizePanelPanel(bpy.types.Panel):
         bone_panel_flag_col = col.column()
         bone_panel_flag_col.prop(props, "bone_panel_flag")
 
-        if is_module_installed("pypinyin"):
-            optimization_flag_row = col.row()
-            optimization_flag_row.separator()
-            optimization_flag_row.separator()
-            optimization_flag_row.prop(props, "optimization_flag")
-            if props.bone_panel_flag is False:
-                optimization_flag_row.enabled = False
+        optimization_flag_row = col.row()
+        optimization_flag_row.separator()
+        optimization_flag_row.separator()
+        optimization_flag_row.prop(props, "optimization_flag")
+        if not is_module_installed("pypinyin"):
+            optimization_flag_row.enabled = False
+        if props.bone_panel_flag is False:
+            optimization_flag_row.enabled = False
 
         morph_panel_flag_col = col.column()
         morph_panel_flag_col.prop(props, "morph_panel_flag")
@@ -529,6 +688,40 @@ class RenderPreviewPanel(bpy.types.Panel):
         render_row = col.row()
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
         render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
+
+
+class AboutPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_about"
+    bl_label = "About"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_order = 4
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+        layout = self.layout
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.operator(
+            "wm.url_open",
+            text="用户文档",
+            icon='URL'
+        ).url = r"https://www.yuque.com/laibeikafeizaishuo/xgbdou/qtop1t7zzts9nzgv"
+
+        row = col.row(align=True)
+        row.operator(
+            "wm.url_open",
+            text="开源地址",
+            icon='URL'
+        ).url = r"https://github.com/kafeijk/mmd_kafei_tools/releases"
+
+        row = col.row(align=True)
+        row.label(
+            text='Version: ' + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
+                                    addon.bl_info['name'] == 'mmd_kafei_tools'][0]))
 
 
 if __name__ == "__main__":

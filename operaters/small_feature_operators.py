@@ -24,9 +24,7 @@ class SmallFeatureOperator(bpy.types.Operator):
             return
 
         option = props.option
-        if option == 'BAKE':
-            self.select_bake_bone()
-        elif option == 'SCENE_ROOT':
+        if option == 'SCENE_ROOT':
             self.gen_scene_root()
         elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             self.repair_sss(option)
@@ -80,20 +78,6 @@ class SmallFeatureOperator(bpy.types.Operator):
                 self.report(type={'WARNING'},
                             message=f'检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑')
 
-    def select_bake_bone(self):
-        """选择用于烘焙VMD的骨骼"""
-        obj = bpy.context.active_object
-        pmx_root = find_pmx_root_with_child(obj)
-        armature = find_pmx_armature(pmx_root)
-        # 选中骨架并进入姿态模式
-        deselect_all_objects()
-        show_object(armature)
-        select_and_activate(armature)
-        bpy.ops.object.mode_set(mode='POSE')
-        for bone in armature.pose.bones:
-            if bone.mmd_bone.name_j in PMX_BAKE_BONES:
-                bone.bone.select = True
-
     def gen_scene_root(self):
         """创建一个空物体，以实现对整个场景的统一控制"""
         if len(bpy.data.objects) == 0:
@@ -127,25 +111,12 @@ class SmallFeatureOperator(bpy.types.Operator):
 
     def check_props(self, props):
         option = props.option
-        if option == 'BAKE':
-            active_object = bpy.context.active_object
-            if not active_object:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
-                return False
-            pmx_root = find_pmx_root_with_child(active_object)
-            if not pmx_root:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型！')
-                return False
-            armature = find_pmx_armature(pmx_root)
-            if not armature:
-                self.report(type={'ERROR'}, message=f'模型缺少骨架！')
-                return False
-            return True
-        elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
+        if option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             objs = bpy.context.selected_objects
             if len(objs) == 0:
                 self.report(type={'ERROR'}, message=f'请选择至少一个物体！')
-                return
+                return False
+        return True
 
 
 def is_valid_material(material):

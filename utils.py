@@ -46,6 +46,10 @@ def find_rigid_body_parent(root):
     return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'RIGID_GRP_OBJ', root.children), None)
 
 
+def find_joint_parent(root):
+    return next(filter(lambda o: o.type == 'EMPTY' and o.mmd_type == 'JOINT_GRP_OBJ', root.children), None)
+
+
 def sort_pmx_objects(objects):
     objects.sort(key=lambda obj: obj.name)
 
@@ -104,6 +108,25 @@ def set_visibility(obj, visibility):
     obj.hide_viewport = visibility[2]
     # 是否在渲染中禁用
     obj.hide_render = visibility[3]
+
+
+def get_physical_bone(root):
+    """获取受物理影响的骨骼"""
+    rigidbody_parent = find_rigid_body_parent(root)
+    if rigidbody_parent is None:
+        return []
+    rigid_bodies = rigidbody_parent.children
+    # 受刚体物理影响的骨骼名称列表（blender名称）
+    bl_names = []
+    for rigidbody in rigid_bodies:
+        # 存在有刚体但没有关联骨骼的情况
+        if rigidbody.mmd_rigid.bone == '':
+            continue
+        # 0:骨骼 1:物理 2:物理+骨骼
+        if rigidbody.mmd_rigid.type not in ('1', '2'):
+            continue
+        bl_names.append(rigidbody.mmd_rigid.bone)
+    return bl_names
 
 
 def walk_island(vert):
