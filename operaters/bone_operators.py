@@ -231,10 +231,22 @@ def is_valid_bone(bone_info, pb):
             return False
 
     # 骨骼不在显示层
-    layers = bone.layers
-    active_layers = [i for i, layer in enumerate(layers) if layer]
-    if all(not armature_layers[i] for i in active_layers):
-        return False
+    if bpy.app.version < (4, 0, 0):
+        layers = bone.layers
+        active_layers = [i for i, layer in enumerate(layers) if layer]
+        if all(not armature_layers[i] for i in active_layers):
+            return False
+    else:
+        visible = False
+        for armature_layer in armature_layers:
+            for b in armature_layer.bones:
+                if b.name == pb.name:
+                    visible = True
+                    break
+            if visible:
+                break
+        if not visible:
+            return False
     return True
 
 
@@ -286,7 +298,6 @@ def get_ring_bone(bone_info, selected_pbs, pbs, pb_set):
         prefix = get_prefix(pb.name)
         if prefix:
             prefix_set.add(prefix)
-
     for pb in pbs:
         prefix = get_prefix(pb.name)
         if prefix in prefix_set and is_valid_bone(bone_info, pb):
@@ -614,7 +625,12 @@ def get_bone_info(armature, original_mode):
     bpy.ops.object.mode_set(mode='EDIT')
     for eb in armature.data.edit_bones:
         eb_hide_map[eb.name] = eb.hide
-    return eb_hide_map, original_mode, armature.data.layers
+    if bpy.app.version < (4, 0, 0):
+        return eb_hide_map, original_mode, armature.data.layers
+    else:
+        bpy.ops.object.mode_set(mode='POSE')    # Warning: `Collection.bones` is not available in armature edit mode
+        layers = [c for c in armature.data.collections_all if c.is_visible]
+        return eb_hide_map, original_mode, layers
 
 
 def select_bone_by_input(option):
@@ -643,7 +659,6 @@ def select_bone_by_input(option):
     在缩减选择时，若骨骼“不存在”，则需从选中项中排除这些骨骼，以防止这些骨骼对流程的影响。
     就算激活骨骼未被选中，他也可能是激活骨骼。
     """
-
     # 获取基本信息
     original_mode = bpy.context.active_object.mode
     obj = bpy.context.active_object
@@ -739,4 +754,3 @@ def unselect_bone(armature, pb_set):
         eb.select = False
         eb.select_head = False
         eb.select_tail = False
-
