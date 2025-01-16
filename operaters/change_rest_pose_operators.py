@@ -18,7 +18,7 @@ bpy.types.Object.original_location_lock = bpy.props.BoolVectorProperty(
 class ChangeRestPoseStartOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_start"
     bl_label = "绑定"
-    bl_description = "开始调整初始姿态"
+    bl_description = "绑定刚体Joint，调整姿态时将会同步影响刚体Joint"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -214,7 +214,7 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
 class ChangeRestPoseEndOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_end"
     bl_label = "应用绑定"
-    bl_description = "应用刚体Joint"
+    bl_description = "应用刚体Joint的变换并解除绑定"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -278,7 +278,7 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
 class ChangeRestPoseEnd2Operator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_end2"
     bl_label = "应用姿态"
-    bl_description = "应用当前姿态对网格和骨架的影响，需要手动选择受影响的MMD网格对象"
+    bl_description = "应用当前姿态对网格和骨架的影响"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -312,14 +312,27 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
             select_and_activate(obj)
 
             if force_apply:
+                # 记录修改器显示状态并隐藏修改器
+                mod_map = {}
+                for mod in obj.modifiers:
+                    if hasattr(mod, 'show_viewport'):
+                        mod_map[mod.name] = mod.show_viewport
+                        mod.show_viewport = False
+
                 # 创建骨架修改器
                 armature_mod = self.create_armature_mod(obj, armature)
                 # 移动骨架修改器到首位
                 bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
                 # 强制应用修改器
                 applyModifierForObjectWithShapeKeys(context, [armature_mod.name], False)
+
+                # 恢复修改器显示状态
+                for mod in obj.modifiers:
+                    if mod_map.get(mod.name):
+                        mod.show_viewport = mod_map.get(mod.name)
+
             else:
-                if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 1:
+                if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 0:
                     continue
                 # 创建骨架修改器
                 armature_mod = self.create_armature_mod(obj, armature)
