@@ -85,7 +85,7 @@ def applyModifierForObjectWithShapeKeys(context, selectedModifiers, disable_arma
     # If there are no shape keys, just apply modifiers.
     if (shapesCount == 0):
         for modifierName in selectedModifiers:
-            bpy.ops.object.modifier_apply(modifier=modifierName)
+            bpy.ops.object.modifier_apply(modifier=modifierName, single_user=True)
         return (True, None)
 
     # We want to preserve original object, so all shapes will be joined to it.
@@ -134,7 +134,7 @@ def applyModifierForObjectWithShapeKeys(context, selectedModifiers, disable_arma
     print("applyModifierForObjectWithShapeKeys: Applying base shape key")
     bpy.ops.object.shape_key_remove(all=True)
     for modifierName in selectedModifiers:
-        bpy.ops.object.modifier_apply(modifier=modifierName)
+        bpy.ops.object.modifier_apply(modifier=modifierName, single_user=True)
     vertCount = len(originalObject.data.vertices)
     bpy.ops.object.shape_key_add(from_mix=False)
     originalObject.select_set(False)
@@ -180,7 +180,7 @@ def applyModifierForObjectWithShapeKeys(context, selectedModifiers, disable_arma
 
         # Time to apply modifiers.
         for modifierName in selectedModifiers:
-            bpy.ops.object.modifier_apply(modifier=modifierName)
+            bpy.ops.object.modifier_apply(modifier=modifierName, single_user=True)
 
         # Verify number of vertices.
         if vertCount != len(tmpObject.data.vertices):
