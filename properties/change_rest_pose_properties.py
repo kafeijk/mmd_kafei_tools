@@ -4,7 +4,7 @@ import bpy
 class ChangeRestPoseProperty(bpy.types.PropertyGroup):
     h_joint_strategy: bpy.props.EnumProperty(
         name="横Joint变换策略",
-        description="用何种方式重新设定横Joint的位置旋转",  # Joint的缩放值对最终结果无影响
+        description="用何种方式重新设定横Joint的变换",  # Joint的缩放值对最终结果无影响
         items=[
             # 生成横Joint时的逻辑
             # public IPEVector3[,] GetSideJointPos(IPEVector3[,] bodyPos)
@@ -17,7 +17,7 @@ class ChangeRestPoseProperty(bpy.types.PropertyGroup):
 
     force_apply: bpy.props.BoolProperty(
         name="强制应用修改器",
-        description="强制应用修改器",
+        description="应用姿态时，如果网格对象存在形态键，则强制应用骨架修改器对网格对象的影响。若关闭此选项，则跳过具有形态键的网格对象",
         default=True
     )
 
