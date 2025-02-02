@@ -622,19 +622,15 @@ class OrganizePanelPanel(bpy.types.Panel):
         display_panel_flag_col = col.column()
         display_panel_flag_col.prop(props, "display_panel_flag")
 
-        bone_flag_row = col.row()
-        bone_flag_row.separator()
-        bone_flag_row.separator()
-        bone_flag_row.prop(props, "bone_flag")
-        if props.display_panel_flag is False:
-            bone_flag_row.enabled = False
+        translation_flag_col = col.column()
+        translation_flag_col.prop(props, "translation_flag")
 
-        exp_flag_row = col.row()
-        exp_flag_row.separator()
-        exp_flag_row.separator()
-        exp_flag_row.prop(props, "exp_flag")
-        if props.display_panel_flag is False:
-            exp_flag_row.enabled = False
+        overwrite_flag_row = col.row()
+        overwrite_flag_row.separator()
+        overwrite_flag_row.separator()
+        overwrite_flag_row.prop(props, "overwrite_flag")
+        if props.translation_flag is False:
+            overwrite_flag_row.enabled = False
 
         show_batch_props(col, False, True, batch)
 

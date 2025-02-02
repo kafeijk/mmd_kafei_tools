@@ -1,5 +1,5 @@
 from collections import defaultdict
-
+from ..tools.jaconv.jaconv import *
 from ..utils import *
 
 
@@ -33,6 +33,133 @@ def organize_panel(pmx_root, props):
     reorder_morph_panel(pmx_root, props)
     reorder_rigid_body_panel(pmx_root, props)
     reorder_display_panel(pmx_root, props)
+    translate_name(pmx_root, props)
+
+
+def extract_text(text, pattern):
+    match = re.match(pattern, text)
+    prefix = match.group(0) if match else ''
+
+    match = re.search(pattern + '$', text)
+    suffix = match.group(0) if match else ''
+
+    # 提取实际部分（即非全角字符部分）
+    actual_part = re.sub(pattern, '', text)  # 去掉全角字符后的部分
+
+    return prefix, suffix, actual_part
+
+
+def translate_bone_name(pmx_root, props):
+    """将骨骼翻译为英文名称"""
+    armature = find_pmx_armature(pmx_root)
+    common_items = get_common_items()
+    bone_name_map = {item.jp_name: item.eng_name for item in common_items}
+    for pb in armature.pose.bones:
+        mmd_bone = pb.mmd_bone
+        if mmd_bone.name_e and not props.overwrite_flag:
+            continue
+        if mmd_bone.name_j in bone_name_map.keys():
+            mmd_bone.name_e = bone_name_map.get(mmd_bone.name_j)
+
+
+def translate_display_panel_name(pmx_root, props):
+    """将显示枠翻译为英文名称"""
+    mmd_root = pmx_root.mmd_root
+    frames = mmd_root.display_item_frames
+    frame_name_map = get_common_frame_names()
+    for i, frame in enumerate(frames):
+        if frame.name_e and not props.overwrite_flag:
+            continue
+        if frame.name in frame_name_map.keys():
+            frame.name_e = frame_name_map.get(frame.name)
+
+
+def translate_name(pmx_root, props):
+    """翻译为英文名称"""
+    if not props.translation_flag:
+        return
+    translate_bone_name(pmx_root, props)
+    translate_morph_name(pmx_root, props)
+    translate_display_panel_name(pmx_root, props)
+
+
+def translate_morph_name(pmx_root, props):
+    """
+    将表情翻译为英文名称
+
+    日文名称可拆解为实体、前缀、后缀，三者均可单独出现，也可进行前缀+实体、实体+后缀，前缀+实体+后缀的组合
+    流程：
+        预处理日文名称：
+            全角转半角(ascii、digit)
+            半角转全角(片假名)
+            片假名转平假名
+            平假名小写转通用大小
+            去除空格等分隔符
+        如果全匹配，则直接替换，否则提取前后缀之后，再进行替换
+        后处理：
+            清理乱码字符
+            .L.R转换
+
+    """
+    mmd_root = pmx_root.mmd_root
+
+    MORPH_TYPES = ['group_morphs', 'vertex_morphs', 'bone_morphs', 'uv_morphs', 'material_morphs']
+    for morph_type in MORPH_TYPES:
+        mmd_root.active_morph_type = morph_type
+        morphs = getattr(mmd_root, morph_type)
+        for morph in morphs:
+            if morph.name_e and not props.overwrite_flag:
+                continue
+            morph_name = morph.name
+            morph_name_e = do_translate_morph_name(morph_name)
+            if morph_name_e:
+                morph.name_e = morph_name_e
+
+
+def do_translate_morph_name(morph_name):
+    pattern = f"({'|'.join(morph_affixation_map.keys())}|{'|'.join(['.L', '.R'])}|[0123456789.+-])+"
+    # 预处理日文名称
+    morph_name = z2h(morph_name, kana=False, ascii=True, digit=True)
+    morph_name = h2z(morph_name, kana=True, ascii=False, digit=False)
+    morph_name = kata2hira(morph_name)
+    morph_name = enlargesmallkana(morph_name)
+    morph_name = re.sub(r"_([lrLR])$", lambda m: f".{m.group(1).upper()}", morph_name)
+    morph_name = re.sub(r"[ _]", "", morph_name)
+    morph_name_e = ""
+
+    # 如果全匹配，则直接替换，否则提取前后缀之后，再进行替换
+    for jp_name, eng_name in {**morph_name_map, **morph_suffix_map}.items():
+        if morph_name == kata2hira(enlargesmallkana(jp_name)):
+            morph_name_e = eng_name
+            break
+        if not morph_name_e:
+            prefix, suffix, actual_part = extract_text(morph_name, pattern)
+            # 注：morph_suffix_map中的内容也可单独出现，但是在extract_text后，被归为prefix或suffix
+            if actual_part and (prefix or suffix):
+                if actual_part == kata2hira(enlargesmallkana(jp_name)):
+                    morph_name_e = eng_name
+                    if prefix:
+                        for k, v in morph_prefix_map.items():
+                            if k in prefix:
+                                prefix = prefix.replace(k, v)
+                        morph_name_e = prefix + morph_name_e
+                    if suffix:
+                        for k, v in morph_suffix_map.items():
+                            if k in suffix:
+                                suffix = suffix.replace(k, v)
+                        morph_name_e = morph_name_e + suffix
+                    break
+        if not morph_name_e and morph_name.isascii():
+            morph_name_e = morph_name
+        if not morph_name.isascii():
+            morph_name_e = ""
+
+    if re.search(r'(?i)left', morph_name_e):
+        morph_name_e = re.sub(r'(?i)left', '', morph_name_e) + ".L"
+    if re.search(r'(?i)right', morph_name_e):
+        morph_name_e = re.sub(r'(?i)right', '', morph_name_e) + ".R"
+
+    return morph_name_e
 
 
 def is_shift_jis_char(char):
@@ -633,9 +760,6 @@ def reorder_display_panel(pmx_root, props):
     mmd_root = pmx_root.mmd_root
     armature = find_pmx_armature(pmx_root)
 
-    bone_flag = props.bone_flag
-    exp_flag = props.exp_flag
-
     # 激活骨架对象并进入姿态模式
     if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -668,29 +792,27 @@ def reorder_display_panel(pmx_root, props):
             frame_items[common_item.display_panel] = []
         frame_items[common_item.display_panel].append(common_item.jp_name)
 
-    if exp_flag:
-        # 重置表情显示枠
-        reset_expression_frame(mmd_root)
-        # 添加显示枠内元素（表情）
-        bpy.ops.mmd_tools.display_item_quick_setup(type='FACIAL')
+    # 重置表情显示枠
+    reset_expression_frame(mmd_root)
+    # 添加显示枠内元素（表情）
+    bpy.ops.mmd_tools.display_item_quick_setup(type='FACIAL')
 
-    if bone_flag:
-        # 重置骨骼显示枠
-        reset_bone_frame(mmd_root)
+    # 重置骨骼显示枠
+    reset_bone_frame(mmd_root)
 
-        # 新建显示枠
-        common_frame_names = get_common_frame_names()
-        for jp_name, eng_name in common_frame_names.items():
-            add_frame(pmx_root, jp_name, eng_name)
+    # 新建显示枠
+    common_frame_names = get_common_frame_names()
+    for jp_name, eng_name in common_frame_names.items():
+        add_frame(pmx_root, jp_name, eng_name)
 
-        # 添加显示枠内元素（常用）
-        add_common_item(mmd_root, jp_bone_map, jp_bl_map, jp_processed_map, frame_items)
-        # 添加显示枠内元素（物理）
-        add_physical_item(pmx_root, armature, bl_jp_map, jp_processed_map)
-        # 添加显示枠内元素（剩余未添加的骨骼）
-        add_other_item(armature, jp_bl_map, bl_jp_map, mmd_root, jp_processed_map)
-        # 移除不包含元素的显示枠
-        remove_empty_frame(mmd_root)
+    # 添加显示枠内元素（常用）
+    add_common_item(mmd_root, jp_bone_map, jp_bl_map, jp_processed_map, frame_items)
+    # 添加显示枠内元素（物理）
+    add_physical_item(pmx_root, armature, bl_jp_map, jp_processed_map)
+    # 添加显示枠内元素（剩余未添加的骨骼）
+    add_other_item(armature, jp_bl_map, bl_jp_map, mmd_root, jp_processed_map)
+    # 移除不包含元素的显示枠
+    remove_empty_frame(mmd_root)
 
 
 def reset_expression_frame(mmd_root):
