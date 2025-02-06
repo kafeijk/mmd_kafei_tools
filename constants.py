@@ -354,11 +354,12 @@ morph_name_map = {
     'てへぺろ': "Tehepero",
     # Brow
     '真面目': 'Serious',
-    '困る': 'Sadness',
+    '困る': 'Troubled',
     'にこり': 'Cheerful',
     '怒り': 'Angry',
     '恥ずかしい': 'Shy',
-    # '悲しむ':'',
+    '悲しむ': 'Sad',
+    '悲しい': 'Sad',
     # Eyes
     'まばたき': 'Blink',
     '笑い': 'Happy',
