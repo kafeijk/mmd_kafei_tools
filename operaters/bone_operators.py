@@ -695,7 +695,7 @@ def select_bone_by_input(option):
     # 缩减选择时，查找范围排除无效骨骼
     if option in ["LESS_PARENT_BONE", "LESS_CHILDREN_BONE", "LESS_BONE"]:
         unselect_bone(armature, invalid_bone_set)
-    if active_pb not in selected_pbs:
+    if active_pb and active_pb not in selected_pbs:
         unselect_bone(armature, {active_pb})
 
     # 获取将被选择/取消选择的集合
