@@ -40,17 +40,18 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
         update=lambda self, context: self.check_selection(context, "display_panel_flag")
     )
 
-    bone_flag: bpy.props.BoolProperty(
-        name="骨骼",
-        description="生成骨骼显示枠",
+    translation_flag: bpy.props.BoolProperty(
+        name="面板翻译",
+        description="为面板中的项目（骨骼、表情、显示枠）设置有限且紧凑的英文名称，以增强在MMD本体英文模式中模型操作的能力",
         default=True,
-        update=lambda self, context: self.check_selection(context, "bone_flag")
+        update=lambda self, context: self.check_selection(context, "translation_flag")
     )
-    exp_flag: bpy.props.BoolProperty(
-        name="表情",
-        description="生成表情显示枠",
+
+    overwrite_flag: bpy.props.BoolProperty(
+        name="覆盖",
+        description="如果面板项目已经存在英文名称，则覆盖原有名称",
         default=True,
-        update=lambda self, context: self.check_selection(context, "exp_flag")
+        update=lambda self, context: self.check_selection(context, "translation_flag")
     )
 
     batch: bpy.props.PointerProperty(type=BatchProperty)
@@ -75,23 +76,11 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
                 self.rigid_body_panel_flag = True
             elif changed_property == "display_panel_flag":
                 self.display_panel_flag = True
-
-        # 上级选项失效后，子级选项随之失效
-        if changed_property == "display_panel_flag" and not self.display_panel_flag:
-            self.bone_flag = False
-            self.exp_flag = False
-        elif changed_property == "display_panel_flag" and self.display_panel_flag:
-            self.bone_flag = True
-            self.exp_flag = True
-
-        # 当display_panel_flag为True时，至少保证bone_flag子级选项有一个被勾选
-        if changed_property == "bone_flag" or changed_property == "exp_flag":
-            if not (self.bone_flag or self.exp_flag) and self.display_panel_flag:
-                if changed_property == "bone_flag":
-                    self.bone_flag = True
-                elif changed_property == "exp_flag":
-                    self.exp_flag = True
+            elif changed_property == "translation_flag":
+                self.translation_flag = True
 
         # 上级选项失效后，子级选项随之失效
         if changed_property == "bone_panel_flag" and not self.bone_panel_flag:
             self.optimization_flag = False
+        if changed_property == "translation_flag" and not self.translation_flag:
+            self.overwrite_flag = False

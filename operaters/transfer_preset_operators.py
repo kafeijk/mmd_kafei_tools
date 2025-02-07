@@ -267,7 +267,7 @@ def check_transfer_preset_props(operator, props):
         if not abc_filepath:
             operator.report(type={'ERROR'}, message=f'请输入缓存文件地址！')
             return False
-        if not os.path.exists(abc_filepath):
+        if not bpy.path.abspath(abc_filepath):
             operator.report(type={'ERROR'}, message=f'缓存文件地址不存在！')
             return False
         if "abc" not in os.path.splitext(abc_filepath)[1]:
@@ -783,7 +783,7 @@ def main(operator, context):
         for obj, visibility in visibility_map.items():
             set_visibility(obj, visibility)
     elif direction in ['ABC2ABC']:
-        abc_filepath = props.abc_filepath
+        abc_filepath = bpy.path.abspath(props.abc_filepath)
         selected_only = props.selected_only
         reset_cache_param(abc_filepath, selected_only, operator)
 

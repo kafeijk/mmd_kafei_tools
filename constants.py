@@ -328,3 +328,147 @@ PMX_BAKE_BONES = ['全ての親', 'センター',
                   '右薬指１', '右薬指２', '右薬指３', '右小指１', '右小指２', '右小指３',
                   '下半身',
                   '左足', '左ひざ', '左足首', '左足先EX', '右足', '右ひざ', '右足首', '右足先EX']
+
+# -------------------------------------------------------------
+# 翻译配对
+# -------------------------------------------------------------
+# 表情名称
+morph_name_map = {
+    # Mouth
+    'あ': 'Ah',
+    'い': 'I',
+    'う': 'U',
+    'え': 'E',
+    'お': 'O',
+    'ワ': 'Wa',
+    'ん': 'Hmm',
+    '~': '~',
+    'ω': '(w)',
+    '∧': '^',
+    '∨': 'v',
+    '▲': 'Triangle',
+    '▼': 'InvTriangle',
+    'にやり': "Smirk",
+    'にっこり': "SmileV",
+    'ぺろっ': "TongueOut",
+    'てへぺろ': "Tehepero",
+    # Brow
+    '真面目': 'Serious',
+    '困る': 'Troubled',
+    'にこり': 'Cheerful',
+    '怒り': 'Angry',
+    '恥ずかしい': 'Shy',
+    '悲しむ': 'Sad',
+    '悲しい': 'Sad',
+    # Eyes
+    'まばたき': 'Blink',
+    '笑い': 'Happy',
+    'ウィンク': 'Wink',
+    'なごみ': '-_-',
+    'はぅ': '>_<',
+    'びっくり': 'Surprise',
+    'じと目': 'Doubt',
+    'キリッ': 'Sharp',
+    'ハイライト': 'EyeLight',
+    '映り込み': 'Reflections',
+    '恐ろしい子!': 'Pupils-',
+    'はちゅ目': 'O_O',
+    '星目': 'Sparkle',
+    'ハート': 'Heart',
+    'はぁと': 'Heart',
+    # Other
+    'ガーン': 'Gloom',
+    'メガネ': 'Eyeglasses',
+    '青ざめ': 'Pale',
+    '青ざめる': 'Pale',
+    '髪影': 'HairShadow',
+    '照れ': 'Blush',
+    '脸红': 'Blush',
+    'ねこみみ': 'CatEar',
+    # 常见名词（通常与其他词组合出现）
+    "口角": "Lip",
+    "口": "Mouth",
+    "舌": "Tongue",
+    '眼角': 'EyeCorner',
+    '眼': 'Eye',
+    '目': 'Eye',
+    '眉': 'Eyebrow',
+    '涙': 'Tears',
+    '歯': 'Teeth',
+    '汗': 'Sweat',
+    '胸': 'Breast',
+    '乳': 'Boob',
+    'おっぱい': 'Tits',
+    '腹': 'Belly',
+    '袖': 'Sleeve',
+    '服': 'Cloth',
+    '羽': 'Wing',
+    '尾': 'Tail',
+    '尻': 'Butt',
+    '瞳孔': 'Pupil',
+    '瞳': 'Pupil',
+    '光': 'EyeLight',
+    'モデル': 'Model',
+    'スフィア': 'Spa',
+    # 组合词（非前后缀）
+    '上左': 'Up.L',
+    '上右': 'Up.R',
+    '下左': 'Down.L',
+    '下右': 'Down.R',
+    '前左': 'Front.L',
+    '前右': 'Front.R',
+    '后左': 'Back.L',
+    '后右': 'Back.R',
+    # PE自动生成词
+    'モーフ': 'Morph',
+    'ボーン': 'Bone',
+    '材質': 'Material',
+}
+
+# 通用前缀后缀
+morph_affixation_map = OrderedDict({
+    "縦潰れ": "CollapsedV",
+    "横潰れ": "CollapsedH",
+    "横広げ": "Wide",
+    "横狭め": "Narrow",
+    "横缩げ": "Narrow",
+    "広げ": "Wide",
+    "狭め": "Narrow",
+    "OFF": "-",
+    "off": "-",
+    "Off": "-",
+    "ON": "+",
+    "on": "+",
+    "On": "+",
+
+    '後ろ': 'Behind',
+    '上げ': 'Up',
+    '下げ': 'Down',
+    '消し': '-',
+    "無し": "-",
+    "出し": "Out",
+
+    '右': 'Right',
+    '左': 'Left',
+    '前': 'Front',
+    '後': 'Back',
+    '横': 'Side',
+    '中': 'Middle',
+    '上': 'Upper',
+    '下': 'Lower',
+    "消": "-",
+    "無": "-",
+    "大": "Big",
+    '小': 'Small',
+    '新規': 'New',
+})
+
+# 前缀
+morph_prefix_map = morph_affixation_map
+# 后缀
+morph_suffix_map = OrderedDict()
+morph_suffix_map.update(morph_affixation_map)
+morph_suffix_map.update({
+    '上': 'Up',
+    '下': 'Down',
+})
