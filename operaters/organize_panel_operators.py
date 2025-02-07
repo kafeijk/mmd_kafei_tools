@@ -112,8 +112,7 @@ def translate_morph_name(pmx_root, props):
                 continue
             morph_name = morph.name
             morph_name_e = do_translate_morph_name(morph_name)
-            if morph_name_e:
-                morph.name_e = morph_name_e
+            morph.name_e = morph_name_e
 
 
 def do_translate_morph_name(morph_name):
@@ -149,9 +148,9 @@ def do_translate_morph_name(morph_name):
                                 suffix = suffix.replace(k, v)
                         morph_name_e = morph_name_e + suffix
                     break
-        if not morph_name_e and morph_name.isascii():
+        if not morph_name_e:
             morph_name_e = morph_name
-        if not morph_name.isascii():
+        if not morph_name_e.isascii():
             morph_name_e = ""
 
     if re.search(r'(?i)left', morph_name_e):
