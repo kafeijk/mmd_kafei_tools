@@ -181,7 +181,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 mesh.materials.append(mat)  # no slots
 
             # 如果开启mmd_tools，进行额外调整
-            if not is_plugin_enabled("mmd_tools"):
+            if not is_mmd_tools_enabled():
                 continue
             # 针对pmx模型处理
             pmx_root = find_pmx_root_with_child(obj)

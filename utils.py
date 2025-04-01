@@ -413,8 +413,22 @@ def find_children(obj, obj_type=None):
 
 
 def is_plugin_enabled(plugin_name):
+    """校验插件是否开启"""
     for addon in bpy.context.preferences.addons:
         if addon.module == plugin_name:
+            return True
+    return False
+
+
+def is_mmd_tools_enabled():
+    """
+    校验mmd_tools是否开启，addon.module分别为：
+    3.x版本 为 mmd_tools
+    4.2版本 临时为 bl_ext.user_default.mmd_tools
+    4.3版本及以后 bl_ext.blender_org.mmd_tools
+    """
+    for addon in bpy.context.preferences.addons:
+        if addon.module.endswith("mmd_tools"):
             return True
     return False
 
@@ -494,11 +508,7 @@ def check_batch_props(operator, batch):
     suffix = batch.suffix
     directory = batch.directory
 
-    if bpy.app.version < (4, 0, 0) and not is_plugin_enabled("mmd_tools"):
-        operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
-        return False
-    if bpy.app.version >= (4, 0, 0) and not (
-            is_plugin_enabled("bl_ext.user_default.mmd_tools") or is_plugin_enabled("mmd_tools")):
+    if not is_mmd_tools_enabled():
         operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
         return False
 
