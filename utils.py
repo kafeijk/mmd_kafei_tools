@@ -1,6 +1,8 @@
 import importlib.util
 import math
+import sys
 import time
+import zipfile
 
 import bpy
 from mathutils import Vector
@@ -343,7 +345,6 @@ def export_pmx(filepath):
                                          sort_materials=False,
                                          disable_specular=False,
                                          visible_meshes_only=False,
-                                         overwrite_bone_morphs_from_pose_library=False,
                                          translate_in_presets=False,
                                          sort_vertices='NONE',
                                          log_level='DEBUG',
@@ -431,6 +432,30 @@ def is_mmd_tools_enabled():
         if addon.module.endswith("mmd_tools"):
             return True
     return False
+
+
+def install_library(name):
+    """安装第三方库"""
+    if is_module_installed(name):
+        return
+
+    # 获取 Blender 的 scripts/modules 目录
+    blender_modules_path = os.path.join(bpy.utils.resource_path('LOCAL'), "scripts", "modules")
+    if not os.path.exists(blender_modules_path):
+        raise RuntimeError(f"未找到指定目录：{blender_modules_path}")
+
+    file = os.path.join(os.path.dirname(__file__), "tools", name + ".zip")
+    if not os.path.exists(file):
+        raise FileNotFoundError(f"未找到文件：{file}")
+
+    # 解压 ZIP 文件
+    with zipfile.ZipFile(file, 'r') as zip_ref:
+        zip_ref.extractall(blender_modules_path)
+
+    # 立即导入新模块
+    sys.path.append(blender_modules_path)  # 确保 Python 可以找到新模块
+    imported_module = importlib.import_module(name)
+    importlib.reload(imported_module)
 
 
 def batch_process(func, props, f_flag=False):

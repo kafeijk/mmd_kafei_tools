@@ -16,6 +16,10 @@ class OrganizePanelOperator(bpy.types.Operator):
     def main(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_organize_panel
+
+        # 考虑到测试等场景可能会删除第三方工具（目录），所以延迟到使用时再安装，以此避免频繁安装插件来恢复第三方工具。
+        install_library("pypinyin")
+
         if not self.check_props(props):
             return
         batch_process(organize_panel, props, f_flag=False)
