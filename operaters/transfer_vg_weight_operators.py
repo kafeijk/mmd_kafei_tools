@@ -70,17 +70,17 @@ class TransferVgWeightOperator(bpy.types.Operator):
     def check_props(self, props):
         objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'请选择至少一个网格物体！')
+            self.report(type={'ERROR'}, message=f'Select at least one mesh!')
             return False
         source_vg_name = props.source_vg_name
         if source_vg_name is None or source_vg_name == '':
-            self.report(type={'ERROR'}, message=f'请输入源顶点组名称！')
+            self.report(type={'ERROR'}, message=f'Source vertex group required!')
             return False
         target_vg_name = props.target_vg_name
         if target_vg_name is None or target_vg_name == '':
-            self.report(type={'ERROR'}, message=f'请输入目标顶点组名称！')
+            self.report(type={'ERROR'}, message=f'Target vertex group required!')
             return False
         if source_vg_name == target_vg_name:
-            self.report(type={'ERROR'}, message=f'源顶点组与目标顶点组名称相同！')
+            self.report(type={'ERROR'}, message=f'Source and target vertex groups have same name!')
             return False
         return True

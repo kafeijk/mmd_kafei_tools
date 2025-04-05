@@ -22,7 +22,7 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
     )
     uv_name: bpy.props.StringProperty(
         name="名称",
-        description="UV名称",
+        description="UV贴图名称",
         default=''
     )
     average_islands_flag: bpy.props.BoolProperty(
@@ -33,7 +33,7 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
 
     color_attribute_name: bpy.props.StringProperty(
         name="名称",
-        description="UV名称",
+        description="颜色属性名称",
         default=''
     )
     color: bpy.props.FloatVectorProperty(
@@ -64,7 +64,7 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
     )
     keep_current: bpy.props.BoolProperty(
         name="保留当前形态",
-        description="移除形态键时，保留当前形态，否则保留默认姿态",
+        description="移除形态键时，保留当前形态，否则保留默认形态",
         default=True
     )
     batch: bpy.props.PointerProperty(type=BatchProperty)

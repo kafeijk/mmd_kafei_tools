@@ -534,7 +534,7 @@ def check_batch_props(operator, batch):
     directory = batch.directory
 
     if not is_mmd_tools_enabled():
-        operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
+        operator.report(type={'ERROR'}, message=f'MMD Tools plugin not enabled!')
         return False
 
     # 获取目录的全限定路径 这里用blender提供的方法获取，而不是os.path.abspath。没有必要将相对路径转为绝对路径，因为哪种路径是由用户决定的
@@ -542,19 +542,19 @@ def check_batch_props(operator, batch):
     # 如果用户随意填写，可能会解析成当前blender文件的同级路径，但不影响什么
     abs_path = bpy.path.abspath(directory)
     if not os.path.exists(abs_path):
-        operator.report(type={'ERROR'}, message=f'模型目录不存在！')
+        operator.report(type={'ERROR'}, message=f'Model directory not found!')
         return False
     # 获取目录所在盘符的根路径
     drive, tail = os.path.splitdrive(abs_path)
     drive_root = os.path.join(drive, os.sep)
     # 校验目录是否是盘符根目录
     if abs_path == drive_root:
-        operator.report(type={'ERROR'}, message=f'模型目录为盘符根目录，请更换为其它目录！')
+        operator.report(type={'ERROR'}, message=f'Invalid root directory! Change to subfolder.')
         return False
 
     # 仅简单校验下后缀是否合法
     if any(char in suffix for char in INVALID_CHARS):
-        operator.report(type={'ERROR'}, message=f'名称后缀不合法！')
+        operator.report(type={'ERROR'}, message=f'Invalid name suffix!')
         return False
     return True
 

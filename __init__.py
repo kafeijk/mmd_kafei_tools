@@ -1,3 +1,4 @@
+import bpy
 from . import auto_load
 
 # https://docs.blender.org/manual/en/3.0/advanced/scripting/addon_tutorial.html
@@ -16,10 +17,14 @@ auto_load.init()
 
 def register():
     auto_load.register()
+    from .m17n import translation_dict
+    bpy.app.translations.register(__name__, translation_dict)
 
 
 def unregister():
     auto_load.unregister()
+    bpy.app.translations.unregister(__name__)
+
 
 
 if __name__ == "__main__":

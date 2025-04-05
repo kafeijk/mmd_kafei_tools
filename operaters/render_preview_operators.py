@@ -73,7 +73,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
             bpy.context.scene.view_settings.gamma = 1
             bpy.context.scene.sequencer_colorspace_settings.name = 'sRGB'
         except TypeError as e:
-            self.report(type={'WARNING'}, message=f'色彩管理参数设置时出现异常，请手动调整')
+            self.report(type={'WARNING'}, message=f'Color management error!')
 
         # 输出属性
         # 分辨率
@@ -148,7 +148,9 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         # 是否启用aces流
         utility_linear_srgb = False
         if not os.path.exists(env_texture_path):
-            self.report(type={'WARNING'}, message=f'未找到环境贴图，请自行添加！参考路径：{env_texture_path}')
+            self.report(type={'WARNING'},
+                        message=bpy.app.translations.pgettext_iface(
+                            "HDRI Map not found. Add manually. Path: {}").format(env_texture_path))
         else:
             image = bpy.data.images.load(env_texture_path, check_existing=True)
             env_tex_node.image = image
@@ -283,7 +285,7 @@ class RenderPreviewOperator(bpy.types.Operator):
                 return False
             output_format = bpy.context.scene.render.image_settings.file_format
             if output_format not in IMG_TYPE_EXT_MAP.keys():
-                self.report(type={'ERROR'}, message=f'输出文件格式不正确，请更改为图像类型格式！')
+                self.report(type={'ERROR'}, message=f'Unsupported output format! Use image format instead.')
                 return False
         else:
             objs = bpy.context.selected_objects

@@ -47,7 +47,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
     def check_props(self, props):
         objs = bpy.context.selected_objects
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'请选择至少一个物体！')
+            self.report(type={'ERROR'}, message=f'Select at least one object!')
             return False
         return True
 

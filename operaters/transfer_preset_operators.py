@@ -198,23 +198,26 @@ def check_transfer_preset_props(operator, props):
     if direction == 'PMX2ABC':
         source_pmx2abc = props.source_pmx2abc
         if source_pmx2abc is None:
-            operator.report(type={'ERROR'}, message=f'请输入源物体！')
+            operator.report(type={'ERROR'}, message=f'Source model required!')
             return False
         pmx_root = find_pmx_root_with_child(source_pmx2abc)
         if pmx_root is None:
-            operator.report(type={'ERROR'}, message=f'没有找到pmx对象！')
+            operator.report(type={'ERROR'}, message=f'Source is not a PMX model!')
             return False
         pmx_armature = find_pmx_armature(pmx_root)
         if pmx_armature is None:
-            operator.report(type={'ERROR'}, message=f'在{pmx_root.name}中没有找到pmx骨架！')
+            operator.report(type={'ERROR'},
+                            message=bpy.app.translations.pgettext_iface("Armature not found in {}!").format(
+                                pmx_root.name))
             return False
         pmx_objects = find_pmx_objects(pmx_armature)
         if len(pmx_objects) == 0:
-            operator.report(type={'ERROR'}, message=f'在{pmx_root.name}中没有找到网格对象！')
+            operator.report(type={'ERROR'},
+                            message=bpy.app.translations.pgettext_iface("Mesh not found in {}!").format(pmx_root.name))
             return False
         abc_objects = find_abc_objects()
         if len(abc_objects) == 0:
-            operator.report(type={'ERROR'}, message=f'没有找到abc文件对应的网格对象！')
+            operator.report(type={'ERROR'}, message=f'ABC mesh not found!')
             return False
 
         toon_shading_flag = props.toon_shading_flag
@@ -225,53 +228,55 @@ def check_transfer_preset_props(operator, props):
         # 排除面部定位器对操作流程的影响
         if toon_shading_flag:
             if face_locator is None:
-                operator.report(type={'ERROR'}, message=f'请输入面部定位器对象！')
+                operator.report(type={'ERROR'}, message=f'Face locator required!')
                 return False
             # 先仅考虑骨骼父级的情况
             if face_locator.parent_type != 'BONE':
                 operator.report(type={'ERROR'},
-                                message=f'面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{face_locator.parent_type}。')
+                                message=bpy.app.translations.pgettext_iface(
+                                    "Invalid parent type for face locator! Required: Bone, Found: {}").format(
+                                    face_locator.parent_type))
                 return False
             vg_name = face_locator.parent_bone
             if vg_name is None or vg_name == '':
-                operator.report(type={'ERROR'}, message=f'面部定位器未绑定到父级骨骼！')
+                operator.report(type={'ERROR'}, message=f'Face locator not parented to bone!')
                 return False
 
         if auto_face_location is False:
             if face_object is None:
-                operator.report(type={'ERROR'}, message=f'请输入面部对象！')
+                operator.report(type={'ERROR'}, message=f'Face object required!')
                 return False
             if face_vg is None or face_vg == '':
-                operator.report(type={'ERROR'}, message=f'请输入面部顶点组！')
+                operator.report(type={'ERROR'}, message=f'Face vertex group required!')
                 return False
     elif direction == 'PMX2PMX':
         if props.source is None:
-            operator.report(type={'ERROR'}, message=f'请输入源物体！')
+            operator.report(type={'ERROR'}, message=f'Source model required!')
             return False
         if props.target is None:
-            operator.report(type={'ERROR'}, message=f'请输入目标物体！')
+            operator.report(type={'ERROR'}, message=f'Target model required!')
             return False
         source_root = find_pmx_root_with_child(props.source)
         target_root = find_pmx_root_with_child(props.target)
         if source_root is None:
-            operator.report(type={'ERROR'}, message=f'源物体不属于PMX模型！')
+            operator.report(type={'ERROR'}, message=f'Source is not a PMX model!')
             return False
         if target_root is None:
-            operator.report(type={'ERROR'}, message=f'目标物体不属于PMX模型！')
+            operator.report(type={'ERROR'}, message=f'Target is not a PMX model!')
             return False
         if source_root == target_root:
-            operator.report(type={'ERROR'}, message=f'源物体与目标物体（祖先）相同！')
+            operator.report(type={'ERROR'}, message=f'Source and target are identical!')
             return False
     elif direction == 'ABC2ABC':
         abc_filepath = props.abc_filepath
         if not abc_filepath:
-            operator.report(type={'ERROR'}, message=f'请输入缓存文件地址！')
+            operator.report(type={'ERROR'}, message=f'Cache file path required!')
             return False
         if not bpy.path.abspath(abc_filepath):
-            operator.report(type={'ERROR'}, message=f'缓存文件地址不存在！')
+            operator.report(type={'ERROR'}, message=f'Cache file not found!')
             return False
         if "abc" not in os.path.splitext(abc_filepath)[1]:
-            operator.report(type={'ERROR'}, message=f'请输入abc缓存文件地址！')
+            operator.report(type={'ERROR'}, message=f'ABC cache file path required!')
             return False
 
     return True
@@ -868,9 +873,10 @@ def link_uv(operator, source_target_map, direction):
         # 比如3.x导入abc复制uv出问题，用2.x导入并拷贝到当前工程，执行插件依然可以进行后续逻辑
         if len(source_mesh.loops) != len(target_mesh.loops):
             operator.report(type={'WARNING'},
-                            message=f'传递材质时未能成功复制UV，请检查。'
-                                    f'源物体：{source.name}，loops：{len(source_mesh.loops)}，面数：{len(source_mesh.polygons)}。'
-                                    f'目标物体：{target.name}，loops：{len(target_mesh.loops)}，面数：{len(target_mesh.polygons)}')
+                            message=bpy.app.translations.pgettext_iface(
+                                "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology.")
+                            .format(source.name, len(source_mesh.loops), len(source_mesh.polygons), target.name,
+                                    len(target_mesh.loops), len(target_mesh.polygons)))
             continue
         # 记录源物体活动的UV、用于渲染的UV、原始uv数量
         source_uv_active_index = source_mesh.uv_layers.active_index
@@ -896,8 +902,9 @@ def link_uv(operator, source_target_map, direction):
             if new_uv is None:
                 # 目标物体uv数量达到上限，给予提示
                 operator.report(type={'WARNING'},
-                                message=f'传递材质时未能成功复制UV，请检查。目标物体：{target.name}，目标物体UV数量：{len(target.data.uv_layers)}。'
-                                        f'源物体UV名称：{uv_layer.name}')
+                                message=bpy.app.translations.pgettext_iface(
+                                    "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}").format(
+                                    target.name, len(target.data.uv_layers), uv_layer.name))
                 continue
             target_mesh.uv_layers[uv_layer.name].active = True
 
@@ -1098,12 +1105,13 @@ def link_multi_slot_materials(operator, mapping, direction):
                 source_poly = source_center_poly_map[key]
                 material_index = source_poly_material_map[source_poly]
                 target_poly.material_index = material_index
-        if match_count != len(source_mesh.polygons):
+        if match_count != len(source_mesh.polygons) and len(source.material_slots) > 1:
             # 如果出现特殊情况给予提示
             operator.report(type={'WARNING'},
-                            message=f'未能完整传递多材质，请检查。'
-                                    f'源物体：{source.name}，面数：{len(source_mesh.polygons)}。'
-                                    f'目标物体：{target.name}，面数：{len(source_mesh.polygons)}，匹配成功面数：{match_count}')
+                            message=bpy.app.translations.pgettext_iface(
+                                "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}")
+                            .format(source.name, len(source_mesh.polygons), target.name, len(source_mesh.polygons),
+                                    match_count))
 
 
 def link_modifiers(mapping, direction):

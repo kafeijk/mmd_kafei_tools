@@ -37,7 +37,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     )
     scale: bpy.props.FloatProperty(
         name="边距",
-        description="对齐物体后，视野/正交比例的倍数",
+        description="边距",
         default=1.0,
         min=1.0,
         max=2.0
@@ -92,9 +92,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     # 该目的可由方案3的约束实现，且同样无法调节相机y旋转
     align: bpy.props.BoolProperty(
         name="对齐角色",
-        description="尽可能使角色处于画面中心。\n"
-                    "（重要）该参数在角色处于静置状态时效果良好，如果出现意料外的情况请手动关闭\n"
-                    "开启时Y轴旋转失效，不适用于多角色",
+        description="尽可能使角色处于画面中心。\n（重要）该参数在角色处于初始状态时效果良好，如果出现意料外的情况请手动关闭\n开启时Y轴旋转失效，不适用于多角色共同被选择的情况",
         default=False,
     )
     batch: bpy.props.PointerProperty(type=BatchProperty)
