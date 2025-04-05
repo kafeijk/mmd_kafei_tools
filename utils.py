@@ -1,6 +1,8 @@
 import importlib.util
 import math
+import sys
 import time
+import zipfile
 
 import bpy
 from mathutils import Vector
@@ -343,7 +345,6 @@ def export_pmx(filepath):
                                          sort_materials=False,
                                          disable_specular=False,
                                          visible_meshes_only=False,
-                                         overwrite_bone_morphs_from_pose_library=False,
                                          translate_in_presets=False,
                                          sort_vertices='NONE',
                                          log_level='DEBUG',
@@ -413,10 +414,48 @@ def find_children(obj, obj_type=None):
 
 
 def is_plugin_enabled(plugin_name):
+    """校验插件是否开启"""
     for addon in bpy.context.preferences.addons:
         if addon.module == plugin_name:
             return True
     return False
+
+
+def is_mmd_tools_enabled():
+    """
+    校验mmd_tools是否开启，addon.module分别为：
+    3.x版本 为 mmd_tools
+    4.2版本 临时为 bl_ext.user_default.mmd_tools
+    4.3版本及以后 bl_ext.blender_org.mmd_tools
+    """
+    for addon in bpy.context.preferences.addons:
+        if addon.module.endswith("mmd_tools"):
+            return True
+    return False
+
+
+def install_library(name):
+    """安装第三方库"""
+    if is_module_installed(name):
+        return
+
+    # 获取 Blender 的 scripts/modules 目录
+    blender_modules_path = os.path.join(bpy.utils.resource_path('LOCAL'), "scripts", "modules")
+    if not os.path.exists(blender_modules_path):
+        raise RuntimeError(f"未找到指定目录：{blender_modules_path}")
+
+    file = os.path.join(os.path.dirname(__file__), "tools", name + ".zip")
+    if not os.path.exists(file):
+        raise FileNotFoundError(f"未找到文件：{file}")
+
+    # 解压 ZIP 文件
+    with zipfile.ZipFile(file, 'r') as zip_ref:
+        zip_ref.extractall(blender_modules_path)
+
+    # 立即导入新模块
+    sys.path.append(blender_modules_path)  # 确保 Python 可以找到新模块
+    imported_module = importlib.import_module(name)
+    importlib.reload(imported_module)
 
 
 def batch_process(func, props, f_flag=False):
@@ -494,12 +533,8 @@ def check_batch_props(operator, batch):
     suffix = batch.suffix
     directory = batch.directory
 
-    if bpy.app.version < (4, 0, 0) and not is_plugin_enabled("mmd_tools"):
-        operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
-        return False
-    if bpy.app.version >= (4, 0, 0) and not (
-            is_plugin_enabled("bl_ext.user_default.mmd_tools") or is_plugin_enabled("mmd_tools")):
-        operator.report(type={'ERROR'}, message=f'未开启mmd_tools插件！')
+    if not is_mmd_tools_enabled():
+        operator.report(type={'ERROR'}, message=f'MMD Tools plugin not enabled!')
         return False
 
     # 获取目录的全限定路径 这里用blender提供的方法获取，而不是os.path.abspath。没有必要将相对路径转为绝对路径，因为哪种路径是由用户决定的
@@ -507,19 +542,19 @@ def check_batch_props(operator, batch):
     # 如果用户随意填写，可能会解析成当前blender文件的同级路径，但不影响什么
     abs_path = bpy.path.abspath(directory)
     if not os.path.exists(abs_path):
-        operator.report(type={'ERROR'}, message=f'模型目录不存在！')
+        operator.report(type={'ERROR'}, message=f'Model directory not found!')
         return False
     # 获取目录所在盘符的根路径
     drive, tail = os.path.splitdrive(abs_path)
     drive_root = os.path.join(drive, os.sep)
     # 校验目录是否是盘符根目录
     if abs_path == drive_root:
-        operator.report(type={'ERROR'}, message=f'模型目录为盘符根目录，请更换为其它目录！')
+        operator.report(type={'ERROR'}, message=f'Invalid root directory! Change to subfolder.')
         return False
 
     # 仅简单校验下后缀是否合法
     if any(char in suffix for char in INVALID_CHARS):
-        operator.report(type={'ERROR'}, message=f'名称后缀不合法！')
+        operator.report(type={'ERROR'}, message=f'Invalid name suffix!')
         return False
     return True
 

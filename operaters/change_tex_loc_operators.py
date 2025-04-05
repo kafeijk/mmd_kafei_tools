@@ -18,10 +18,10 @@ class ChangeTexLocOperator(bpy.types.Operator):
         new_folder = props.new_folder
 
         if not new_folder:
-            self.report(type={'ERROR'}, message=f'请填写贴图文件夹名称')
+            self.report(type={'ERROR'}, message=f'Texture folder name required!')
             return False
         if any(char in new_folder for char in INVALID_CHARS):
-            self.report(type={'ERROR'}, message=f'贴图文件夹名称不合法！')
+            self.report(type={'ERROR'}, message=f'Invalid texture folder name!')
             return False
 
         if not check_batch_props(self, batch):

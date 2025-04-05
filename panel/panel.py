@@ -610,8 +610,6 @@ class OrganizePanelPanel(bpy.types.Panel):
         optimization_flag_row.separator()
         optimization_flag_row.separator()
         optimization_flag_row.prop(props, "optimization_flag")
-        if not is_module_installed("pypinyin"):
-            optimization_flag_row.enabled = False
         if props.bone_panel_flag is False:
             optimization_flag_row.enabled = False
 

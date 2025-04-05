@@ -74,9 +74,9 @@ class SmallFeatureOperator(bpy.types.Operator):
         if option == "SUBSURFACE_EV":
             result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
             if len(result) > 0:
-                self.report(type={'WARNING'}, message=f'受影响材质:{result}')
+                self.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
                 self.report(type={'WARNING'},
-                            message=f'检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑')
+                            message="Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑")
 
     def gen_scene_root(self):
         """创建一个空物体，以实现对整个场景的统一控制"""
@@ -114,7 +114,7 @@ class SmallFeatureOperator(bpy.types.Operator):
         if option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             objs = bpy.context.selected_objects
             if len(objs) == 0:
-                self.report(type={'ERROR'}, message=f'请选择至少一个物体！')
+                self.report(type={'ERROR'}, message=f'Select at least one object!')
                 return False
         return True
 

@@ -198,15 +198,15 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
     def check_props(self, props):
         active_object = bpy.context.active_object
         if not active_object:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
         pmx_root = find_pmx_root_with_child(active_object)
         if not pmx_root:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
         armature = find_pmx_armature(pmx_root)
         if not armature:
-            self.report(type={'ERROR'}, message=f'模型缺少骨架！')
+            self.report(type={'ERROR'}, message=f'Armature not found!')
             return False
         return True
 
@@ -262,15 +262,15 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
     def check_props(self, props):
         active_object = bpy.context.active_object
         if not active_object:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
         pmx_root = find_pmx_root_with_child(active_object)
         if not pmx_root:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
         armature = find_pmx_armature(pmx_root)
         if not armature:
-            self.report(type={'ERROR'}, message=f'模型缺少骨架！')
+            self.report(type={'ERROR'}, message=f'Armature not found!')
             return False
         return True
 
@@ -363,7 +363,7 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
     def check_props(self, props):
         selected_objects = bpy.context.selected_objects
         if not selected_objects:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
 
         roots = set()
@@ -373,16 +373,16 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
                 continue
             roots.add(root)
         if not roots:
-            self.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
         if len(roots) > 1:
-            self.report(type={'ERROR'}, message=f'MMD模型数量大于1！')
+            self.report(type={'ERROR'}, message=f'Multiple MMD models detected!')
             return False
 
         root = roots.pop()
         armature = find_pmx_armature(root)
         if not armature:
-            self.report(type={'ERROR'}, message=f'模型缺少骨架！')
+            self.report(type={'ERROR'}, message=f'Armature not found!')
             return False
 
         return True

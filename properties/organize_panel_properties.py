@@ -1,11 +1,6 @@
 import bpy
 
 from .batch_properties import BatchProperty
-from ..utils import is_module_installed
-
-
-def get_optimization_flag():
-    return is_module_installed("pypinyin")
 
 
 class OrganizePanelProperty(bpy.types.PropertyGroup):
@@ -18,8 +13,8 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
 
     optimization_flag: bpy.props.BoolProperty(
         name="名称优化",
-        description="优化骨骼日文名称，避免使用时出现乱码。该参数需安装pypinyin模块后生效，详见说明文档",
-        default=get_optimization_flag()
+        description="优化骨骼日文名称，避免使用时出现乱码",
+        default=True
     )
     morph_panel_flag: bpy.props.BoolProperty(
         name="表情面板",

@@ -28,91 +28,91 @@ def update_preset(self, context):
 
 class TransferPresetProperty(bpy.types.PropertyGroup):
     source: bpy.props.PointerProperty(
-        name="源物体",
-        description="源物体",
+        name="源模型",
+        description="提供预设的模型",
         type=bpy.types.Object
     )
     source_pmx2abc: bpy.props.PointerProperty(
-        name="源物体",
-        description="源物体",
+        name="源模型",
+        description="提供预设的模型",
         type=bpy.types.Object
     )
     target: bpy.props.PointerProperty(
-        name="目标物体",
-        description="目标物体",
+        name="目标模型",
+        description="接受预设的模型",
         type=bpy.types.Object
     )
     direction: bpy.props.EnumProperty(
         name="传递方向",
-        description="传递方向",
+        description="预设传递方向",
         default='PMX2ABC',
         items=[
             # pmx -> abc 较为常用
-            ('PMX2ABC', 'pmx -> abc', "将pmx源物体的材质传递到abc目标物体上"),
+            ('PMX2ABC', 'PMX → ABC', "将PMX模型的预设传递到ABC模型上"),
             # pmx -> pmx 一定配合强校验，可解决网格顺序不同、网格内容修改后重新导入产生的重复上材质问题
-            ('PMX2PMX', 'pmx -> pmx', "将pmx源物体的材质传递到pmx目标物体上"),
-            ('ABC2ABC', 'abc -> abc', "根据缓存文件重新设定缓存修改器参数")
+            ('PMX2PMX', 'PMX → PMX', "将PMX模型的预设传递到PMX模型上"),
+            ('ABC2ABC', 'ABC → ABC', "根据缓存文件重新设定网格序列缓存修改器参数")
         ],
         update=lambda self, context: update_preset(self, context)
     )
     material_flag: bpy.props.BoolProperty(
         name="材质",
-        description="关联材质，如果源物体具有多个材质槽，则将这些材质设置到目标物体对应的面上",
+        description="关联材质，支持多材质槽",
         default=True,
         update=lambda self, context: self.check_selection(context, "material_flag")
     )
     uv_flag: bpy.props.BoolProperty(
         name="UV贴图",
-        description="关联UV",
+        description="复制UV贴图",
         default=True,
         update=lambda self, context: self.check_selection(context, "uv_flag")
     )
     vgs_flag: bpy.props.BoolProperty(
         name="顶点组",
-        description="将源物体自定义的顶点组及顶点权重传递到目标物体上",
+        description="传递自定义顶点组及对应权重",
         default=True,
         update=lambda self, context: self.check_selection(context, "vgs_flag")
 
     )
     modifiers_flag: bpy.props.BoolProperty(
         name="修改器",
-        description="将源物体拥有的修改器传递到目标物体上",
+        description="复制修改器",
         default=True,
         update=lambda self, context: self.check_selection(context, "modifiers_flag")
     )
     normal_flag: bpy.props.BoolProperty(
         name="法向",
-        description="将源物体拥有的自定义拆边法向数据传递到目标物体上",
+        description="传递自定义拆边法向数据",
         default=True,
         update=lambda self, context: self.check_selection(context, "normal_flag")
     )
     toon_shading_flag: bpy.props.BoolProperty(
         name="三渲二",
-        description="将源物体三渲二预设应用到目标物体上",
+        description="编辑三渲二预设中的相关参数设置",
         default=False,
         update=lambda self, context: auto_fill(self, context)
     )
     face_locator: bpy.props.PointerProperty(
         name="面部定位器",
-        description="面部定位器",
+        description="源物体中父级类型为骨骼的对象（该骨骼通常为“頭”），用于定位面部。默认情况下，该值会自动填充",
         type=bpy.types.Object,
     )
 
     auto_face_location: bpy.props.BoolProperty(
         name="自动面部识别",
-        description="自动面部识别",
+        description="根据面部定位器识别面部顶点",
         default=True,
     )
 
     face_object: bpy.props.PointerProperty(
         name="面部对象",
-        description="源模型面部所在对象",
+        description="面部对象",
         type=bpy.types.Object
     )
 
     face_vg: bpy.props.StringProperty(
         name="面部顶点组",
-        description="源模型面部顶点组"
+        description="面部对象的顶点组"
     )
 
     abc_filepath: bpy.props.StringProperty(

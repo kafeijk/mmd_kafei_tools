@@ -25,7 +25,7 @@ class ModifyColorspaceProperty(bpy.types.PropertyGroup):
 
     source_colorspace: bpy.props.EnumProperty(
         name="源色彩空间",
-        description="源色彩空间，用于搜索贴图",
+        description="源色彩空间",
         items=get_colorspace,
     )
     target_colorspace: bpy.props.EnumProperty(

@@ -177,15 +177,15 @@ def check_props(operator, option):
                   "LESS_BONE", "LESS_PARENT_BONE", "LESS_CHILDREN_BONE"):
         active_object = bpy.context.active_object
         if not active_object:
-            operator.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            operator.report(type={'ERROR'}, message="Select MMD model!")
             return False
         pmx_root = find_pmx_root_with_child(active_object)
         if not pmx_root:
-            operator.report(type={'ERROR'}, message=f'请选择MMD模型！')
+            operator.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
         armature = find_pmx_armature(pmx_root)
         if not armature:
-            operator.report(type={'ERROR'}, message=f'模型缺少骨架！')
+            operator.report(type={'ERROR'}, message=f'Armature not found!')
             return False
 
         if option in ("FLIP_BONE"):
@@ -195,7 +195,7 @@ def check_props(operator, option):
                 if pb.bone.select:
                     selected_pbs.append(pb)
             if not selected_pbs:
-                operator.report(type={'ERROR'}, message=f'请至少选择一根骨骼！')
+                operator.report(type={'ERROR'}, message=f'No bones selected!')
                 return False
 
             lr = ""
@@ -209,7 +209,7 @@ def check_props(operator, option):
                         lr = curr_lr
                     else:
                         if curr_lr != lr:
-                            operator.report(type={'ERROR'}, message=f'请选择单侧骨骼！')
+                            operator.report(type={'ERROR'}, message=f'Select bones on one side!')
                             return False
         return True
 
