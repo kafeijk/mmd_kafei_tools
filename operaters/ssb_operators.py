@@ -3,6 +3,7 @@ from enum import auto, Enum
 import numpy as np
 
 from ..utils import *
+from ..mmd_utils import *
 
 # 日文名称到Blender名称的映射
 jp_bl_map = {}
@@ -77,7 +78,7 @@ def pre_set_panel_order(armature, props):
     # pmx模型中首个拥有骨架修改器的Mesh类型对象
     pmx_obj = objs[0]
     for obj in objs:
-        if obj.modifiers.get('mmd_bone_order_override', None):
+        if obj.modifiers.get(get_mmd_armature_id(), None):
             pmx_obj = obj
             break
 
@@ -354,6 +355,7 @@ class AddSsbOperator(bpy.types.Operator):
         # 但是在blender中，移动顶点组是一项非常耗时的操作
         # 顶点组所在的集合类型并不像其它集合那样，拥有移动到指定位置的函数。需要我们模拟界面点击的方式一个一个循环移动到指定位置
         # 这里通过新建一个Mesh，并为其预先添加顶点组，然后用这个Mesh和原模型合并的方式来达到设置骨骼面板的目的
+        # todo 自mmd_tools v4.3.2开始 骨骼面板顺序不再由顶点组决定
         pre_set_panel_order(armature, props)
         # 在创建ssb的过程中需要获取mmd_bone，这是一个pose_bone的属性，需要创建完edit_bone之后切换模式才能获取
         # 但是切换模式会造成edit_bone的数据失效，需要重新获取，造成代码冗余
@@ -1717,7 +1719,7 @@ def get_first_vg(armature, objs, exclude_name):
 
     # 如果对象拥有导入时的骨架修改器，可最大程度上确保顶点组的完整；如果没有骨架修改器，则会尽可能的寻找
     for obj in objs:
-        if obj.modifiers.get('mmd_bone_order_override', None):
+        if obj.modifiers.get(get_mmd_armature_id(), None):
             for vg in obj.vertex_groups:
                 if vg.name != exclude_name and armature.pose.bones.get(vg.name):
                     return vg

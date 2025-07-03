@@ -5,6 +5,7 @@ import time
 import zipfile
 
 import bpy
+import addon_utils
 from mathutils import Vector
 
 from .constants import *
@@ -803,3 +804,10 @@ def int2base(x, base, width=0):
 def is_module_installed(module_name):
     module_spec = importlib.util.find_spec(module_name)
     return module_spec is not None
+
+
+def get_addon_version(name):
+    for addon in addon_utils.modules():
+        if addon.bl_info.get('name') == name:
+            return addon.bl_info.get('version', (-1, -1, -1))
+    return -1, -1, -1
