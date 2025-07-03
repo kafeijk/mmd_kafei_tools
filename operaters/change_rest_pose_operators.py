@@ -2,6 +2,7 @@ import mathutils
 
 from ..tools.ApplyModifierForObjectWithShapeKeys import applyModifierForObjectWithShapeKeys
 from ..utils import *
+from ..mmd_utils import *
 
 bpy.types.Object.original_location = bpy.props.FloatVectorProperty(
     get=lambda obj: obj.get('original_location', None)
@@ -354,7 +355,7 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
             bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
 
     def create_armature_mod(self, obj, armature):
-        armature_mod = obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
+        armature_mod = obj.modifiers.new(name=get_mmd_armature_id(), type='ARMATURE')
         armature_mod.show_viewport = True
         armature_mod.show_render = True
         armature_mod.object = armature

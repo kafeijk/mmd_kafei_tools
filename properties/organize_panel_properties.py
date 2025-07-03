@@ -46,7 +46,7 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
         name="覆盖",
         description="如果面板项目已经存在英文名称，则覆盖原有名称",
         default=True,
-        update=lambda self, context: self.check_selection(context, "translation_flag")
+        update=lambda self, context: self.check_selection(context, "overwrite_flag")
     )
 
     batch: bpy.props.PointerProperty(type=BatchProperty)

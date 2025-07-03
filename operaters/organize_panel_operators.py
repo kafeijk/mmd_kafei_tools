@@ -1,6 +1,7 @@
 from collections import defaultdict
 from ..tools.jaconv.jaconv import *
 from ..utils import *
+from ..mmd_utils import *
 
 
 class OrganizePanelOperator(bpy.types.Operator):
@@ -289,15 +290,16 @@ def reorder_bone_panel(pmx_root, props):
     armature = find_pmx_armature(pmx_root)
     objs = find_pmx_objects(armature)
 
-    # 获取含有mmd_bone_order_override骨架修改器的首个对象，如果没有，则新建修改器
+    # 获取含有 mmd_armature_id 骨架修改器的首个对象，如果没有，则新建修改器
+    mmd_armature_id = get_mmd_armature_id()
     pmx_obj = None
     for obj in objs:
-        if obj.modifiers.get('mmd_bone_order_override', None):
+        if obj.modifiers.get(mmd_armature_id, None):
             pmx_obj = obj
             break
     if not pmx_obj:
         pmx_obj = objs[0]
-        armature_mod = pmx_obj.modifiers.new(name="mmd_bone_order_override", type='ARMATURE')
+        armature_mod = pmx_obj.modifiers.new(name=mmd_armature_id, type='ARMATURE')
         armature_mod.show_in_editmode = False
         armature_mod.show_viewport = False
         armature_mod.show_render = False
@@ -379,39 +381,70 @@ def reorder_bone_panel(pmx_root, props):
     # 最终骨骼排序列表
     final_order_bones = preset_bones + non_preset_bones
 
-    # 创建临时物体
-    collection = pmx_obj.users_collection[0]
-    tmp_obj = create_tmp_obj(armature, collection)
+    v = get_mmd_tools_version()
+    if v < (4, 3, 2):
+        # 创建临时物体
+        collection = pmx_obj.users_collection[0]
+        tmp_obj = create_tmp_obj(armature, collection)
 
-    # 为临时对象添加顶点组
-    for jp_name in final_order_bones:
-        tmp_obj.vertex_groups.new(name=jp_bl_map[jp_name])
+        # 为临时对象添加顶点组
+        for jp_name in final_order_bones:
+            tmp_obj.vertex_groups.new(name=jp_bl_map[jp_name])
 
-    # 为物体添加顶点组
-    # 通常情况下，只需要为第一个物体预先设置顶点组即可
-    # 但是如果后续逻辑涉及到权重转换，或者是使用者修改了物体的顺序时，都可能会产生问题
-    # 稳妥起见，为所有物体都设置上相应的顶点组
-    for obj in objs:
-        visibility = record_visibility(obj)
-        show_object(obj)
-        obj_name = obj.name
-        current_tmp_obj = copy_obj(tmp_obj)
-        # 将物体修改器拷贝到临时物体上以防丢失
-        deselect_all_objects()
-        select_and_activate(current_tmp_obj)
-        select_and_activate(obj)
-        bpy.ops.object.make_links_data(type='MODIFIERS')
-        # 合并物体
-        deselect_all_objects()
-        select_and_activate(obj)
-        select_and_activate(current_tmp_obj)
-        bpy.ops.object.join()
-        current_obj = bpy.context.active_object
-        current_obj.name = obj_name
-        set_visibility(current_obj, visibility)
+        # 为物体添加顶点组
+        # 通常情况下，只需要为第一个物体预先设置顶点组即可
+        # 但是如果后续逻辑涉及到权重转换，或者是使用者修改了物体的顺序时，都可能会产生问题
+        # 稳妥起见，为所有物体都设置上相应的顶点组
+        for obj in objs:
+            visibility = record_visibility(obj)
+            show_object(obj)
+            obj_name = obj.name
+            current_tmp_obj = copy_obj(tmp_obj)
+            # 将物体修改器拷贝到临时物体上以防丢失
+            deselect_all_objects()
+            select_and_activate(current_tmp_obj)
+            select_and_activate(obj)
+            bpy.ops.object.make_links_data(type='MODIFIERS')
+            # 合并物体
+            deselect_all_objects()
+            select_and_activate(obj)
+            select_and_activate(current_tmp_obj)
+            bpy.ops.object.join()
+            current_obj = bpy.context.active_object
+            current_obj.name = obj_name
+            set_visibility(current_obj, visibility)
 
-    # 删除临时对象
-    bpy.data.objects.remove(tmp_obj)
+        # 删除临时对象
+        bpy.data.objects.remove(tmp_obj)
+    else:
+        bone_count = len(final_order_bones)
+        # 已使用的ids
+        used_ids = set()
+        for o in final_order_bones:
+            pb = armature.pose.bones.get(jp_bl_map[o], None)
+            used_ids.add(pb.mmd_bone.bone_id)
+
+        # 临时分配ids
+        start_id = 10000
+        new_ids = []
+        current_id = start_id
+        while len(new_ids) < bone_count:
+            if current_id not in used_ids:
+                new_ids.append(current_id)
+            current_id += 1
+
+        # 第一次分配id（临时）
+        for index, o in enumerate(final_order_bones):
+            pb = armature.pose.bones.get(jp_bl_map[o], None)
+            unsafe_change_bone_id(pb, new_ids[index], pmx_root.mmd_root.bone_morphs, armature.pose.bones)
+
+        # 第二次分配id（正式）
+        for index, o in enumerate(final_order_bones):
+            pb = armature.pose.bones.get(jp_bl_map[o], None)
+            unsafe_change_bone_id(pb, index, pmx_root.mmd_root.bone_morphs, armature.pose.bones)
+
+        for area in bpy.context.screen.areas:
+            area.tag_redraw()
 
 
 def repair_relationship(armature, existed_names, not_existed_names, bone_order_dict, parent_jp_name, child_jp_name,
@@ -683,11 +716,21 @@ def reorder_rigid_body_panel(pmx_root, props):
     armature = find_pmx_armature(pmx_root)
     objs = find_pmx_objects(armature)
 
-    # 首个拥有骨架修改器的Mesh对象
-    pmx_obj = next((obj for obj in objs if obj.modifiers.get('mmd_bone_order_override')), objs[0])
-    # 顶点组名称列表
-    vgs = get_vgs(pmx_obj)
-    vgs_dict = {value: index for index, value in enumerate(vgs)}
+    bone_order_dict = {}
+    v = get_mmd_tools_version()
+    if v < (4, 3, 2):
+        # 首个拥有骨架修改器的Mesh对象
+        pmx_obj = next((obj for obj in objs if obj.modifiers.get(get_mmd_armature_id())), objs[0])
+        # 顶点组名称列表
+        vgs = get_vgs(pmx_obj)
+        bone_order_dict = {value: index for index, value in enumerate(vgs)}
+    else:
+        for pb in armature.pose.bones:
+            mmd_bone = pb.mmd_bone
+            bl_name = pb.name
+            if is_not_dummy_bone(bl_name):
+                bone_id = mmd_bone.bone_id
+                bone_order_dict[bl_name] = bone_id
 
     # 激活骨架对象
     if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
@@ -736,7 +779,7 @@ def reorder_rigid_body_panel(pmx_root, props):
         any_physical = rigid_body_any_physical_map[number]
         if any_physical:
             continue
-        rigid_bodies.sort(key=lambda x: (vgs_dict.get(x.mmd_rigid.bone, 666888), get_original_name(x.name)))
+        rigid_bodies.sort(key=lambda x: (bone_order_dict.get(x.mmd_rigid.bone, 666888), get_original_name(x.name)))
 
         last_removed_index = -1
         for i in range(len(final_order_list) - 1, -1, -1):
