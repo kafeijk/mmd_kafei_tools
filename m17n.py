@@ -234,10 +234,11 @@ translation_dict = {
         ("*", "覆盖"): "Overwrite",
         # Organize Panel description
         ("*", "整理骨骼面板"): "Organize bone panel",
-        ("*", "优化骨骼日文名称，避免使用时出现乱码"): "Optimize the bone's Japanese name to avoid garbled characters when used",
         ("*", "整理表情面板"): "Organize morph panel",
         ("*", "整理刚体面板"): "Organize rigid body panel",
         ("*", "整理显示枠面板"): "Organize display panel",
+        ("*", "修复骨骼日文名称，避免使用时出现乱码及名称过长的情况"): "Fix the bone name to prevent garbled characters and overly long names when used",
+        ("*", "修复表情日文名称，避免使用时出现乱码及名称过长的情况"): "Fix the morph name to prevent garbled characters and overly long names when used",
         ("*", "为面板中的项目（骨骼、表情、显示枠）设置有限且紧凑的英文名称，以增强在MMD本体英文模式中模型操作的能力"): "Set concise and limited English names for the items in the panel (bone, morph, display) to enhance the model's operability in the English mode of MikuMikuDance",
         ("*", "如果面板项目已经存在英文名称，则覆盖原有名称"): "If the panel items already have English names, overwrite the existing names",
         # Preview Rendering panel / parameter / operator
