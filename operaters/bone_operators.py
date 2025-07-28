@@ -76,7 +76,7 @@ class SelectLinkedBoneOperator(bpy.types.Operator):
 class SelectRingBoneOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.select_ring_bone"
     bl_label = "并排骨骼"
-    bl_description = "选择当前选中项的环绕骨骼，例如选择裙子骨骼的一周"
+    bl_description = "根据骨骼名称，选择当前选中项的环绕骨骼，例如选择裙子骨骼的一周"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -641,6 +641,7 @@ def select_bone_by_input(option):
         现逻辑：向上寻找父级，向下寻找子级，如果父级/子级存在分叉（多个子级）则结束查找
     并排骨骼：
         选择环绕骨骼，有点类似选择并排边，PE插件创建物理骨骼时名称存在“_纵向id_横向id”格式的后缀，以此来判别
+        在通过MMM等方式烘焙骨骼动作时，可能需要对骨骼名称进行修复，这会破坏原有的“_纵向id_横向id”格式，这种情况暂不处理
     镜像骨骼：
         使用Blender原生函数，需根据姿态模式和编辑模式来选择具体函数（不同模式下函数不一样）
     父 +：

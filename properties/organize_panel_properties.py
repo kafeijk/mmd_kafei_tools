@@ -11,16 +11,23 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
         update=lambda self, context: self.check_selection(context, "bone_panel_flag")
     )
 
-    optimization_flag: bpy.props.BoolProperty(
-        name="名称优化",
-        description="优化骨骼日文名称，避免使用时出现乱码",
-        default=True
+    fix_bone_name_flag: bpy.props.BoolProperty(
+        name="骨骼名称修复",
+        description="修复骨骼日文名称，避免使用时出现乱码及名称过长的情况",
+        default=True,
+        update=lambda self, context: self.check_selection(context, "fix_bone_name_flag")
     )
     morph_panel_flag: bpy.props.BoolProperty(
         name="表情面板",
         description="整理表情面板",
         default=True,
         update=lambda self, context: self.check_selection(context, "morph_panel_flag")
+    )
+    fix_morph_name_flag: bpy.props.BoolProperty(
+        name="表情名称修复",
+        description="修复表情日文名称，避免使用时出现乱码及名称过长的情况",
+        default=True,
+        update=lambda self, context: self.check_selection(context, "fix_morph_name_flag")
     )
     rigid_body_panel_flag: bpy.props.BoolProperty(
         name="刚体面板",
@@ -62,20 +69,18 @@ class OrganizePanelProperty(bpy.types.PropertyGroup):
 
     def check_selection(self, context, changed_property):
         """检查选项，如果都未选中则恢复原来的状态"""
-        if not (self.bone_panel_flag or self.morph_panel_flag or self.rigid_body_panel_flag or self.display_panel_flag):
-            if changed_property == "bone_panel_flag":
-                self.bone_panel_flag = True
-            elif changed_property == "morph_panel_flag":
-                self.morph_panel_flag = True
-            elif changed_property == "rigid_body_panel_flag":
-                self.rigid_body_panel_flag = True
-            elif changed_property == "display_panel_flag":
-                self.display_panel_flag = True
-            elif changed_property == "translation_flag":
-                self.translation_flag = True
+        if not any((
+                self.bone_panel_flag,
+                self.morph_panel_flag,
+                self.rigid_body_panel_flag,
+                self.display_panel_flag,
+                self.fix_bone_name_flag,
+                self.fix_morph_name_flag,
+                self.translation_flag,
+        )):
+            if hasattr(self, changed_property):
+                setattr(self, changed_property, True)
 
         # 上级选项失效后，子级选项随之失效
-        if changed_property == "bone_panel_flag" and not self.bone_panel_flag:
-            self.optimization_flag = False
         if changed_property == "translation_flag" and not self.translation_flag:
             self.overwrite_flag = False
