@@ -606,15 +606,15 @@ class OrganizePanelPanel(bpy.types.Panel):
         bone_panel_flag_col = col.column()
         bone_panel_flag_col.prop(props, "bone_panel_flag")
 
-        optimization_flag_row = col.row()
-        optimization_flag_row.separator()
-        optimization_flag_row.separator()
-        optimization_flag_row.prop(props, "optimization_flag")
-        if props.bone_panel_flag is False:
-            optimization_flag_row.enabled = False
+        fix_bone_name_flag_row = col.row()
+        fix_bone_name_flag_row.prop(props, "fix_bone_name_flag")
 
         morph_panel_flag_col = col.column()
         morph_panel_flag_col.prop(props, "morph_panel_flag")
+
+        fix_morph_name_flag_row = col.row()
+        fix_morph_name_flag_row.prop(props, "fix_morph_name_flag")
+
         rigid_body_panel_flag_col = col.column()
         rigid_body_panel_flag_col.prop(props, "rigid_body_panel_flag")
         display_panel_flag_col = col.column()

@@ -192,7 +192,7 @@ translation_dict = {
         ("*", "选择受物理影响的MMD骨骼"): "Select MMD bones influenced by physics",
         ("*", "选择用于K帧的MMD骨骼"): "Select MMD bones for keyframing",
         ("*", "选择以父/子关系关联到当前选中项的所有骨骼"): "Select all bones linked by parent/child connections to the current selection",
-        ("*", "选择当前选中项的环绕骨骼，例如选择裙子骨骼的一周"): "Select the ring of bones around the current selection, such as selecting the skirt bones in a ring",
+        ("*", "根据骨骼名称，选择当前选中项的环绕骨骼，例如选择裙子骨骼的一周"): "Select bones forming a ring based on the current selection and name pattern, such as a skirt bone loop",
         ("*", "翻转姿态"): "Flip bone",
         ("*", "拓展选择当前选中项的父子骨骼"): "Select those bones connected to the initial selection",
         ("*", "缩减选择当前选中项的父子骨骼"): "Deselect those bones at the boundary of each selection region",
@@ -225,18 +225,20 @@ translation_dict = {
         # Organize Panel panel / parameter
         ("*", "面板整理"): "Organize Panel",
         ("*", "骨骼面板"): "Bone Panel",
-        ("*", "名称优化"): "Name Optimization",
         ("*", "表情面板"): "Morph Panel",
         ("*", "刚体面板"): "Rigid Body Panel",
         ("*", "显示枠面板"): "Display Panel",
+        ("*", "骨骼名称修复"): "Fix Bone Names",
+        ("*", "表情名称修复"): "Fix Morph Names",
         ("*", "面板翻译"): "Translation",
         ("*", "覆盖"): "Overwrite",
         # Organize Panel description
         ("*", "整理骨骼面板"): "Organize bone panel",
-        ("*", "优化骨骼日文名称，避免使用时出现乱码"): "Optimize the bone's Japanese name to avoid garbled characters when used",
         ("*", "整理表情面板"): "Organize morph panel",
         ("*", "整理刚体面板"): "Organize rigid body panel",
         ("*", "整理显示枠面板"): "Organize display panel",
+        ("*", "修复骨骼日文名称，避免使用时出现乱码及名称过长的情况"): "Fix the bone name to prevent garbled characters and overly long names when used",
+        ("*", "修复表情日文名称，避免使用时出现乱码及名称过长的情况"): "Fix the morph name to prevent garbled characters and overly long names when used",
         ("*", "为面板中的项目（骨骼、表情、显示枠）设置有限且紧凑的英文名称，以增强在MMD本体英文模式中模型操作的能力"): "Set concise and limited English names for the items in the panel (bone, morph, display) to enhance the model's operability in the English mode of MikuMikuDance",
         ("*", "如果面板项目已经存在英文名称，则覆盖原有名称"): "If the panel items already have English names, overwrite the existing names",
         # Preview Rendering panel / parameter / operator
@@ -288,3 +290,4 @@ translation_dict = {
 }
 
 translation_dict["zh_HANS"] = translation_dict["zh_CN"]
+translation_dict["en_GB"] = translation_dict["en_US"]
