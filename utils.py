@@ -312,16 +312,9 @@ def import_pmx(filepath):
             bpy.ops.mmd_tools.import_model('EXEC_DEFAULT',
                                            filepath=filepath,
                                            scale=0.08,
-                                           clean_model=True,
-                                           remove_doubles=False,
-                                           fix_IK_links=False,
-                                           apply_bone_fixed_axis=False,
-                                           rename_bones=True,
-                                           use_underscore=False,
-                                           dictionary="DISABLED",
-                                           use_mipmap=True,
-                                           sph_blend_factor=1,
-                                           spa_blend_factor=1
+                                           # 移除未使用的顶点和重复的或无效的面
+                                           clean_model=True
+                                           # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                            )
             print(f"导入成功，文件:{filepath}，attempt:{attempt + 1}")
             return True
@@ -342,14 +335,8 @@ def export_pmx(filepath):
             bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT',
                                          filepath=filepath,
                                          scale=12.5,
-                                         copy_textures=False,
-                                         sort_materials=False,
-                                         disable_specular=False,
-                                         visible_meshes_only=False,
-                                         translate_in_presets=False,
-                                         sort_vertices='NONE',
-                                         log_level='DEBUG',
-                                         save_log=False
+                                         copy_textures=False
+                                         # 其余参数默认。即使ExportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                          )
             print(f"导出成功，文件:{filepath}，attempt:{attempt + 1}")
             return True
