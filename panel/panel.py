@@ -25,6 +25,11 @@ from ..operaters.bone_operators import SelectLessParentBoneOperator
 from ..operaters.bone_operators import SelectLessChildrenBoneOperator
 from ..operaters.bone_operators import SelectMoreBoneOperator
 from ..operaters.bone_operators import SelectLessBoneOperator
+from ..operaters.fill_suffix_operators import FillSuffixChangeTexlocOperator
+from ..operaters.fill_suffix_operators import FillSuffixSsbOperator
+from ..operaters.fill_suffix_operators import FillSuffixRemoveUvMapOperator
+from ..operaters.fill_suffix_operators import FillSuffixOrganizePanelOperator
+from ..operaters.fill_suffix_operators import FillSuffixRenderPreviewOperator
 from ..utils import *
 import addon_utils
 
@@ -299,8 +304,6 @@ class ChangeRestPosePanel(bpy.types.Panel):
         operator_row.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
 
 
-
-
 class BonePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_bone"
     bl_label = "骨骼操作"
@@ -464,16 +467,16 @@ class ChangeTexLocPanel(bpy.types.Panel):
         remove_empty_col = col.column()
         remove_empty_col.prop(props, "remove_empty")
 
-        show_batch_props(col, False, True, batch)
+        show_batch_props(col, False, True, batch, FillSuffixChangeTexlocOperator)
 
         change_tex_loc_col = col.column()
         change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
 class AddSsbPanel:
-    # class AddSsbPanel(bpy.types.Panel):
+# class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
-    bl_label = "追加次标准骨骼"
+    bl_label = "修复次标准骨骼"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
@@ -497,7 +500,7 @@ class AddSsbPanel:
         scale_row.prop(props, "scale")
         scale_row.enabled = not batch_flag
         row = box.row()
-        show_batch_props(box, True, True, batch)
+        show_batch_props(box, True, True, batch, FillSuffixSsbOperator)
         box = layout.box()
         row = box.row()
         row.prop(base_props, "root_checked")
@@ -578,7 +581,7 @@ class RemoveUvMapPanel(bpy.types.Panel):
         layout.use_property_decorate = False
 
         col = layout.column()
-        show_batch_props(col, False, False, batch)
+        show_batch_props(col, False, False, batch, FillSuffixRemoveUvMapOperator)
 
         operator_col = col.column()
         operator_col.operator(RemoveUvMapOperator.bl_idname, text=RemoveUvMapOperator.bl_label)
@@ -630,7 +633,7 @@ class OrganizePanelPanel(bpy.types.Panel):
         if props.translation_flag is False:
             overwrite_flag_row.enabled = False
 
-        show_batch_props(col, False, True, batch)
+        show_batch_props(col, False, True, batch, FillSuffixOrganizePanelOperator)
 
         organize_panel_col = col.column()
         organize_panel_col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
@@ -672,7 +675,7 @@ class RenderPreviewPanel(bpy.types.Panel):
         align_col = col.column()
         align_col.prop(props, "align")
 
-        batch_box = show_batch_props(col, True, True, batch)
+        batch_box = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
         if batch_box:
             force_center_col = batch_box.column()
             force_center_col.prop(props, "force_center")
@@ -716,6 +719,36 @@ class AboutPanel(bpy.types.Panel):
         row.label(
             text='Version: ' + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
                                     addon.bl_info['name'] == 'mmd_kafei_tools'][0]))
+
+
+def show_batch_props(col, show_flag, create_box, batch, fill_suffix_operator=None):
+    if show_flag:
+        batch_col = col.column()
+        batch_col.prop(batch, "flag")
+        batch_flag = batch.flag
+        if not batch_flag:
+            return
+    if create_box:
+        batch_ui = col.box()
+    else:
+        batch_ui = col
+
+    directory_col = batch_ui.column()
+    directory_col.prop(batch, "directory")
+    search_strategy_col = batch_ui.column()
+    search_strategy_col.prop(batch, "search_strategy")
+    threshold_col = batch_ui.column()
+    threshold_col.prop(batch, "threshold")
+    suffix_col = batch_ui.column()
+    if fill_suffix_operator:
+        suffix_row = suffix_col.row(align=True)
+        suffix_row.prop(batch, "suffix")
+        suffix_row.operator(fill_suffix_operator.bl_idname, text="", icon="FILE_REFRESH")
+    else:
+        suffix_col.prop(batch, "suffix")
+    conflict_strategy_col = batch_ui.column()
+    conflict_strategy_col.prop(batch, "conflict_strategy")
+    return batch_ui
 
 
 if __name__ == "__main__":

@@ -492,31 +492,6 @@ def batch_process(func, props, f_flag=False):
     print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
 
 
-def show_batch_props(col, show_flag, create_box, batch):
-    if show_flag:
-        batch_col = col.column()
-        batch_col.prop(batch, "flag")
-        batch_flag = batch.flag
-        if not batch_flag:
-            return
-    if create_box:
-        batch_ui = col.box()
-    else:
-        batch_ui = col
-
-    directory_col = batch_ui.column()
-    directory_col.prop(batch, "directory")
-    search_strategy_col = batch_ui.column()
-    search_strategy_col.prop(batch, "search_strategy")
-    threshold_col = batch_ui.column()
-    threshold_col.prop(batch, "threshold")
-    suffix_col = batch_ui.column()
-    suffix_col.prop(batch, "suffix")
-    conflict_strategy_col = batch_ui.column()
-    conflict_strategy_col.prop(batch, "conflict_strategy")
-    return batch_ui
-
-
 def check_batch_props(operator, batch):
     suffix = batch.suffix
     directory = batch.directory
