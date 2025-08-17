@@ -1,5 +1,8 @@
 import bpy
 
+from ..utils import *
+from ..mmd_utils import *
+
 
 class RenderSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.render_settings"
@@ -243,3 +246,211 @@ class SwapResolutionOperator(bpy.types.Operator):
         rd.resolution_x, rd.resolution_y = rd.resolution_y, rd.resolution_x
 
         return {'FINISHED'}
+
+
+def set_cons(obj, target, subtarget=None):
+    deselect_all_objects()
+    select_and_activate(obj)
+
+    # 移除原先约束
+    for constraint in reversed(obj.constraints):
+        obj.constraints.remove(constraint)
+
+    # 新建子级约束
+    obj.constraints.new('CHILD_OF')
+
+    # 只考虑位置
+    bpy.context.object.constraints["Child Of"].use_rotation_x = False
+    bpy.context.object.constraints["Child Of"].use_rotation_y = False
+    bpy.context.object.constraints["Child Of"].use_rotation_z = False
+    bpy.context.object.constraints["Child Of"].use_scale_x = False
+    bpy.context.object.constraints["Child Of"].use_scale_y = False
+    bpy.context.object.constraints["Child Of"].use_scale_z = False
+
+    # 目标设置
+    obj.constraints["Child Of"].target = target
+    if subtarget:
+        obj.constraints["Child Of"].subtarget = subtarget
+
+    bpy.ops.constraint.childof_clear_inverse(constraint="Child Of", owner='OBJECT')
+
+    deselect_all_objects()
+
+
+def get_obj_by_attr_value(attr_name, value):
+    for obj in bpy.data.objects:
+        if attr_name in obj.keys():  # keys() 返回对象的所有自定义属性名
+            if value == obj.get(attr_name):
+                return obj
+    return None
+
+
+class LightSettingsOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.light_settings"
+    bl_label = "设置"
+    bl_description = "设置三点打光"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.gen_light(context)
+        return {'FINISHED'}
+
+    def gen_light(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_light_settings
+
+        # 校验是否选中MMD模型
+        if self.check_props(props) is False:
+            return
+        active_object = bpy.context.active_object
+
+        light_coll = get_collection("3 Points Lighting")
+
+        # 创建灯光
+        # 主光
+        main_light = get_obj_by_attr_value("Tri-Lighting", "MainLight")
+        if not main_light:
+            main_light = bpy.data.objects.new("MainLight", bpy.data.lights.new("MainLightData", type='AREA'))
+            main_light.data.size = 1
+            main_light.data.energy = 150
+            main_light.data.color = hex_to_rgb("#FFDACA")
+            main_light.data.volume_factor = 0
+            main_light["Tri-Lighting"] = "MainLight"
+
+        # 辅光
+        fill_light = get_obj_by_attr_value("Tri-Lighting", "FillLight")
+        if not fill_light:
+            fill_light = bpy.data.objects.new("FillLight", bpy.data.lights.new("FillLightData", type='AREA'))
+            fill_light.data.size = 1
+            fill_light.data.energy = 150 * 0.2
+            fill_light.data.color = hex_to_rgb("#76C2FF")
+            fill_light.data.volume_factor = 0
+            fill_light["Tri-Lighting"] = "FillLight"
+
+        # 背光
+        back_light = get_obj_by_attr_value("Tri-Lighting", "BackLight")
+        if not back_light:
+            back_light = bpy.data.objects.new("BackLight", bpy.data.lights.new("BackLightData", type='AREA'))
+            back_light.data.size = 1
+            back_light.data.energy = 250
+            back_light.data.color = hex_to_rgb("#00D9FF")
+            back_light.data.volume_factor = 0
+            back_light["Tri-Lighting"] = "BackLight"
+
+        # 主光、辅光、背光与原点的水平直线距离
+        main_distance = props.main_distance
+        fill_distance = props.fill_distance
+        back_distance = props.back_distance
+        # 主光、辅光与Y轴形成的角度
+        main_position = props.main_position
+        main_y_angle_rad = math.radians(30)
+        fill_y_angle_rad = math.radians(60)
+        if main_position == "RIGHT":
+            main_factor = 1
+            fill_factor = -1
+        else:
+            main_factor = -1
+            fill_factor = 1
+
+        # 主光、辅光、背光与Z轴形成的角度
+        main_z_angle = 15
+        fill_z_angle = 15
+        main_z_angle_rad = math.radians(main_z_angle)
+        fill_z_angle_rad = math.radians(fill_z_angle)
+        back_z_angle_rad = props.back_angle
+
+        # 主光位置旋转设置
+        main_light.rotation_euler[0] = math.radians(90 - main_z_angle)
+        main_light.rotation_euler[2] = main_y_angle_rad * main_factor
+        main_light.location.x = main_distance * math.sin(main_y_angle_rad) * main_factor
+        main_light.location.y = -main_distance * math.cos(main_y_angle_rad)
+        main_light.location.z = main_distance * math.tan(main_z_angle_rad)
+
+        # 辅光位置旋转设置
+        fill_light.rotation_euler[0] = math.radians(90 - fill_z_angle)
+        fill_light.rotation_euler[2] = fill_y_angle_rad * fill_factor
+        fill_light.location.x = fill_distance * math.sin(fill_y_angle_rad) * fill_factor
+        fill_light.location.y = -fill_distance * math.cos(fill_y_angle_rad)
+        fill_light.location.z = fill_distance * math.tan(fill_z_angle_rad)
+
+        # 背光位置旋转设置
+        back_light.rotation_euler[0] = back_z_angle_rad
+        back_light.location.y = - back_distance * math.sin(back_z_angle_rad)
+        back_light.location.z = back_distance * math.cos(back_z_angle_rad)
+
+        # 创建空物体
+        light_root = get_obj_by_attr_value("Tri-Lighting", "LightRoot")
+        if not light_root:
+            light_root = bpy.data.objects.new("LightRoot", None)
+            light_root["Tri-Lighting"] = "LightRoot"
+
+        # 链接
+        for obj in [main_light, fill_light, back_light, light_root]:
+            try:
+                light_coll.objects.link(obj)
+            except RuntimeError:
+                pass
+
+        # 设置 light_root 的位置
+        target_type = props.target_type
+        bone_name = props.bone_name
+        vg_name = props.vg_name
+        if target_type == "ARMATURE":
+            ancestor = find_ancestor(active_object)
+            armature = find_armature(ancestor)
+            set_cons(light_root, armature, subtarget=bone_name)
+        elif target_type == "MESH":
+            set_cons(light_root, active_object, subtarget=vg_name)
+
+        set_cons(main_light, light_root)
+        set_cons(fill_light, light_root)
+        set_cons(back_light, light_root)
+
+        deselect_all_objects()
+        select_and_activate(active_object)
+
+    def check_props(self, props):
+        active_object = bpy.context.active_object
+        target_type = props.target_type
+        bone_name = props.bone_name
+        vg_name = props.vg_name
+        if target_type == "ARMATURE":
+            if not active_object:
+                self.report(type={'ERROR'}, message=f'Select armature object!')
+                return False
+            ancestor = find_ancestor(active_object)
+            armature = find_armature(ancestor)
+            if not armature:
+                self.report(type={'ERROR'}, message=f'Armature not found!')
+                return False
+            if bone_name not in armature.pose.bones:
+                self.report(type={'ERROR'}, message=f'Bone "{bone_name}" not found!')
+                return False
+            return True
+        elif target_type == "MESH":
+            if not active_object:
+                self.report(type={'ERROR'}, message=f'Select mesh object!')
+                return False
+            if active_object.type not in ['MESH', 'LATTICE']:
+                self.report(type={'ERROR'}, message=f'Select mesh object!')
+                return False
+            if vg_name not in active_object.vertex_groups:
+                self.report(type={'ERROR'}, message=f'Vertex Groups "{vg_name}" not found!')
+                return False
+            return True
+
+
+def find_armature(obj):
+    """
+    递归查找 obj 的子对象，直到找到骨架（ARMATURE）对象。
+    返回第一个找到的骨架对象，如果没有找到则返回 None。
+    """
+    if obj.type == 'ARMATURE':
+        return obj
+
+    for child in obj.children:
+        result = find_armature(child)
+        if result:
+            return result
+
+    return None

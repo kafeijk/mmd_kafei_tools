@@ -773,3 +773,21 @@ def get_addon_version(name):
         if addon.bl_info.get('name') == name:
             return addon.bl_info.get('version', (-1, -1, -1))
     return -1, -1, -1
+
+
+def srgb_to_linearrgb(c):
+    if c < 0:
+        return 0
+    elif c < 0.04045:
+        return c / 12.92
+    else:
+        return ((c + 0.055) / 1.055) ** 2.4
+
+
+def hex_to_rgb(hex_string, alpha=None):
+    if hex_string.startswith('#'):
+        hex_string = hex_string[1:]
+    h = int(hex_string, 16)
+    r, g, b = (h >> 16) & 0xff, (h >> 8) & 0xff, h & 0xff
+    color = [srgb_to_linearrgb(c / 255.0) for c in (r, g, b)]
+    return tuple(color + [alpha]) if alpha is not None else tuple(color)

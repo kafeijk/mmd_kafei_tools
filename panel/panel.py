@@ -33,6 +33,7 @@ from ..operaters.fill_suffix_operators import FillSuffixRenderPreviewOperator
 from ..operaters.render_settings_operators import RenderSettingsOperator
 from ..operaters.render_settings_operators import ResolutionSettingsOperator
 from ..operaters.render_settings_operators import SwapResolutionOperator
+from ..operaters.render_settings_operators import LightSettingsOperator
 from ..utils import *
 import addon_utils
 
@@ -235,6 +236,37 @@ class LightSettingsPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_light_settings
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        target_type_col = col.column()
+        target_type_col.prop(props, "target_type")
+
+
+        target_type = props.target_type
+        if target_type == "ARMATURE":
+            bone_name_col = col.column()
+            bone_name_col.prop(props, "bone_name")
+        elif target_type == "MESH":
+            vg_name_col = col.column()
+            vg_name_col.prop(props, "vg_name")
+
+        col.separator()
+        col = col.column()
+        col.prop(props, "main_distance")
+        col.prop(props, "fill_distance")
+        col.prop(props, "main_position")
+        col.separator()
+        col.prop(props, "back_distance")
+        col.prop(props, "back_angle")
+
+        operators_col = col.column()
+        operators_col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
 
 
 class ModifyColorspacePanel(bpy.types.Panel):
