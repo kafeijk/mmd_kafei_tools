@@ -31,6 +31,8 @@ from ..operaters.fill_suffix_operators import FillSuffixRemoveUvMapOperator
 from ..operaters.fill_suffix_operators import FillSuffixOrganizePanelOperator
 from ..operaters.fill_suffix_operators import FillSuffixRenderPreviewOperator
 from ..operaters.render_settings_operators import RenderSettingsOperator
+from ..operaters.render_settings_operators import ResolutionSettingsOperator
+from ..operaters.render_settings_operators import SwapResolutionOperator
 from ..utils import *
 import addon_utils
 
@@ -184,6 +186,42 @@ class OutputSettingsPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+        row = layout.row(align=True)
+        col1 = row.column(align=True)
+        col2 = row.column(align=True)
+        col2.scale_x = 0.3
+
+        props = scene.mmd_kafei_tools_output_settings
+        rd = context.scene.render
+
+        # 分辨率
+        col1.prop(props, "resolution", text="Resolution")
+        col1.prop(rd, "resolution_x", text="X")
+        col1.prop(rd, "resolution_y", text="Y")
+        col2.operator(ResolutionSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
+        col2.operator(SwapResolutionOperator.bl_idname, text="⇅", emboss=True)
+
+        # 帧率
+        col1.separator()
+        col11 = col1.column(heading="Frame Rate")
+        if bpy.types.RENDER_PT_format._preset_class is None:
+            bpy.types.RENDER_PT_format._preset_class = bpy.types.RENDER_MT_framerate_presets
+        args = rd.fps, rd.fps_base, bpy.types.RENDER_PT_format._preset_class.bl_label
+        fps_label_text, show_framerate = bpy.types.RENDER_PT_format._draw_framerate_label(*args)
+        col11.menu("RENDER_MT_framerate_presets", text=fps_label_text)
+        if show_framerate:
+            col111 = col11.column(align=True)
+            col111.prop(rd, "fps")
+            col111.prop(rd, "fps_base", text="Base")
+
+        # 输出文件格式
+        col1.separator()
+        image_settings = rd.image_settings
+        col1.template_image_settings(image_settings, color_management=False)
 
 
 class LightSettingsPanel(bpy.types.Panel):

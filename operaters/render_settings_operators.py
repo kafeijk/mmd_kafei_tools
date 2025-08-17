@@ -1,5 +1,6 @@
 import bpy
 
+
 class RenderSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.render_settings"
     bl_label = "执行"
@@ -44,7 +45,6 @@ def reset(struct):
             try:
                 default = prop.default
                 setattr(struct, prop.identifier, default)
-                print(f"{prop.identifier}---{default}")
                 if prop.identifier == "use_bloom":
                     return
             except Exception:
@@ -57,8 +57,6 @@ def safe_set(obj, attr, value):
         setattr(obj, attr, value)
     except Exception as e:
         print(f"{e}")
-
-
 
 
 def set_eevee():
@@ -94,7 +92,6 @@ def set_eevee():
     bpy.context.scene.eevee.use_shadow_high_bitdepth = True
     # 柔和阴影
     bpy.context.scene.eevee.use_soft_shadows = True
-
 
 
 def set_eevee_next():
@@ -201,3 +198,48 @@ def set_cycles():
     safe_set(render, "use_persistent_data", True)
     # 像素大小：调大可加速视图渲染，但会增加马赛克
     safe_set(render, "preview_pixel_size", 'AUTO')
+
+
+class ResolutionSettingsOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.resolution_settings"
+    bl_label = "设置视频分辨率"
+    bl_description = "设置视频分辨率"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        scene = context.scene
+        output = scene.mmd_kafei_tools_output_settings
+
+        # 分辨率对应字典
+        res_dict = {
+            "360P": (640, 360),
+            "480P": (854, 480),
+            "540P": (960, 540),
+            "720P": (1280, 720),
+            "1080P": (1920, 1080),
+            "2K": (2560, 1440),
+            "4K": (3840, 2160),
+            "8K": (7680, 4320),
+        }
+
+        width, height = res_dict.get(output.resolution, (1920, 1080))
+        scene.render.resolution_x = width
+        scene.render.resolution_y = height
+
+        return {'FINISHED'}
+
+
+class SwapResolutionOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.swap_resolution"
+    bl_label = "交换分辨率"
+    bl_description = "交换分辨率 X 和 Y"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        scene = context.scene
+        rd = scene.render
+
+        # 交换 X 和 Y 分辨率
+        rd.resolution_x, rd.resolution_y = rd.resolution_y, rd.resolution_x
+
+        return {'FINISHED'}
