@@ -30,6 +30,7 @@ from ..operaters.fill_suffix_operators import FillSuffixSsbOperator
 from ..operaters.fill_suffix_operators import FillSuffixRemoveUvMapOperator
 from ..operaters.fill_suffix_operators import FillSuffixOrganizePanelOperator
 from ..operaters.fill_suffix_operators import FillSuffixRenderPreviewOperator
+from ..operaters.render_settings_operators import RenderSettingsOperator
 from ..utils import *
 import addon_utils
 
@@ -126,9 +127,9 @@ class TransferPresetPanel(bpy.types.Panel):
         row.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
 
 
-class ToolsPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_tools"
-    bl_label = "工具"
+class SceneSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_scene_settings"
+    bl_label = "场景设置"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
@@ -141,13 +142,70 @@ class ToolsPanel(bpy.types.Panel):
         layout = self.layout
 
 
+class RenderSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_render_settings"
+    bl_label = "渲染设置"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 1
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_render_settings
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        engine_col = col.column()
+        engine_row = engine_col.row()
+        # split = engine_row.split(factor=0.8, align=True)
+        engine_row.prop(props, "engine")
+
+        engine_row.operator(RenderSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
+
+        rd = scene.render
+        transparent_col = col.column()
+        transparent_col.prop(rd, "film_transparent", text="Transparent")
+
+
+class OutputSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_output_settings"
+    bl_label = "输出设置"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+
+class LightSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_light_settings"
+    bl_label = "灯光设置"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+
 class ModifyColorspacePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_modify_colorspace"
     bl_label = "色彩空间调整"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 1
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -178,13 +236,54 @@ class ModifyColorspacePanel(bpy.types.Panel):
         operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
 
 
+class SmallFeaturePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_sf"
+    bl_label = "小功能"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 5
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_sf
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        option_col = col.column()
+        option_col.prop(props, "option")
+
+        operators_col = col.column()
+        operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
+
+
+class ToolsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_tools"
+    bl_label = "工具"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'  # N面板
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_order = 2
+
+    # bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+
+
 class RemoveSpecifyContentPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_remove_specify_content"
     bl_label = "物体操作"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 4
+    bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -234,30 +333,18 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
         operator_col.operator(ModifySpecifyContentOperator.bl_idname, text=ModifySpecifyContentOperator.bl_label)
 
 
-class SmallFeaturePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_sf"
-    bl_label = "小功能"
+class ArrangeSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_arrange_settings"
+    bl_label = "物体排列"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 5
+    bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_sf
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-
-        option_col = col.column()
-        option_col.prop(props, "option")
-
-        operators_col = col.column()
-        operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
+        pass
 
 
 class ModelModificationPanel(bpy.types.Panel):
@@ -266,7 +353,7 @@ class ModelModificationPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 2
+    bl_order = 3
 
     def draw(self, context):
         scene = context.scene
@@ -436,7 +523,7 @@ class PrePostProcessingPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 3
+    bl_order = 4
 
     def draw(self, context):
         layout = self.layout
@@ -692,7 +779,7 @@ class AboutPanel(bpy.types.Panel):
     bl_label = "About"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_order = 4
+    bl_order = 5
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
     bl_options = {'DEFAULT_CLOSED'}
 
