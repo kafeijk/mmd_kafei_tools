@@ -26,8 +26,24 @@ class SmallFeatureOperator(bpy.types.Operator):
         option = props.option
         if option == 'SCENE_ROOT':
             self.gen_scene_root()
+        elif option == "REMOVE_MISSING_IMAGES":
+            self.remove_unpacked_missing_images()
         elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             self.repair_sss(option)
+
+    def remove_unpacked_missing_images(self):
+        """移除丢失的图像，以解决无法打包文件，找不到资源路径的问题"""
+        images = bpy.data.images
+
+        for image in images:
+            if image.packed_file:  # 图像已经打包
+                pass
+            elif image.filepath:  # 图像未打包，检查路径
+                filepath = bpy.path.abspath(image.filepath)
+                if not os.path.exists(filepath):  # 如果文件不存在
+                    images.remove(image)
+            else:  # 没有路径的情况
+                pass
 
     def repair_sss(self, option):
         objs = bpy.context.selected_objects
