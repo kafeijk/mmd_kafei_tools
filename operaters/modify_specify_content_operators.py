@@ -36,6 +36,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             self.remove_material(objs, props)
         elif content_type == 'REMOVE_MODIFIER':
             self.remove_modifiers(objs, props)
+        elif content_type == 'REMOVE_CONSTRAINT':
+            self.remove_constraint(objs, props)
         elif content_type == 'REMOVE_VERTEX_GROUP':
             self.remove_vgs(objs, props)
         elif content_type == 'REMOVE_SHAPE_KEY':
@@ -206,6 +208,18 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             for modifier in reversed(modifiers_to_remove):
                 obj.modifiers.remove(modifier)
 
+    def remove_constraint(self, objs, props):
+        """移除约束"""
+        keep_first = props.keep_first
+        for obj in objs:
+            constraints = obj.constraints
+            if keep_first:
+                constraints_to_remove = constraints[1:]
+            else:
+                constraints_to_remove = constraints
+            for constraint in reversed(constraints_to_remove):
+                obj.constraints.remove(constraint)
+
     def remove_vgs(self, objs, props):
         """移除顶点组"""
         keep_locked = props.keep_locked
@@ -244,6 +258,8 @@ def get_obj_by_type(objs, content_type):
         return [obj for obj in objs if obj.type in ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'VOLUME', 'GPENCIL']]
     elif content_type == 'REMOVE_MODIFIER':
         return [obj for obj in objs if obj.type in ['MESH', 'CURVE', 'SURFACE', 'FONT', 'VOLUME', 'LATTICE', 'GPENCIL']]
+    elif content_type == 'REMOVE_CONSTRAINT':
+        return objs
     elif content_type == 'REMOVE_VERTEX_GROUP':
         return [obj for obj in objs if obj.type in ['MESH']]
     elif content_type == 'REMOVE_SHAPE_KEY':

@@ -389,7 +389,7 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
         elif content_type == 'REMOVE_MATERIAL':
             create_default_col = col.column()
             create_default_col.prop(props, "create_default")
-        elif content_type == 'REMOVE_MODIFIER':
+        elif content_type in ['REMOVE_MODIFIER', 'REMOVE_CONSTRAINT']:
             keep_first_col = col.column()
             keep_first_col.prop(props, "keep_first")
         elif content_type == 'REMOVE_VERTEX_GROUP':

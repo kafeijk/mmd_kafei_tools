@@ -15,9 +15,9 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
             ("REMOVE_COLOR_ATTRIBUTE", "移除颜色属性", "移除颜色属性"),  # keep_first
             ("REMOVE_MATERIAL", "移除材质", "移除材质"),  # create_default
             ("REMOVE_MODIFIER", "移除修改器", "移除修改器"),  # keep_first
+            ("REMOVE_CONSTRAINT", "移除约束", "移除约束"),  # keep_first
             ("REMOVE_VERTEX_GROUP", "移除顶点组", "移除顶点组"),
             ("REMOVE_SHAPE_KEY", "移除形态键", "移除形态键"),  # keep_current
-
         ]
     )
     uv_name: bpy.props.StringProperty(
