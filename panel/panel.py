@@ -1,4 +1,5 @@
 from ..operaters.modify_specify_content_operators import ModifySpecifyContentOperator
+from ..operaters.modify_specify_content_operators import ArrangeObjectOperator
 from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
 from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
 from ..operaters.organize_panel_operators import OrganizePanelOperator
@@ -247,7 +248,6 @@ class LightSettingsPanel(bpy.types.Panel):
         target_type_col = col.column()
         target_type_col.prop(props, "target_type")
 
-
         target_type = props.target_type
         if target_type == "ARMATURE":
             bone_name_col = col.column()
@@ -403,8 +403,8 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
         operator_col.operator(ModifySpecifyContentOperator.bl_idname, text=ModifySpecifyContentOperator.bl_label)
 
 
-class ArrangeSettingsPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_arrange_settings"
+class ArrangeObjectPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_arrange_object"
     bl_label = "物体排列"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -414,7 +414,46 @@ class ArrangeSettingsPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
-        pass
+        props = scene.mmd_kafei_tools_arrange_object
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        arrangement_type = props.arrangement_type
+        col.prop(props, "arrangement_type")
+        if arrangement_type == "ARRAY":
+            col.prop(props, "direction")
+        col.prop(props, "order")
+
+        if arrangement_type == "ARRAY":
+            col2 = col.column(align=True)
+            col2.prop(props, "start_trans", index=0, text="起始 X")
+            direction = props.direction
+            if direction == "HORIZONTAL":
+                col2.prop(props, "start_trans", index=1, text="Y")
+            else:
+                col2.prop(props, "start_trans", index=2, text="Z")
+            col2.prop(props, "spacing", index=0, text="间距 X")
+            if direction == "HORIZONTAL":
+                col2.prop(props, "spacing", index=1, text="Y")
+            else:
+                col2.prop(props, "spacing", index=2, text="Z")
+
+            col2.prop(props, "num_per_row")
+            col2.prop(props, "threshold")
+        elif arrangement_type in ["ARC", "CIRCLE"]:
+            col2 = col.column(align=True)
+            col2.prop(props, "radius")
+            col2.prop(props, "num_per_circle")
+            col2.prop(props, "spacing_circle")
+            col2.prop(props, "offset")
+            col2.prop(props, "threshold")
+
+        operator_col = col.column()
+        operator_col.operator(ArrangeObjectOperator.bl_idname, text=ArrangeObjectOperator.bl_label)
 
 
 class ModelModificationPanel(bpy.types.Panel):

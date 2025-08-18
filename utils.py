@@ -791,3 +791,18 @@ def hex_to_rgb(hex_string, alpha=None):
     r, g, b = (h >> 16) & 0xff, (h >> 8) & 0xff, h & 0xff
     color = [srgb_to_linearrgb(c / 255.0) for c in (r, g, b)]
     return tuple(color + [alpha]) if alpha is not None else tuple(color)
+
+
+def try_int(s):
+    """将可以转化为数字的转化为数字,不可以转化的保留原始类型"""
+    return int(s) if s.isdigit() else s
+
+
+def alphanum_key(s):
+    """ 将字符串转换成由字符串和数字块组成的列表 "z23a" -> ["z", 23, "a"]"""
+    return [try_int(c) for c in re.split('([0-9]+)', s)]
+
+
+def natural_sort(l):
+    """按照人类期望的方式对给定的列表进行排序"""
+    l.sort(key=alphanum_key)
