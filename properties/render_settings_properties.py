@@ -78,6 +78,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     main_distance: bpy.props.FloatProperty(
         name="主光距离",
         description="主光到目标的水平距离",
+        subtype='DISTANCE',
         default=2,
         min=0.0
     )
@@ -85,6 +86,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     fill_distance: bpy.props.FloatProperty(
         name="辅光距离",
         description="辅光到目标的水平距离",
+        subtype='DISTANCE',
         default=1.5,
         min=0.0
     )
@@ -92,6 +94,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     back_distance: bpy.props.FloatProperty(
         name="背光直线距离",
         description="背光到目标的直线距离",
+        subtype='DISTANCE',
         default=1,
         min=0.0
     )
