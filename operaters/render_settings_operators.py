@@ -19,6 +19,7 @@ class RenderSettingsOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_render_settings
         engine = props.engine
 
+        # 设置渲染参数。关于着色方式 - 渲染，初始加载可能会耗费时间，因此暂不添加
         if engine == "EEVEE":
             blender_version = bpy.app.version
             if blender_version < (4, 2, 0):
@@ -29,6 +30,10 @@ class RenderSettingsOperator(bpy.types.Operator):
             set_cycles()
         else:
             pass
+
+        # 查看变换
+        if bpy.context.scene.display_settings.display_device == 'sRGB':
+            bpy.context.scene.view_settings.view_transform = 'Filmic'
 
 
 class WorldSettingsOperator(bpy.types.Operator):
@@ -111,7 +116,11 @@ def set_env(operator, world_name):
             if bpy.context.scene.display_settings.display_device == 'ACES':
                 image.colorspace_settings.name = 'Utility - Linear - sRGB'
             else:
-                image.colorspace_settings.name = 'sRGB'
+                blender_version = bpy.app.version
+                if blender_version < (4, 0, 0):
+                    safe_set(image.colorspace_settings, "name", "Linear")  # 2.x 3.x 默认
+                else:
+                    safe_set(image.colorspace_settings, "name", "Linear Rec.709")  # 4.x 默认
 
         # 依次按顺序相连接
         world_nodes.links.new(tex_coord_node.outputs['Generated'], mapping_node.inputs['Vector'])
@@ -585,7 +594,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         # 胶片透明
         bpy.context.scene.render.film_transparent = True
         # 取消辉光
-        bpy.context.scene.eevee.use_bloom = False
+        safe_set(bpy.context.scene.eevee, "use_bloom", False)
 
         # 输出属性
         # 分辨率
