@@ -312,6 +312,10 @@ class ResolutionSettingsOperator(bpy.types.Operator):
             "2K": (2560, 1440),
             "4K": (3840, 2160),
             "8K": (7680, 4320),
+            "720_4_3": (960, 720),
+            "1080_4_3": (1440, 1080),
+            "1440_4_3": (1920, 1440),
+            "2160_4_3": (2880, 2160)
         }
 
         width, height = res_dict.get(output.resolution, (1920, 1080))

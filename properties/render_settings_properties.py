@@ -50,6 +50,7 @@ class WorldSettingsProperty(bpy.types.PropertyGroup):
     def unregister():
         del bpy.types.Scene.mmd_kafei_tools_world_settings
 
+
 class OutputSettingsProperty(bpy.types.PropertyGroup):
     resolution: bpy.props.EnumProperty(
         name="分辨率",
@@ -63,6 +64,10 @@ class OutputSettingsProperty(bpy.types.PropertyGroup):
             ("540P", "540p", "960x540"),
             ("720P", "720p", "1280x720"),
             ("8K", "8K", "7680x4320"),
+            ("720_4_3", "960×720(4:3)", "960×720(4:3)"),
+            ("1080_4_3", "1440×1080(4:3)", "1440×1080(4:3)"),
+            ("1440_4_3", "1920×1440(4:3)", "1920×1440(4:3)"),
+            ("2160_4_3", "2880 × 2160(4:3)", "2880 × 2160(4:3)")
         ],
         default="1080P"
     )
@@ -142,7 +147,6 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         subtype="ANGLE",
         default=math.radians(-45)
     )
-
 
     @staticmethod
     def register():
