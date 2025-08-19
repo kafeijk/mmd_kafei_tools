@@ -684,15 +684,17 @@ class QuickOperationPanel(bpy.types.Panel):
                               icon='GREASEPENCIL')
 
         operator_row = operator_col.row(align=True)
+        row3 = operator_row.row(align=True)
         if is_mmd_tools_enabled():
-            operator_row.operator(DetectOverlappingFacesOperator.bl_idname,
+            row3.operator(DetectOverlappingFacesOperator.bl_idname,
                                   text=DetectOverlappingFacesOperator.bl_label,
                                   icon='VIEWZOOM')
         else:
-            operator_row.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
+            row3.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
                                   icon='VIEWZOOM')
-            operator_row.enabled = False
-        operator_row.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
+            row3.enabled = False
+        row4 = operator_row.row(align=True)
+        row4.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
 
 
 class PrePostProcessingPanel(bpy.types.Panel):
