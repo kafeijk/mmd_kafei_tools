@@ -351,8 +351,7 @@ class ToolsPanel(bpy.types.Panel):
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
     bl_order = 2
-
-    # bl_options = {'DEFAULT_CLOSED'}
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         scene = context.scene
@@ -475,6 +474,7 @@ class ModelModificationPanel(bpy.types.Panel):
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
     bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         scene = context.scene
