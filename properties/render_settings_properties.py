@@ -71,7 +71,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     vg_name: bpy.props.StringProperty(
         name="顶点组",
         description="顶点组名称",
-        default='頭'
+        default='Group'
     )
 
     # ---------------------- 灯光参数 ----------------------
