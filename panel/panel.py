@@ -35,6 +35,12 @@ from ..operaters.render_settings_operators import RenderSettingsOperator
 from ..operaters.render_settings_operators import ResolutionSettingsOperator
 from ..operaters.render_settings_operators import SwapResolutionOperator
 from ..operaters.render_settings_operators import LightSettingsOperator
+from ..operaters.quick_operation_operators import MergeVerticesOperator
+from ..operaters.quick_operation_operators import DummyOperator
+from ..operaters.quick_operation_operators import SetMatNameByObjNameOperator
+from ..operaters.quick_operation_operators import SetObjNameByMatNameOperator
+from ..operaters.quick_operation_operators import DetectOverlappingFacesOperator
+from ..operaters.quick_operation_operators import CleanSceneOperator
 from ..utils import *
 import addon_utils
 
@@ -624,6 +630,62 @@ class TransferVgWeightPanel(bpy.types.Panel):
 
         operator_col = col.column()
         operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
+
+
+class QuickOperationPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_quick_operation"
+    bl_label = "快捷操作"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 4
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column(align=True)
+        operator_col = col.column(align=True)
+
+        # 选择 物理骨骼 烘焙骨骼
+        operator_row = operator_col.row(align=True)
+        row1 = operator_row.row(align=True)
+        row1.operator(MergeVerticesOperator.bl_idname, text=MergeVerticesOperator.bl_label, icon="AUTOMERGE_OFF")
+        row2 = operator_row.row(align=True)
+        if is_mmd_tools_enabled():
+            row2.operator('mmd_tools.separate_by_materials', text='Separate by Materials', icon='MOD_EXPLODE')
+
+            active_object = bpy.context.active_object
+            if active_object:
+                root = find_pmx_root_with_child(active_object)
+                if root and active_object.type == 'MESH':
+                    row2.enabled = True
+                else:
+                    row2.enabled = False
+            else:
+                row2.enabled = False
+        else:
+            row2.operator(DummyOperator.bl_idname, text='按材质分开', icon='MOD_EXPLODE')
+            row2.enabled = False
+
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(SetMatNameByObjNameOperator.bl_idname, text=SetMatNameByObjNameOperator.bl_label,
+                              icon='GREASEPENCIL')
+        operator_row.operator(SetObjNameByMatNameOperator.bl_idname, text=SetObjNameByMatNameOperator.bl_label,
+                              icon='GREASEPENCIL')
+
+        operator_row = operator_col.row(align=True)
+        if is_mmd_tools_enabled():
+            operator_row.operator(DetectOverlappingFacesOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
+                          icon='VIEWZOOM')
+        else:
+            operator_row.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label, icon='VIEWZOOM')
+            operator_row.enabled = False
+        operator_row.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
 
 
 class PrePostProcessingPanel(bpy.types.Panel):
