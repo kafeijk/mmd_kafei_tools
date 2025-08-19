@@ -45,79 +45,84 @@ class WorldSettingsOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_world_settings
         world_name = props.world_name
+        set_env(self, world_name)
 
-        # 确保新的世界使用节点
-        if world_name == "DEFAULT":
-            world_name = "World"
-            world = bpy.data.worlds.new(world_name)
-            if world.name != world_name:
-                world.name = world_name
-            world.use_nodes = True
-            world_nodes = world.node_tree
-            for node in world_nodes.nodes:
-                if node.bl_idname == "ShaderNodeBackground":
-                    node.inputs[0].default_value = (0, 0, 0, 1)
-                    node.inputs[1].default_value = 0
-            # 设置世界环境
-            bpy.context.scene.world = world
-            return
+
+
+def get_folder(blender_install_dir, folder_name):
+    for root, dirs, files in os.walk(blender_install_dir):
+        for dir_name in dirs:
+            if folder_name in dir_name:
+                return os.path.join(root, dir_name)
+
+
+def set_env(operator, world_name):
+    # 确保新的世界使用节点
+    if world_name == "DEFAULT":
+        world_name = "World"
+        world = bpy.data.worlds.new(world_name)
+        if world.name != world_name:
+            world.name = world_name
+        world.use_nodes = True
+        world_nodes = world.node_tree
+        for node in world_nodes.nodes:
+            if node.bl_idname == "ShaderNodeBackground":
+                node.inputs[0].default_value = (0, 0, 0, 1)
+                node.inputs[1].default_value = 0
+        # 设置世界环境
+        bpy.context.scene.world = world
+        return
+    else:
+        world_name = world_name.capitalize()
+        world = bpy.data.worlds.new(world_name)
+        if world.name != world_name:
+            world.name = world_name
+        world.use_nodes = True
+        world_nodes = world.node_tree
+        world_nodes.nodes.clear()
+        # 创建 Texture Coordinate 节点
+        tex_coord_node = world_nodes.nodes.new(type='ShaderNodeTexCoord')
+        tex_coord_node.location = (-700, 0)
+        # 创建 Mapping 节点
+        mapping_node = world_nodes.nodes.new(type='ShaderNodeMapping')
+        mapping_node.location = (-500, 0)
+        # 创建天空球纹理节点
+        env_tex_node = world_nodes.nodes.new(type='ShaderNodeTexEnvironment')
+        env_tex_node.location = (-300, 0)
+        # 创建 Background 节点
+        background_node = world_nodes.nodes.new(type='ShaderNodeBackground')
+        background_node.location = (0, 0)
+        # 创建 World Output 节点
+        world_output_node = world_nodes.nodes.new(type='ShaderNodeOutputWorld')
+        world_output_node.location = (200, 0)
+        # 获取 Blender 安装目录
+        blender_binary_path = bpy.app.binary_path
+        blender_install_dir = os.path.dirname(blender_binary_path)
+        # 获取环境纹理路径（递归寻找，防止因blender安装版本/绿色版本文件目录结构差异带来的找不到文件的问题）
+        env_folder = get_folder(blender_install_dir, "world")
+        env_texture_path = os.path.join(env_folder, f'{world_name}.exr')
+
+        if not os.path.exists(env_texture_path):
+            operator.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface(
+                "HDRI Map not found. Add manually. Path: {}").format(env_texture_path))
         else:
-            world_name = world_name.capitalize()
-            world = bpy.data.worlds.new(world_name)
-            if world.name != world_name:
-                world.name = world_name
-            world.use_nodes = True
-            world_nodes = world.node_tree
-            world_nodes.nodes.clear()
-            # 创建 Texture Coordinate 节点
-            tex_coord_node = world_nodes.nodes.new(type='ShaderNodeTexCoord')
-            tex_coord_node.location = (-700, 0)
-            # 创建 Mapping 节点
-            mapping_node = world_nodes.nodes.new(type='ShaderNodeMapping')
-            mapping_node.location = (-500, 0)
-            # 创建天空球纹理节点
-            env_tex_node = world_nodes.nodes.new(type='ShaderNodeTexEnvironment')
-            env_tex_node.location = (-300, 0)
-            # 创建 Background 节点
-            background_node = world_nodes.nodes.new(type='ShaderNodeBackground')
-            background_node.location = (0, 0)
-            # 创建 World Output 节点
-            world_output_node = world_nodes.nodes.new(type='ShaderNodeOutputWorld')
-            world_output_node.location = (200, 0)
-            # 获取 Blender 安装目录
-            blender_binary_path = bpy.app.binary_path
-            blender_install_dir = os.path.dirname(blender_binary_path)
-            # 获取环境纹理路径（递归寻找，防止因blender安装版本/绿色版本文件目录结构差异带来的找不到文件的问题）
-            env_folder = self.get_folder(blender_install_dir, "world")
-            env_texture_path = os.path.join(env_folder, f'{world_name}.exr')
+            image = bpy.data.images.load(env_texture_path, check_existing=True)
+            env_tex_node.image = image
 
-            if not os.path.exists(env_texture_path):
-                self.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface(
-                    "HDRI Map not found. Add manually. Path: {}").format(env_texture_path))
+            if bpy.context.scene.display_settings.display_device == 'ACES':
+                image.colorspace_settings.name = 'Utility - Linear - sRGB'
             else:
-                image = bpy.data.images.load(env_texture_path, check_existing=True)
-                env_tex_node.image = image
+                image.colorspace_settings.name = 'sRGB'
 
-                if bpy.context.scene.display_settings.display_device == 'ACES':
-                    image.colorspace_settings.name = 'Utility - Linear - sRGB'
-                else:
-                    image.colorspace_settings.name = 'sRGB'
-
-            # 依次按顺序相连接
-            world_nodes.links.new(tex_coord_node.outputs['Generated'], mapping_node.inputs['Vector'])
-            world_nodes.links.new(mapping_node.outputs['Vector'], env_tex_node.inputs['Vector'])
-            world_nodes.links.new(env_tex_node.outputs['Color'], background_node.inputs['Color'])
-            world_nodes.links.new(background_node.outputs['Background'], world_output_node.inputs['Surface'])
-            # 设置背景强度
-            background_node.inputs['Strength'].default_value = 1
-            # 设置世界环境
-            bpy.context.scene.world = world
-
-    def get_folder(self, blender_install_dir, folder_name):
-        for root, dirs, files in os.walk(blender_install_dir):
-            for dir_name in dirs:
-                if folder_name in dir_name:
-                    return os.path.join(root, dir_name)
+        # 依次按顺序相连接
+        world_nodes.links.new(tex_coord_node.outputs['Generated'], mapping_node.inputs['Vector'])
+        world_nodes.links.new(mapping_node.outputs['Vector'], env_tex_node.inputs['Vector'])
+        world_nodes.links.new(env_tex_node.outputs['Color'], background_node.inputs['Color'])
+        world_nodes.links.new(background_node.outputs['Background'], world_output_node.inputs['Surface'])
+        # 设置背景强度
+        background_node.inputs['Strength'].default_value = 1
+        # 设置世界环境
+        bpy.context.scene.world = world
 
 
 def reset(struct):
@@ -547,3 +552,66 @@ def find_armature(obj):
             return result
 
     return None
+
+
+class LoadRenderPresetOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.load_render_preset"
+    bl_label = "加载渲染预设"
+    bl_description = "加载渲染预设"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.main(context)
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def main(self, context):
+        scene = context.scene
+
+        blender_version = bpy.app.version
+        if blender_version < (4, 2, 0):
+            set_eevee()
+        else:
+            set_eevee_next()
+        # 胶片透明
+        bpy.context.scene.render.film_transparent = True
+        # 取消辉光
+        bpy.context.scene.eevee.use_bloom = False
+
+        # 输出属性
+        # 分辨率
+        bpy.context.scene.render.resolution_x = 1440
+        bpy.context.scene.render.resolution_y = 1920
+        # 帧率
+        bpy.context.scene.render.fps = 30
+        # 起始帧
+        bpy.context.scene.frame_start = 1
+        # 当前帧
+        bpy.context.scene.frame_current = 1
+        # 输出
+        bpy.context.scene.render.use_file_extension = True
+        bpy.context.scene.render.image_settings.file_format = 'PNG'
+        bpy.context.scene.render.image_settings.color_mode = 'RGBA'
+        bpy.context.scene.render.image_settings.color_depth = '8'
+        bpy.context.scene.render.image_settings.compression = 15
+        bpy.context.scene.render.use_overwrite = True
+        bpy.context.scene.render.image_settings.color_management = 'FOLLOW_SCENE'
+
+        # 其他项
+        # 显示叠加层
+        bpy.context.space_data.overlay.show_overlays = False
+        # 着色方式 渲染
+        bpy.context.space_data.shading.type = 'RENDERED'
+        # 关闭透视模式 https://blender.stackexchange.com/questions/159525/how-to-toggle-xray-in-viewport-with-python
+        views3d = [a for a in bpy.context.screen.areas if a.type == 'VIEW_3D']
+        for a in views3d:
+            shading = a.spaces.active.shading
+            shading.show_xray = False
+            shading.show_xray_wireframe = False
+
+        # 设置并切换到自定义世界环境
+        set_env(self, "SUNSET")
+
+        # 隐藏场景中所有灯光
+        lights = [obj for obj in bpy.context.scene.objects if obj.type == 'LIGHT']
+        for light in lights:
+            set_visibility(light, (False, True, False, True))

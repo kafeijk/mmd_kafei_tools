@@ -5,7 +5,7 @@ from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
 from ..operaters.organize_panel_operators import OrganizePanelOperator
 from ..operaters.remove_uv_map_operators import RemoveUvMapOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
-from ..operaters.render_preview_operators import LoadRenderPresetOperator
+from ..operaters.render_settings_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.small_feature_operators import SmallFeatureOperator
 from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
@@ -687,11 +687,11 @@ class QuickOperationPanel(bpy.types.Panel):
         row3 = operator_row.row(align=True)
         if is_mmd_tools_enabled():
             row3.operator(DetectOverlappingFacesOperator.bl_idname,
-                                  text=DetectOverlappingFacesOperator.bl_label,
-                                  icon='VIEWZOOM')
+                          text=DetectOverlappingFacesOperator.bl_label,
+                          icon='VIEWZOOM')
         else:
             row3.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
-                                  icon='VIEWZOOM')
+                          icon='VIEWZOOM')
             row3.enabled = False
         row4 = operator_row.row(align=True)
         row4.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
@@ -939,6 +939,9 @@ class RenderPreviewPanel(bpy.types.Panel):
         rotation_col.prop(props, "rotation_euler_z")
         auto_follow_col = rotation_col.column()
         auto_follow_col.prop(props, "auto_follow")
+        auto_follow = props.auto_follow
+        if auto_follow:
+            bpy.context.space_data.lock_camera = True
         align_col = col.column()
         align_col.prop(props, "align")
 

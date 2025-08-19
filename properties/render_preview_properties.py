@@ -46,7 +46,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         name="旋转 X",
         description="欧拉旋转",
         subtype="ANGLE",
-        default=math.radians(90)
+        default=math.radians(85)
     )
     rotation_euler_y: bpy.props.FloatProperty(
         name="Y",
