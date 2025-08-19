@@ -24,6 +24,32 @@ class RenderSettingsProperty(bpy.types.PropertyGroup):
         del bpy.types.Scene.mmd_kafei_tools_render_settings
 
 
+class WorldSettingsProperty(bpy.types.PropertyGroup):
+    world_name: bpy.props.EnumProperty(
+        name="世界环境",
+        description="世界环境",
+        items=[
+            ("DEFAULT", "默认", "世界背景为黑色，无光照贡献"),
+            ("CITY", "城市", "模拟城市环境光照"),
+            ("COURTYARD", "庭院", "模拟庭院环境光照"),
+            ("FOREST", "森林", "模拟森林环境光照"),
+            ("INTERIOR", "室内", "模拟室内环境光照"),
+            ("NIGHT", "夜景", "模拟夜晚环境光照"),
+            ("STUDIO", "摄影棚", "模拟摄影棚环境光照"),
+            ("SUNRISE", "日出", "模拟日出环境光照"),
+            ("SUNSET", "日落", "模拟日落环境光照"),
+        ],
+        default="DEFAULT"
+    )
+
+    @staticmethod
+    def register():
+        bpy.types.Scene.mmd_kafei_tools_world_settings = bpy.props.PointerProperty(type=WorldSettingsProperty)
+
+    @staticmethod
+    def unregister():
+        del bpy.types.Scene.mmd_kafei_tools_world_settings
+
 class OutputSettingsProperty(bpy.types.PropertyGroup):
     resolution: bpy.props.EnumProperty(
         name="分辨率",

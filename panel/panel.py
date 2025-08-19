@@ -32,6 +32,7 @@ from ..operaters.fill_suffix_operators import FillSuffixRemoveUvMapOperator
 from ..operaters.fill_suffix_operators import FillSuffixOrganizePanelOperator
 from ..operaters.fill_suffix_operators import FillSuffixRenderPreviewOperator
 from ..operaters.render_settings_operators import RenderSettingsOperator
+from ..operaters.render_settings_operators import WorldSettingsOperator
 from ..operaters.render_settings_operators import ResolutionSettingsOperator
 from ..operaters.render_settings_operators import SwapResolutionOperator
 from ..operaters.render_settings_operators import LightSettingsOperator
@@ -173,10 +174,14 @@ class RenderSettingsPanel(bpy.types.Panel):
 
         engine_col = col.column()
         engine_row = engine_col.row()
-        # split = engine_row.split(factor=0.8, align=True)
         engine_row.prop(props, "engine")
-
         engine_row.operator(RenderSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
+
+        props2 = scene.mmd_kafei_tools_world_settings
+        world_col = col.column()
+        world_row = world_col.row()
+        world_row.prop(props2, "world_name")
+        world_row.operator(WorldSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
 
         rd = scene.render
         transparent_col = col.column()
@@ -680,10 +685,12 @@ class QuickOperationPanel(bpy.types.Panel):
 
         operator_row = operator_col.row(align=True)
         if is_mmd_tools_enabled():
-            operator_row.operator(DetectOverlappingFacesOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
-                          icon='VIEWZOOM')
+            operator_row.operator(DetectOverlappingFacesOperator.bl_idname,
+                                  text=DetectOverlappingFacesOperator.bl_label,
+                                  icon='VIEWZOOM')
         else:
-            operator_row.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label, icon='VIEWZOOM')
+            operator_row.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
+                                  icon='VIEWZOOM')
             operator_row.enabled = False
         operator_row.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
 
