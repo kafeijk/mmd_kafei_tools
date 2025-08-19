@@ -48,7 +48,6 @@ class WorldSettingsOperator(bpy.types.Operator):
         set_env(self, world_name)
 
 
-
 def get_folder(blender_install_dir, folder_name):
     for root, dirs, files in os.walk(blender_install_dir):
         for dir_name in dirs:
@@ -404,6 +403,17 @@ class LightSettingsOperator(bpy.types.Operator):
 
         light_coll = get_collection("3 Points Lighting")
 
+        preset = props.preset
+        colors = {
+            # 主光 - 辅光 - 背光
+            # 规则：辅光亮度/饱和度偏低，背光亮度/饱和度偏高
+            "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),
+            "RED_BLUE": ("#FF5959", "#BCC4FF", "#5979FF"),
+            "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
+        }
+
+        main_light_color, fill_light_color, back_light_color = colors.get(preset, colors["DEFAULT"])
+
         # 创建灯光
         # 主光
         main_light = get_obj_by_attr_value("Tri-Lighting", "MainLight")
@@ -411,9 +421,9 @@ class LightSettingsOperator(bpy.types.Operator):
             main_light = bpy.data.objects.new("MainLight", bpy.data.lights.new("MainLightData", type='AREA'))
             main_light.data.size = 1
             main_light.data.energy = 150
-            main_light.data.color = hex_to_rgb("#FFDACA")
             main_light.data.volume_factor = 0
             main_light["Tri-Lighting"] = "MainLight"
+        main_light.data.color = hex_to_rgb(main_light_color)
 
         # 辅光
         fill_light = get_obj_by_attr_value("Tri-Lighting", "FillLight")
@@ -421,9 +431,9 @@ class LightSettingsOperator(bpy.types.Operator):
             fill_light = bpy.data.objects.new("FillLight", bpy.data.lights.new("FillLightData", type='AREA'))
             fill_light.data.size = 1
             fill_light.data.energy = 150 * 0.2
-            fill_light.data.color = hex_to_rgb("#76C2FF")
             fill_light.data.volume_factor = 0
             fill_light["Tri-Lighting"] = "FillLight"
+        fill_light.data.color = hex_to_rgb(fill_light_color)
 
         # 背光
         back_light = get_obj_by_attr_value("Tri-Lighting", "BackLight")
@@ -431,9 +441,9 @@ class LightSettingsOperator(bpy.types.Operator):
             back_light = bpy.data.objects.new("BackLight", bpy.data.lights.new("BackLightData", type='AREA'))
             back_light.data.size = 1
             back_light.data.energy = 250
-            back_light.data.color = hex_to_rgb("#00D9FF")
             back_light.data.volume_factor = 0
             back_light["Tri-Lighting"] = "BackLight"
+        back_light.data.color = hex_to_rgb(back_light_color)
 
         # 主光、辅光、背光与原点的水平直线距离
         main_distance = props.main_distance

@@ -269,6 +269,7 @@ class LightSettingsPanel(bpy.types.Panel):
 
         col.separator()
         col = col.column()
+        col.prop(props, "preset")
         col.prop(props, "main_distance")
         col.prop(props, "fill_distance")
         col.prop(props, "main_position")

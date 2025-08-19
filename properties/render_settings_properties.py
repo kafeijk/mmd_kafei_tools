@@ -106,6 +106,18 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     )
 
     # ---------------------- 灯光参数 ----------------------
+    preset: bpy.props.EnumProperty(
+        name="颜色预设",
+        description="灯光颜色预设",
+        items=[
+            ("DEFAULT", "默认", "默认"),
+            ("RED_BLUE", "红蓝", "红蓝"),
+            ("BLUE_PURPLE", "蓝紫", "蓝紫")
+
+        ],
+        default="DEFAULT"
+    )
+
     main_distance: bpy.props.FloatProperty(
         name="主光距离",
         description="主光到目标的水平距离",
