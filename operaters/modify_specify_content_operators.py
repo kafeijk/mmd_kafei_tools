@@ -486,7 +486,11 @@ class ArrangeObjectOperator(bpy.types.Operator):
                     curr_offset = (1 / num_per_circle) * unit * ((curr_count - 1) % (1 / unit))
                     offset_factor = curr_curve_character_index / num_per_circle + curr_offset
                 else:
-                    offset_factor = curr_curve_character_index / num_per_circle
+                    if arrangement_type == "ARC":
+                        offset_factor = curr_curve_character_index / (num_per_circle - 1)
+                    else:
+                        offset_factor = curr_curve_character_index / num_per_circle
+
                 offset_factor = 1 - offset_factor  # 使圆弧从左到右排列，不处理圆环实际左右情况
                 follow_path_cons.offset_factor = offset_factor
                 follow_path_cons.forward_axis = 'FORWARD_Y'
