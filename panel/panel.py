@@ -1,7 +1,7 @@
 from ..operaters.modify_specify_content_operators import ModifySpecifyContentOperator
 from ..operaters.modify_specify_content_operators import ArrangeObjectOperator
 from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
-from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
+from ..operaters.small_feature_operators import ModifyColorspaceOperator
 from ..operaters.organize_panel_operators import OrganizePanelOperator
 from ..operaters.remove_uv_map_operators import RemoveUvMapOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
@@ -281,9 +281,9 @@ class LightSettingsPanel(bpy.types.Panel):
         operators_col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
 
 
-class ModifyColorspacePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_modify_colorspace"
-    bl_label = "色彩空间调整"
+class SmallFeaturePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_sf"
+    bl_label = "小功能"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_scene_settings"
@@ -292,44 +292,8 @@ class ModifyColorspacePanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_modify_colorspace
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-        keywords = props.keywords
-
-        source_colorspace_col = col.column()
-        source_colorspace_col.prop(props, "source_colorspace")
-        if keywords:
-            source_colorspace_col.enabled = False
-        else:
-            source_colorspace_col.enabled = True
-
-        target_colorspace_col = col.column()
-        target_colorspace_col.prop(props, "target_colorspace")
-
-        keywords_col = col.column()
-        keywords_col.prop(props, "keywords")
-
-        operator_col = col.column()
-        operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
-
-
-class SmallFeaturePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_sf"
-    bl_label = "小功能"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_scene_settings"
-    bl_order = 5
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
         props = scene.mmd_kafei_tools_sf
+        props2 = scene.mmd_kafei_tools_modify_colorspace
 
         layout = self.layout
         layout.use_property_split = True
@@ -340,8 +304,28 @@ class SmallFeaturePanel(bpy.types.Panel):
         option_col = col.column()
         option_col.prop(props, "option")
 
-        operators_col = col.column()
-        operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
+        option = props.option
+
+        if option == "MODIFY_COLORSPACE":
+            source_colorspace_col = col.column()
+            source_colorspace_col.prop(props2, "source_colorspace")
+            keywords = props2.keywords
+            if keywords:
+                source_colorspace_col.enabled = False
+            else:
+                source_colorspace_col.enabled = True
+
+            target_colorspace_col = col.column()
+            target_colorspace_col.prop(props2, "target_colorspace")
+
+            keywords_col = col.column()
+            keywords_col.prop(props2, "keywords")
+
+            operator_col = col.column()
+            operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
+        else:
+            operators_col = col.column()
+            operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
 
 
 class ToolsPanel(bpy.types.Panel):

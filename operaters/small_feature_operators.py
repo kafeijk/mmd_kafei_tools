@@ -90,7 +90,8 @@ class SmallFeatureOperator(bpy.types.Operator):
         if option == "SUBSURFACE_EV":
             result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
             if len(result) > 0:
-                self.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
+                self.report(type={'WARNING'},
+                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
                 self.report(type={'WARNING'},
                             message="Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑")
 
@@ -269,3 +270,32 @@ def force_process(node_tree, output_node):
             mix_shader_node.inputs[0].default_value = 0.001
             return True
     return False
+
+
+class ModifyColorspaceOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.modify_colorspace"
+    bl_label = "执行"
+    bl_description = "修改贴图色彩空间"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.main(context)
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def main(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_modify_colorspace
+
+        source_colorspace = props.source_colorspace
+        target_colorspace = props.target_colorspace
+        keywords = props.keywords
+
+        for image in bpy.data.images:
+            if keywords:
+                keyword_list = [keyword.lower().strip() for keyword in keywords.split(",")]
+                if any(keyword in image.name.lower().strip() for keyword in keyword_list):
+                    # 修改图像的色彩空间
+                    image.colorspace_settings.name = target_colorspace
+            else:
+                if image.colorspace_settings.name == source_colorspace:
+                    image.colorspace_settings.name = target_colorspace
