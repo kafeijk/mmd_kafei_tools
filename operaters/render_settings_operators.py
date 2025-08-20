@@ -35,6 +35,12 @@ class RenderSettingsOperator(bpy.types.Operator):
         if bpy.context.scene.display_settings.display_device == 'sRGB':
             bpy.context.scene.view_settings.view_transform = 'Filmic'
 
+        # 着色方式 渲染
+        try:
+            bpy.context.space_data.shading.type = 'RENDERED'
+        except:
+            pass
+
 
 class WorldSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.world_settings"
