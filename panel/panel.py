@@ -5,7 +5,7 @@ from ..operaters.small_feature_operators import ModifyColorspaceOperator
 from ..operaters.organize_panel_operators import OrganizePanelOperator
 from ..operaters.remove_uv_map_operators import RemoveUvMapOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
-from ..operaters.render_settings_operators import LoadRenderPresetOperator
+from ..operaters.scene_settings_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.small_feature_operators import SmallFeatureOperator
 from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
@@ -31,11 +31,11 @@ from ..operaters.fill_suffix_operators import FillSuffixSsbOperator
 from ..operaters.fill_suffix_operators import FillSuffixRemoveUvMapOperator
 from ..operaters.fill_suffix_operators import FillSuffixOrganizePanelOperator
 from ..operaters.fill_suffix_operators import FillSuffixRenderPreviewOperator
-from ..operaters.render_settings_operators import RenderSettingsOperator
-from ..operaters.render_settings_operators import WorldSettingsOperator
-from ..operaters.render_settings_operators import ResolutionSettingsOperator
-from ..operaters.render_settings_operators import SwapResolutionOperator
-from ..operaters.render_settings_operators import LightSettingsOperator
+from ..operaters.scene_settings_operators import RenderSettingsOperator
+from ..operaters.scene_settings_operators import WorldSettingsOperator
+from ..operaters.scene_settings_operators import ResolutionSettingsOperator
+from ..operaters.scene_settings_operators import SwapResolutionOperator
+from ..operaters.scene_settings_operators import LightSettingsOperator
 from ..operaters.quick_operation_operators import MergeVerticesOperator
 from ..operaters.quick_operation_operators import DummyOperator
 from ..operaters.quick_operation_operators import SetMatNameByObjNameOperator
