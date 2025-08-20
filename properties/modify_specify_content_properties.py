@@ -85,7 +85,7 @@ class ArrangeObjectProperty(bpy.types.PropertyGroup):
         description="排列类型",
         items=[
             ("ARRAY", "阵列", "阵列"),
-            ("ARC", "圆弧", "曲线"),
+            ("ARC", "圆弧", "圆弧"),
             ("CIRCLE", "圆环", "圆环"),
 
         ],
@@ -136,7 +136,7 @@ class ArrangeObjectProperty(bpy.types.PropertyGroup):
     threshold: bpy.props.FloatProperty(
         name="尺寸阈值",
         # 300m在默认视图裁剪点（1000m）之内，且大于建筑等模型尺寸（100m~300m），故设为默认值
-        description="如果物体的任意子级网格对象在 X、Y 或 Z 方向上的尺寸大于设定阈值，则该物体将跳过排列处理，并统一放置在坐标 (0, 300, 0) 处。",
+        description="如果物体的任意子级网格对象在 X、Y 或 Z 方向上的尺寸大于设定阈值，则该物体将跳过排列处理，并统一放置在坐标 (0, 300, 0) 处",
         default=5,
         subtype='DISTANCE',
     )

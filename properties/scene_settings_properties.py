@@ -5,8 +5,8 @@ import bpy
 
 class RenderSettingsProperty(bpy.types.PropertyGroup):
     engine: bpy.props.EnumProperty(
-        name="渲染引擎",
-        description="用于渲染的引擎",
+        name="Render Engine",
+        description="Engine to use for rendering",
         items=[
             ("EEVEE", "EEVEE", "EEVEE"),
             ("CYCLES", "Cycles", "Cycles")
@@ -30,14 +30,14 @@ class WorldSettingsProperty(bpy.types.PropertyGroup):
         description="世界环境",
         items=[
             ("DEFAULT", "默认", "世界背景为黑色，无光照贡献"),
-            ("CITY", "城市", "模拟城市环境光照"),
-            ("COURTYARD", "庭院", "模拟庭院环境光照"),
-            ("FOREST", "森林", "模拟森林环境光照"),
-            ("INTERIOR", "室内", "模拟室内环境光照"),
-            ("NIGHT", "夜景", "模拟夜晚环境光照"),
-            ("STUDIO", "摄影棚", "模拟摄影棚环境光照"),
-            ("SUNRISE", "日出", "模拟日出环境光照"),
-            ("SUNSET", "日落", "模拟日落环境光照"),
+            ("CITY", "城市", "城市"),
+            ("COURTYARD", "庭院", "庭院"),
+            ("FOREST", "森林", "森林"),
+            ("INTERIOR", "室内", "室内"),
+            ("NIGHT", "夜景", "夜景"),
+            ("STUDIO", "摄影棚", "摄影棚"),
+            ("SUNRISE", "日出", "日出"),
+            ("SUNSET", "日落", "日落"),
         ],
         default="DEFAULT"
     )
@@ -53,8 +53,8 @@ class WorldSettingsProperty(bpy.types.PropertyGroup):
 
 class OutputSettingsProperty(bpy.types.PropertyGroup):
     resolution: bpy.props.EnumProperty(
-        name="分辨率",
-        description="视频分辨率",
+        name="Resolution",
+        description="Resolution",
         items=[
             ("1080P", "1080p", "1920x1080"),
             ("2K", "2K", "2560x1440"),
