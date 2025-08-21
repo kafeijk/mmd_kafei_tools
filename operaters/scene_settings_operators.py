@@ -369,22 +369,22 @@ def set_cons(obj, target, subtarget=None):
         obj.constraints.remove(constraint)
 
     # 新建子级约束
-    obj.constraints.new('CHILD_OF')
+    cons = obj.constraints.new('CHILD_OF')
 
     # 只考虑位置
-    bpy.context.object.constraints["Child Of"].use_rotation_x = False
-    bpy.context.object.constraints["Child Of"].use_rotation_y = False
-    bpy.context.object.constraints["Child Of"].use_rotation_z = False
-    bpy.context.object.constraints["Child Of"].use_scale_x = False
-    bpy.context.object.constraints["Child Of"].use_scale_y = False
-    bpy.context.object.constraints["Child Of"].use_scale_z = False
+    cons.use_rotation_x = False
+    cons.use_rotation_y = False
+    cons.use_rotation_z = False
+    cons.use_scale_x = False
+    cons.use_scale_y = False
+    cons.use_scale_z = False
 
     # 目标设置
-    obj.constraints["Child Of"].target = target
+    cons.target = target
     if subtarget:
-        obj.constraints["Child Of"].subtarget = subtarget
+        cons.subtarget = subtarget
 
-    bpy.ops.constraint.childof_clear_inverse(constraint="Child Of", owner='OBJECT')
+    bpy.ops.constraint.childof_clear_inverse(constraint=cons.name, owner='OBJECT')
 
     deselect_all_objects()
 
