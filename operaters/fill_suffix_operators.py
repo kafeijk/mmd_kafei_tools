@@ -8,7 +8,7 @@ class FillSuffixChangeTexlocOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        context.scene.mmd_kafei_tools_change_tex_loc.batch.suffix = " 修改贴图路径"
+        context.scene.mmd_kafei_tools_change_tex_loc.batch.suffix = bpy.app.translations.pgettext(" 修改贴图路径")
         return {'FINISHED'}
 
 
@@ -19,7 +19,7 @@ class FillSuffixSsbOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        context.scene.mmd_kafei_tools_add_ssb.batch.suffix = " 修复次标准骨骼"
+        context.scene.mmd_kafei_tools_add_ssb.batch.suffix = bpy.app.translations.pgettext(" 修复次标准骨骼")
         return {'FINISHED'}
 
 
@@ -30,7 +30,7 @@ class FillSuffixRemoveUvMapOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        context.scene.mmd_kafei_tools_remove_uv_map.batch.suffix = " 移除冗余UV"
+        context.scene.mmd_kafei_tools_remove_uv_map.batch.suffix = bpy.app.translations.pgettext(" 移除冗余UV")
         return {'FINISHED'}
 
 
@@ -41,7 +41,7 @@ class FillSuffixOrganizePanelOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        context.scene.mmd_kafei_tools_organize_panel.batch.suffix = " 面板整理"
+        context.scene.mmd_kafei_tools_organize_panel.batch.suffix = bpy.app.translations.pgettext(" 面板整理")
         return {'FINISHED'}
 
 

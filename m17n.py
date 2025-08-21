@@ -383,6 +383,11 @@ translation_dict = {
         ("*", "如果目录中已存在具有指定名称后缀的同名文件，应该如何处理"): "How to handle if a file with the same name and specified suffix already exists in the directory",
         ("*", "跳过对这些文件的后续处理"): "Skip further processing of these files",
         ("*", "继续对这些文件进行后续处理，产生的新文件会覆盖原文件"): "Continue processing these files, and the new files will overwrite the original ones",
+        ("*", " 修改贴图路径"): " ChangeTexPath",
+        ("*", " 修复次标准骨骼"): " FixSsb",
+        ("*", " 移除冗余UV"): " RemoveRedundantUV",
+        ("*", " 面板整理"): " OrganizePanel",
+
 
         # Other
         ("Operator", "用户文档"): "Documentation",
