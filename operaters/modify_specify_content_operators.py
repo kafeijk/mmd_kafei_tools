@@ -310,6 +310,23 @@ def modify_mmd_material(material):
     mmd_material.comment = ""
 
 
+def create_curve(arrangement_type, radius):
+    if arrangement_type == "CIRCLE":
+        bpy.ops.curve.spirals(
+            align='WORLD', location=(0, 0, 0), rotation=(0, 0, 0),
+            spiral_type='ARCH', steps=100, radius=radius, curve_type='BEZIER',
+            edit_mode=False
+        )
+    elif arrangement_type == "ARC":
+        bpy.ops.curve.simple(
+            align='WORLD', location=(0, 0, 0), rotation=(0, 0, math.radians(45)),
+            Simple_Type='Arc', Simple_endangle=90, Simple_sides=3, Simple_radius=radius,
+            shape='2D', outputType='BEZIER', use_cyclic_u=False,
+            handleType='VECTOR', edit_mode=False
+        )
+    return bpy.context.active_object
+
+
 class ArrangeObjectOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.arrange_object"
     bl_label = "执行"
@@ -416,6 +433,11 @@ class ArrangeObjectOperator(bpy.types.Operator):
                     z = start_z + row * spacing_z
                     obj.location = (x, 0, z)
         elif arrangement_type in ["ARC", "CIRCLE"]:
+            # 在TMP_SCENE中预先创建圆弧/圆环，以解决性能问题
+            curr_scene_name = bpy.context.scene.name
+            tmp_scene = bpy.data.scenes.new("TMP_SCENE")
+            bpy.context.window.scene = tmp_scene
+
             # 每次均新建集合，以防止过于混乱无法删除
             collection_name = "Controller Collection"
             coll = bpy.data.collections.new(collection_name)
@@ -428,49 +450,33 @@ class ArrangeObjectOperator(bpy.types.Operator):
             empty = bpy.context.active_object
             empty.name = "Locked Track Target"
 
-            # 每个圆环放置角色的索引
-            curr_curve = None
-            curr_curve_character_index = 0
+            # 创建圆环
+            curves = []
+            num_circles = math.ceil(len(normal_objs_sorted) / num_per_circle)
+            for i in range(num_circles):
+                curve = create_curve(arrangement_type, radius + i * spacing_circle)
+                curves.append(curve)
 
-            curr_count = 0
+            # 恢复Scene
+            bpy.context.window.scene = bpy.data.scenes[curr_scene_name]
+            bpy.data.scenes.remove(tmp_scene)
+            # 恢复Link
+            bpy.context.scene.collection.children.link(coll)
+            layer_collection = find_layer_collection_by_name(bpy.context.view_layer.layer_collection, coll.name)
+            bpy.context.view_layer.active_layer_collection = layer_collection
+
+            curr_curve_character_index = 0
+            curr_curve_index = 0
             for i, c in enumerate(normal_objs_sorted):
+                if curr_curve_character_index >= num_per_circle:
+                    curr_curve_character_index = 0
+                    curr_curve_index += 1
+                curr_curve = curves[curr_curve_index]
                 # 位置归零，旋转暂不处理
                 c.location = (0, 0, 0)
                 # 移除原先约束
                 for constraint in c.constraints:
                     c.constraints.remove(constraint)
-
-                # 创建起始圆环
-                if not curr_curve:
-                    if arrangement_type == "CIRCLE":
-                        bpy.ops.curve.spirals(align='WORLD', location=(0, 0, 0), rotation=(0, 0, 0),
-                                              spiral_type='ARCH', steps=100, radius=radius, curve_type='BEZIER')
-                    elif arrangement_type == "ARC":
-                        bpy.ops.curve.simple(align='WORLD', location=(0, 0, 0), rotation=(0, 0, math.radians(45)),
-                                             Simple_Type='Arc',
-                                             Simple_endangle=90, Simple_sides=3, Simple_radius=radius, shape='2D',
-                                             outputType='BEZIER',
-                                             use_cyclic_u=False, handleType='VECTOR')
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    curr_curve = bpy.context.active_object
-                    curr_count += 1
-
-                # 创建后续圆环
-                if curr_curve_character_index >= num_per_circle:
-                    curr_curve_character_index = 0
-                    radius += spacing_circle
-                    if arrangement_type == "CIRCLE":
-                        bpy.ops.curve.spirals(align='WORLD', location=(0, 0, 0), rotation=(0, 0, 0),
-                                              spiral_type='ARCH', steps=100, radius=radius, curve_type='BEZIER')
-                    elif arrangement_type == "ARC":
-                        bpy.ops.curve.simple(align='WORLD', location=(0, 0, 0), rotation=(0, 0, math.radians(45)),
-                                             Simple_Type='Arc',
-                                             Simple_endangle=90, Simple_sides=3, Simple_radius=radius, shape='2D',
-                                             outputType='BEZIER',
-                                             use_cyclic_u=False, handleType='VECTOR')
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    curr_curve = bpy.context.active_object
-                    curr_count += 1
 
                 # 添加跟随路径约束
                 follow_path_cons = c.constraints.new(type='FOLLOW_PATH')
@@ -480,17 +486,16 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 if offset:
                     # (1 / num_per_circle) 一个身位
                     # (1 / num_per_circle) * unit   几分之一个身位
-                    # (curr_count - 1) % (1 / unit) 当前环数对(1 / unit)求模，使其结果小于(1 / unit)
+                    # ((curr_curve_index + (1 / unit)) % (1 / unit) 当前环数对(1 / unit)求模，使其结果小于(1 / unit)
                     # curr_offset 当前环所有物体共同的偏移量，其结果始终小于1个身位
                     unit = 0.25  # 暂不对外提供参数
-                    curr_offset = (1 / num_per_circle) * unit * ((curr_count - 1) % (1 / unit))
+                    curr_offset = (1 / num_per_circle) * unit * ((curr_curve_index + (1 / unit)) % (1 / unit))
                     offset_factor = curr_curve_character_index / num_per_circle + curr_offset
                 else:
                     if arrangement_type == "ARC":
                         offset_factor = curr_curve_character_index / (num_per_circle - 1)
                     else:
                         offset_factor = curr_curve_character_index / num_per_circle
-
                 offset_factor = 1 - offset_factor  # 使圆弧从左到右排列，不处理圆环实际左右情况
                 follow_path_cons.offset_factor = offset_factor
                 follow_path_cons.forward_axis = 'FORWARD_Y'
@@ -521,6 +526,12 @@ def get_mesh_objs(ancestor):
     mesh_objs = []
 
     def recursive_search(obj):
+        if is_mmd_tools_enabled():
+            if obj.mmd_type == 'RIGID_GRP_OBJ':
+                return
+            if obj.mmd_type == 'JOINT_GRP_OBJ':
+                return
+
         if obj.type == 'MESH':
             mesh_objs.append(obj)
         for child in obj.children:
