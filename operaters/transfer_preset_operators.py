@@ -14,7 +14,7 @@ class TransferPresetOperator(bpy.types.Operator):
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
 
-def process_locator(operator, mapping, face_locator, auto_face_location, face_object, face_vg):
+def process_locator(operator, mapping, face_locator, auto_face_location, face_object, face_vg, force):
     """处理定位头部的物体，将其由骨架转移到脸部顶点组上面（顶点父级）
        abc描边宽度一般为pmx描边宽度的12.5倍，但是描边宽度实现方式不同（如几何节点、实体化），这里暂不处理
     """
@@ -175,6 +175,26 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     avg_position = Vector(sum((face_obj.matrix_world @ v.co for v in parents), Vector())) / len(parents)
     locator.location = avg_position
 
+    # 将三点父级对应顶点放入顶点组中（顺序在bm.to_mesh(face_obj.data)后面，否则添加顶点失败）
+    vertex_group = face_obj.vertex_groups.new(name="FACE_VERTEX_3")
+    vertex_group.add(parent_indexes, 1.0, 'REPLACE')
+
+    # 创建伪面部
+    dummy_face_obj = None
+    if force:
+        deselect_all_objects()
+        select_and_activate(face_obj)
+        bpy.ops.object.duplicate_move()
+        dummy_face_obj = bpy.context.active_object
+        dummy_face_obj.name = f"Locator Parent"
+        # 仅保留网格序列缓存修改器
+        for modifier in reversed(dummy_face_obj.modifiers):
+            if modifier.type != "MESH_SEQUENCE_CACHE":
+                dummy_face_obj.modifiers.remove(modifier)
+        dummy_face_obj.parent = face_obj
+        dummy_face_obj.matrix_parent_inverse = face_obj.matrix_world.inverted()
+        face_obj = dummy_face_obj
+
     # 设置三点父级
     bm.to_mesh(face_obj.data)
     bm.free()
@@ -186,10 +206,8 @@ def process_locator(operator, mapping, face_locator, auto_face_location, face_ob
     bpy.ops.object.vertex_parent_set()
     bpy.ops.object.mode_set(mode='OBJECT')
 
-    # 将三点父级对应顶点放入顶点组中（顺序在bm.to_mesh(face_obj.data)后面，否则添加顶点失败）
-    vertex_group = face_obj.vertex_groups.new(name="FACE_VERTEX_3")
-    vertex_group.add(parent_indexes, 1.0, 'REPLACE')
-
+    if force:
+        set_visibility(dummy_face_obj, (False, True, False, True))
     set_visibility(locator, (False, True, False, True))
 
 
@@ -775,10 +793,11 @@ def main(operator, context):
 
         face_object = props.face_object
         face_vg = props.face_vg
+        force = props.force
         auto_face_location = props.auto_face_location
         # 三渲二面部定位器处理
         if toon_shading_flag and direction == 'PMX2ABC':
-            process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg)
+            process_locator(operator, source_target_map, face_locator, auto_face_location, face_object, face_vg, force)
 
         # 为abc模型创建父级物体，创建父级可以更好地操作与管理导入的abc模型
         if direction == 'PMX2ABC':

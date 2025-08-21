@@ -117,6 +117,9 @@ class TransferPresetPanel(bpy.types.Panel):
                         # 顶点组太多了，让用户手动输入名称
                         face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
 
+                    force_col = box.column()
+                    force_col.prop(props, "force")
+
                     material_flag_col.enabled = False
                     uv_flag_col.enabled = False
                     vgs_col.enabled = False
