@@ -391,6 +391,8 @@ class ArrangeObjectOperator(bpy.types.Operator):
 
         # 分离大小物体
         for ancestor in ancestors:
+            if "arrangement" in ancestor.keys():
+                continue
             mesh_objs = get_mesh_objs(ancestor)
             if has_big_obj(mesh_objs, threshold):
                 big_objs.append(ancestor)
@@ -418,6 +420,18 @@ class ArrangeObjectOperator(bpy.types.Operator):
         elif order == "DEFAULT":
             normal_objs_sorted = normal_objs.copy()
 
+        for i, obj in enumerate(normal_objs_sorted):
+            # 移除原先约束
+            for constraint in obj.constraints:
+                if constraint.type in {'FOLLOW_PATH', 'LOCKED_TRACK'}:
+                    obj.constraints.remove(constraint)
+
+        # 每次复用集合
+        coll = get_collection("Controller Collection")
+        for obj in coll.objects:
+            if "arrangement" in obj.keys():
+                bpy.data.objects.remove(obj, do_unlink=True)
+
         if arrangement_type == "ARRAY":
             for i, obj in enumerate(normal_objs_sorted):
                 if direction == "HORIZONTAL":
@@ -432,54 +446,49 @@ class ArrangeObjectOperator(bpy.types.Operator):
                     x = start_x + col * spacing_x
                     z = start_z + row * spacing_z
                     obj.location = (x, 0, z)
+
+            if len(coll.objects) == 0:
+                bpy.data.collections.remove(coll)
         elif arrangement_type in ["ARC", "CIRCLE"]:
             # 在TMP_SCENE中预先创建圆弧/圆环，以解决性能问题
             curr_scene_name = bpy.context.scene.name
             tmp_scene = bpy.data.scenes.new("TMP_SCENE")
             bpy.context.window.scene = tmp_scene
 
-            # 每次均新建集合，以防止过于混乱无法删除
-            collection_name = "Controller Collection"
-            coll = bpy.data.collections.new(collection_name)
-            bpy.context.scene.collection.children.link(coll)
-            layer_collection = find_layer_collection_by_name(bpy.context.view_layer.layer_collection, coll.name)
-            bpy.context.view_layer.active_layer_collection = layer_collection
-
             # 添加空物体作为锁定追踪目标
             bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
             empty = bpy.context.active_object
             empty.name = "Locked Track Target"
+            empty["arrangement"] = "Locked Track Target"
 
             # 创建圆环
             curves = []
             num_circles = math.ceil(len(normal_objs_sorted) / num_per_circle)
             for i in range(num_circles):
                 curve = create_curve(arrangement_type, radius + i * spacing_circle)
+                curve["arrangement"] = "Curve"
                 curves.append(curve)
 
             # 恢复Scene
             bpy.context.window.scene = bpy.data.scenes[curr_scene_name]
             bpy.data.scenes.remove(tmp_scene)
             # 恢复Link
-            bpy.context.scene.collection.children.link(coll)
-            layer_collection = find_layer_collection_by_name(bpy.context.view_layer.layer_collection, coll.name)
-            bpy.context.view_layer.active_layer_collection = layer_collection
+            coll.objects.link(empty)
+            for curve in curves:
+                coll.objects.link(curve)
 
             curr_curve_character_index = 0
             curr_curve_index = 0
-            for i, c in enumerate(normal_objs_sorted):
+            for i, obj in enumerate(normal_objs_sorted):
                 if curr_curve_character_index >= num_per_circle:
                     curr_curve_character_index = 0
                     curr_curve_index += 1
                 curr_curve = curves[curr_curve_index]
                 # 位置归零，旋转暂不处理
-                c.location = (0, 0, 0)
-                # 移除原先约束
-                for constraint in c.constraints:
-                    c.constraints.remove(constraint)
+                obj.location = (0, 0, 0)
 
                 # 添加跟随路径约束
-                follow_path_cons = c.constraints.new(type='FOLLOW_PATH')
+                follow_path_cons = obj.constraints.new(type='FOLLOW_PATH')
                 follow_path_cons.target = curr_curve
                 follow_path_cons.use_fixed_location = True
 
@@ -493,7 +502,10 @@ class ArrangeObjectOperator(bpy.types.Operator):
                     offset_factor = curr_curve_character_index / num_per_circle + curr_offset
                 else:
                     if arrangement_type == "ARC":
-                        offset_factor = curr_curve_character_index / (num_per_circle - 1)
+                        if num_per_circle == 1:
+                            offset_factor = 0.5
+                        else:
+                            offset_factor = curr_curve_character_index / (num_per_circle - 1)
                     else:
                         offset_factor = curr_curve_character_index / num_per_circle
                 offset_factor = 1 - offset_factor  # 使圆弧从左到右排列，不处理圆环实际左右情况
@@ -502,7 +514,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 follow_path_cons.up_axis = 'UP_Z'
                 follow_path_cons.influence = 1
 
-                locked_track_cons = c.constraints.new(type='LOCKED_TRACK')
+                locked_track_cons = obj.constraints.new(type='LOCKED_TRACK')
                 locked_track_cons.target = empty
                 locked_track_cons.track_axis = 'TRACK_NEGATIVE_Y'
                 locked_track_cons.influence = 1
@@ -516,9 +528,15 @@ class ArrangeObjectOperator(bpy.types.Operator):
         # 恢复选中状态
         deselect_all_objects()
         for obj in selected_objects:
-            select_and_activate(obj)
+            try:  # 防止 StructRNA of type Object has been removed
+                select_and_activate(obj)
+            except:
+                pass
         if active_object:
-            select_and_activate(active_object)
+            try:  # 防止 StructRNA of type Object has been removed
+                select_and_activate(active_object)
+            except:
+                pass
 
 
 def get_mesh_objs(ancestor):
