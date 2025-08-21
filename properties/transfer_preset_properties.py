@@ -137,7 +137,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     tolerance: bpy.props.FloatProperty(
         name="误差",
         description="匹配过程中，顶点数、顶点位置的误差百分比。",
-        default=0.0,
+        default=0.2,
         min=0.0,
         max=1
     )
