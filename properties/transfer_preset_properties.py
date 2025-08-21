@@ -115,6 +115,12 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         description="面部对象的顶点组"
     )
 
+    force: bpy.props.BoolProperty(
+        name="强制跟随",
+        description="复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用",
+        default=False,
+    )
+
     abc_filepath: bpy.props.StringProperty(
         name="缓存文件",
         description="缓存文件地址",
@@ -131,7 +137,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     tolerance: bpy.props.FloatProperty(
         name="误差",
         description="匹配过程中，顶点数、顶点位置的误差百分比。",
-        default=0.0,
+        default=0.2,
         min=0.0,
         max=1
     )

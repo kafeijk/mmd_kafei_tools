@@ -1,10 +1,11 @@
 from ..operaters.modify_specify_content_operators import ModifySpecifyContentOperator
+from ..operaters.modify_specify_content_operators import ArrangeObjectOperator
 from ..operaters.change_tex_loc_operators import ChangeTexLocOperator
-from ..operaters.modify_colorspace_operators import ModifyColorspaceOperator
+from ..operaters.small_feature_operators import ModifyColorspaceOperator
 from ..operaters.organize_panel_operators import OrganizePanelOperator
 from ..operaters.remove_uv_map_operators import RemoveUvMapOperator
 from ..operaters.render_preview_operators import GenPreviewCameraOperator
-from ..operaters.render_preview_operators import LoadRenderPresetOperator
+from ..operaters.scene_settings_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.small_feature_operators import SmallFeatureOperator
 from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
@@ -25,6 +26,22 @@ from ..operaters.bone_operators import SelectLessParentBoneOperator
 from ..operaters.bone_operators import SelectLessChildrenBoneOperator
 from ..operaters.bone_operators import SelectMoreBoneOperator
 from ..operaters.bone_operators import SelectLessBoneOperator
+from ..operaters.fill_suffix_operators import FillSuffixChangeTexlocOperator
+from ..operaters.fill_suffix_operators import FillSuffixSsbOperator
+from ..operaters.fill_suffix_operators import FillSuffixRemoveUvMapOperator
+from ..operaters.fill_suffix_operators import FillSuffixOrganizePanelOperator
+from ..operaters.fill_suffix_operators import FillSuffixRenderPreviewOperator
+from ..operaters.scene_settings_operators import RenderSettingsOperator
+from ..operaters.scene_settings_operators import WorldSettingsOperator
+from ..operaters.scene_settings_operators import ResolutionSettingsOperator
+from ..operaters.scene_settings_operators import SwapResolutionOperator
+from ..operaters.scene_settings_operators import LightSettingsOperator
+from ..operaters.quick_operation_operators import MergeVerticesOperator
+from ..operaters.quick_operation_operators import DummyOperator
+from ..operaters.quick_operation_operators import SetMatNameByObjNameOperator
+from ..operaters.quick_operation_operators import SetObjNameByMatNameOperator
+from ..operaters.quick_operation_operators import DetectOverlappingFacesOperator
+from ..operaters.quick_operation_operators import CleanSceneOperator
 from ..utils import *
 import addon_utils
 
@@ -100,6 +117,9 @@ class TransferPresetPanel(bpy.types.Panel):
                         # 顶点组太多了，让用户手动输入名称
                         face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
 
+                    force_col = box.column()
+                    force_col.prop(props, "force")
+
                     material_flag_col.enabled = False
                     uv_flag_col.enabled = False
                     vgs_col.enabled = False
@@ -121,9 +141,9 @@ class TransferPresetPanel(bpy.types.Panel):
         row.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
 
 
-class ToolsPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_tools"
-    bl_label = "工具"
+class SceneSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_scene_settings"
+    bl_label = "场景设置"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
@@ -136,41 +156,193 @@ class ToolsPanel(bpy.types.Panel):
         layout = self.layout
 
 
-class ModifyColorspacePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_modify_colorspace"
-    bl_label = "色彩空间调整"
+class RenderSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_render_settings"
+    bl_label = "渲染设置"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_tools"
+    bl_parent_id = "KAFEI_PT_scene_settings"
     bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_modify_colorspace
+        props = scene.mmd_kafei_tools_render_settings
 
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
 
         col = layout.column()
-        keywords = props.keywords
 
-        source_colorspace_col = col.column()
-        source_colorspace_col.prop(props, "source_colorspace")
-        if keywords:
-            source_colorspace_col.enabled = False
+        engine_col = col.column()
+        engine_row = engine_col.row()
+        engine_row.prop(props, "engine")
+        engine_row.operator(RenderSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
+
+        props2 = scene.mmd_kafei_tools_world_settings
+        world_col = col.column()
+        world_row = world_col.row()
+        world_row.prop(props2, "world_name")
+        world_row.operator(WorldSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
+
+        rd = scene.render
+        transparent_col = col.column()
+        transparent_col.prop(rd, "film_transparent", text="Transparent")
+
+
+class OutputSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_output_settings"
+    bl_label = "输出设置"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+        row = layout.row(align=True)
+        col1 = row.column(align=True)
+        col2 = row.column(align=True)
+        col2.scale_x = 0.3
+
+        props = scene.mmd_kafei_tools_output_settings
+        rd = context.scene.render
+
+        # 分辨率
+        col1.prop(props, "resolution", text="Resolution")
+        col1.prop(rd, "resolution_x", text="X")
+        col1.prop(rd, "resolution_y", text="Y")
+        col2.operator(ResolutionSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
+        col2.operator(SwapResolutionOperator.bl_idname, text="⇅", emboss=True)
+
+        # 帧率
+        col1.separator()
+        col11 = col1.column(heading="Frame Rate")
+        if bpy.types.RENDER_PT_format._preset_class is None:
+            bpy.types.RENDER_PT_format._preset_class = bpy.types.RENDER_MT_framerate_presets
+        args = rd.fps, rd.fps_base, bpy.types.RENDER_PT_format._preset_class.bl_label
+        fps_label_text, show_framerate = bpy.types.RENDER_PT_format._draw_framerate_label(*args)
+        col11.menu("RENDER_MT_framerate_presets", text=fps_label_text)
+        if show_framerate:
+            col111 = col11.column(align=True)
+            col111.prop(rd, "fps")
+            col111.prop(rd, "fps_base", text="Base")
+
+        # 输出文件格式
+        col1.separator()
+        image_settings = rd.image_settings
+        col1.template_image_settings(image_settings, color_management=False)
+
+
+class LightSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_light_settings"
+    bl_label = "灯光设置"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_light_settings
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        target_type_col = col.column()
+        target_type_col.prop(props, "target_type")
+
+        target_type = props.target_type
+        if target_type == "ARMATURE":
+            bone_name_col = col.column()
+            bone_name_col.prop(props, "bone_name")
+        elif target_type == "MESH":
+            vg_name_col = col.column()
+            vg_name_col.prop(props, "vg_name")
+
+        col.separator()
+        col = col.column()
+        col.prop(props, "preset")
+        col.prop(props, "main_distance")
+        col.prop(props, "fill_distance")
+        col.prop(props, "main_position")
+        col.separator()
+        col.prop(props, "back_distance")
+        col.prop(props, "back_angle")
+
+        operators_col = col.column()
+        operators_col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
+
+
+class SmallFeaturePanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_sf"
+    bl_label = "小功能"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 4
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_sf
+        props2 = scene.mmd_kafei_tools_modify_colorspace
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+
+        option_col = col.column()
+        option_col.prop(props, "option")
+
+        option = props.option
+
+        if option == "MODIFY_COLORSPACE":
+            source_colorspace_col = col.column()
+            source_colorspace_col.prop(props2, "source_colorspace")
+            keywords = props2.keywords
+            if keywords:
+                source_colorspace_col.enabled = False
+            else:
+                source_colorspace_col.enabled = True
+
+            target_colorspace_col = col.column()
+            target_colorspace_col.prop(props2, "target_colorspace")
+
+            keywords_col = col.column()
+            keywords_col.prop(props2, "keywords")
+
+            operator_col = col.column()
+            operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
         else:
-            source_colorspace_col.enabled = True
+            operators_col = col.column()
+            operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
 
-        target_colorspace_col = col.column()
-        target_colorspace_col.prop(props, "target_colorspace")
 
-        keywords_col = col.column()
-        keywords_col.prop(props, "keywords")
+class ToolsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_tools"
+    bl_label = "工具"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'  # N面板
+    bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
 
-        operator_col = col.column()
-        operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
 
 
 class RemoveSpecifyContentPanel(bpy.types.Panel):
@@ -179,7 +351,7 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 4
+    bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -215,7 +387,7 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
         elif content_type == 'REMOVE_MATERIAL':
             create_default_col = col.column()
             create_default_col.prop(props, "create_default")
-        elif content_type == 'REMOVE_MODIFIER':
+        elif content_type in ['REMOVE_MODIFIER', 'REMOVE_CONSTRAINT']:
             keep_first_col = col.column()
             keep_first_col.prop(props, "keep_first")
         elif content_type == 'REMOVE_VERTEX_GROUP':
@@ -229,18 +401,18 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
         operator_col.operator(ModifySpecifyContentOperator.bl_idname, text=ModifySpecifyContentOperator.bl_label)
 
 
-class SmallFeaturePanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_sf"
-    bl_label = "小功能"
+class ArrangeObjectPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_arrange_object"
+    bl_label = "物体排列"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_tools"
-    bl_order = 5
+    bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_sf
+        props = scene.mmd_kafei_tools_arrange_object
 
         layout = self.layout
         layout.use_property_split = True
@@ -248,11 +420,38 @@ class SmallFeaturePanel(bpy.types.Panel):
 
         col = layout.column()
 
-        option_col = col.column()
-        option_col.prop(props, "option")
+        arrangement_type = props.arrangement_type
+        col.prop(props, "arrangement_type")
+        if arrangement_type == "ARRAY":
+            col.prop(props, "direction")
+        col.prop(props, "order")
 
-        operators_col = col.column()
-        operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
+        if arrangement_type == "ARRAY":
+            col2 = col.column(align=True)
+            col2.prop(props, "start_trans", index=0, text="起始 X")
+            direction = props.direction
+            if direction == "HORIZONTAL":
+                col2.prop(props, "start_trans", index=1, text="Y")
+            else:
+                col2.prop(props, "start_trans", index=2, text="Z")
+            col2.prop(props, "spacing", index=0, text="间距 X")
+            if direction == "HORIZONTAL":
+                col2.prop(props, "spacing", index=1, text="Y")
+            else:
+                col2.prop(props, "spacing", index=2, text="Z")
+
+            col2.prop(props, "num_per_row")
+            col2.prop(props, "threshold")
+        elif arrangement_type in ["ARC", "CIRCLE"]:
+            col2 = col.column(align=True)
+            col2.prop(props, "radius")
+            col2.prop(props, "num_per_circle")
+            col2.prop(props, "spacing_circle")
+            col2.prop(props, "offset")
+            col2.prop(props, "threshold")
+
+        operator_col = col.column()
+        operator_col.operator(ArrangeObjectOperator.bl_idname, text=ArrangeObjectOperator.bl_label)
 
 
 class ModelModificationPanel(bpy.types.Panel):
@@ -261,7 +460,8 @@ class ModelModificationPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 2
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         scene = context.scene
@@ -297,8 +497,6 @@ class ChangeRestPosePanel(bpy.types.Panel):
         operator_row.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
         operator_row = operator_col.row(align=True)
         operator_row.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
-
-
 
 
 class BonePanel(bpy.types.Panel):
@@ -427,13 +625,73 @@ class TransferVgWeightPanel(bpy.types.Panel):
         operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
 
 
+class QuickOperationPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_quick_operation"
+    bl_label = "快捷操作"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_model_modification"
+    bl_order = 4
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column(align=True)
+        operator_col = col.column(align=True)
+
+        # 选择 物理骨骼 烘焙骨骼
+        operator_row = operator_col.row(align=True)
+        row1 = operator_row.row(align=True)
+        row1.operator(MergeVerticesOperator.bl_idname, text=MergeVerticesOperator.bl_label, icon="AUTOMERGE_OFF")
+        row2 = operator_row.row(align=True)
+        if is_mmd_tools_enabled():
+            row2.operator('mmd_tools.separate_by_materials', text='Separate by Materials', icon='MOD_EXPLODE')
+
+            active_object = bpy.context.active_object
+            if active_object:
+                root = find_pmx_root_with_child(active_object)
+                if root and active_object.type == 'MESH':
+                    row2.enabled = True
+                else:
+                    row2.enabled = False
+            else:
+                row2.enabled = False
+        else:
+            row2.operator(DummyOperator.bl_idname, text='按材质分开', icon='MOD_EXPLODE')
+            row2.enabled = False
+
+        operator_row = operator_col.row(align=True)
+        operator_row.operator(SetMatNameByObjNameOperator.bl_idname, text=SetMatNameByObjNameOperator.bl_label,
+                              icon='GREASEPENCIL')
+        operator_row.operator(SetObjNameByMatNameOperator.bl_idname, text=SetObjNameByMatNameOperator.bl_label,
+                              icon='GREASEPENCIL')
+
+        operator_row = operator_col.row(align=True)
+        row3 = operator_row.row(align=True)
+        if is_mmd_tools_enabled():
+            row3.operator(DetectOverlappingFacesOperator.bl_idname,
+                          text=DetectOverlappingFacesOperator.bl_label,
+                          icon='VIEWZOOM')
+        else:
+            row3.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
+                          icon='VIEWZOOM')
+            row3.enabled = False
+        row4 = operator_row.row(align=True)
+        row4.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
+
+
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
     bl_label = "预处理 / 后处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
-    bl_order = 3
+    bl_order = 4
 
     def draw(self, context):
         layout = self.layout
@@ -464,16 +722,16 @@ class ChangeTexLocPanel(bpy.types.Panel):
         remove_empty_col = col.column()
         remove_empty_col.prop(props, "remove_empty")
 
-        show_batch_props(col, False, True, batch)
+        show_batch_props(col, False, True, batch, FillSuffixChangeTexlocOperator)
 
         change_tex_loc_col = col.column()
         change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
 class AddSsbPanel:
-    # class AddSsbPanel(bpy.types.Panel):
+# class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
-    bl_label = "追加次标准骨骼"
+    bl_label = "修复次标准骨骼"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
@@ -497,7 +755,7 @@ class AddSsbPanel:
         scale_row.prop(props, "scale")
         scale_row.enabled = not batch_flag
         row = box.row()
-        show_batch_props(box, True, True, batch)
+        show_batch_props(box, True, True, batch, FillSuffixSsbOperator)
         box = layout.box()
         row = box.row()
         row.prop(base_props, "root_checked")
@@ -578,7 +836,7 @@ class RemoveUvMapPanel(bpy.types.Panel):
         layout.use_property_decorate = False
 
         col = layout.column()
-        show_batch_props(col, False, False, batch)
+        show_batch_props(col, False, False, batch, FillSuffixRemoveUvMapOperator)
 
         operator_col = col.column()
         operator_col.operator(RemoveUvMapOperator.bl_idname, text=RemoveUvMapOperator.bl_label)
@@ -630,7 +888,7 @@ class OrganizePanelPanel(bpy.types.Panel):
         if props.translation_flag is False:
             overwrite_flag_row.enabled = False
 
-        show_batch_props(col, False, True, batch)
+        show_batch_props(col, False, True, batch, FillSuffixOrganizePanelOperator)
 
         organize_panel_col = col.column()
         organize_panel_col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
@@ -669,10 +927,13 @@ class RenderPreviewPanel(bpy.types.Panel):
         rotation_col.prop(props, "rotation_euler_z")
         auto_follow_col = rotation_col.column()
         auto_follow_col.prop(props, "auto_follow")
+        auto_follow = props.auto_follow
+        if auto_follow:
+            bpy.context.space_data.lock_camera = True
         align_col = col.column()
         align_col.prop(props, "align")
 
-        batch_box = show_batch_props(col, True, True, batch)
+        batch_box = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
         if batch_box:
             force_center_col = batch_box.column()
             force_center_col.prop(props, "force_center")
@@ -689,7 +950,7 @@ class AboutPanel(bpy.types.Panel):
     bl_label = "About"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_order = 4
+    bl_order = 5
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -716,6 +977,36 @@ class AboutPanel(bpy.types.Panel):
         row.label(
             text='Version: ' + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
                                     addon.bl_info['name'] == 'mmd_kafei_tools'][0]))
+
+
+def show_batch_props(col, show_flag, create_box, batch, fill_suffix_operator=None):
+    if show_flag:
+        batch_col = col.column()
+        batch_col.prop(batch, "flag")
+        batch_flag = batch.flag
+        if not batch_flag:
+            return
+    if create_box:
+        batch_ui = col.box()
+    else:
+        batch_ui = col
+
+    directory_col = batch_ui.column()
+    directory_col.prop(batch, "directory")
+    search_strategy_col = batch_ui.column()
+    search_strategy_col.prop(batch, "search_strategy")
+    threshold_col = batch_ui.column()
+    threshold_col.prop(batch, "threshold")
+    suffix_col = batch_ui.column()
+    if fill_suffix_operator:
+        suffix_row = suffix_col.row(align=True)
+        suffix_row.prop(batch, "suffix")
+        suffix_row.operator(fill_suffix_operator.bl_idname, text="", icon="FILE_REFRESH")
+    else:
+        suffix_col.prop(batch, "suffix")
+    conflict_strategy_col = batch_ui.column()
+    conflict_strategy_col.prop(batch, "conflict_strategy")
+    return batch_ui
 
 
 if __name__ == "__main__":

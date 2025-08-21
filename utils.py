@@ -312,16 +312,9 @@ def import_pmx(filepath):
             bpy.ops.mmd_tools.import_model('EXEC_DEFAULT',
                                            filepath=filepath,
                                            scale=0.08,
-                                           clean_model=True,
-                                           remove_doubles=False,
-                                           fix_IK_links=False,
-                                           apply_bone_fixed_axis=False,
-                                           rename_bones=True,
-                                           use_underscore=False,
-                                           dictionary="DISABLED",
-                                           use_mipmap=True,
-                                           sph_blend_factor=1,
-                                           spa_blend_factor=1
+                                           # 移除未使用的顶点和重复的或无效的面
+                                           clean_model=True
+                                           # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                            )
             print(f"导入成功，文件:{filepath}，attempt:{attempt + 1}")
             return True
@@ -342,14 +335,8 @@ def export_pmx(filepath):
             bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT',
                                          filepath=filepath,
                                          scale=12.5,
-                                         copy_textures=False,
-                                         sort_materials=False,
-                                         disable_specular=False,
-                                         visible_meshes_only=False,
-                                         translate_in_presets=False,
-                                         sort_vertices='NONE',
-                                         log_level='DEBUG',
-                                         save_log=False
+                                         copy_textures=False
+                                         # 其余参数默认。即使ExportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                          )
             print(f"导出成功，文件:{filepath}，attempt:{attempt + 1}")
             return True
@@ -503,31 +490,6 @@ def batch_process(func, props, f_flag=False):
 
     total_time = time.time() - start_time
     print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
-
-
-def show_batch_props(col, show_flag, create_box, batch):
-    if show_flag:
-        batch_col = col.column()
-        batch_col.prop(batch, "flag")
-        batch_flag = batch.flag
-        if not batch_flag:
-            return
-    if create_box:
-        batch_ui = col.box()
-    else:
-        batch_ui = col
-
-    directory_col = batch_ui.column()
-    directory_col.prop(batch, "directory")
-    search_strategy_col = batch_ui.column()
-    search_strategy_col.prop(batch, "search_strategy")
-    threshold_col = batch_ui.column()
-    threshold_col.prop(batch, "threshold")
-    suffix_col = batch_ui.column()
-    suffix_col.prop(batch, "suffix")
-    conflict_strategy_col = batch_ui.column()
-    conflict_strategy_col.prop(batch, "conflict_strategy")
-    return batch_ui
 
 
 def check_batch_props(operator, batch):
@@ -811,3 +773,36 @@ def get_addon_version(name):
         if addon.bl_info.get('name') == name:
             return addon.bl_info.get('version', (-1, -1, -1))
     return -1, -1, -1
+
+
+def srgb_to_linearrgb(c):
+    if c < 0:
+        return 0
+    elif c < 0.04045:
+        return c / 12.92
+    else:
+        return ((c + 0.055) / 1.055) ** 2.4
+
+
+def hex_to_rgb(hex_string, alpha=None):
+    if hex_string.startswith('#'):
+        hex_string = hex_string[1:]
+    h = int(hex_string, 16)
+    r, g, b = (h >> 16) & 0xff, (h >> 8) & 0xff, h & 0xff
+    color = [srgb_to_linearrgb(c / 255.0) for c in (r, g, b)]
+    return tuple(color + [alpha]) if alpha is not None else tuple(color)
+
+
+def try_int(s):
+    """将可以转化为数字的转化为数字,不可以转化的保留原始类型"""
+    return int(s) if s.isdigit() else s
+
+
+def alphanum_key(s):
+    """ 将字符串转换成由字符串和数字块组成的列表 "z23a" -> ["z", 23, "a"]"""
+    return [try_int(c) for c in re.split('([0-9]+)', s)]
+
+
+def natural_sort(l):
+    """按照人类期望的方式对给定的列表进行排序"""
+    l.sort(key=alphanum_key)

@@ -26,8 +26,24 @@ class SmallFeatureOperator(bpy.types.Operator):
         option = props.option
         if option == 'SCENE_ROOT':
             self.gen_scene_root()
+        elif option == "REMOVE_MISSING_IMAGES":
+            self.remove_unpacked_missing_images()
         elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             self.repair_sss(option)
+
+    def remove_unpacked_missing_images(self):
+        """移除丢失的图像，以解决无法打包文件，找不到资源路径的问题"""
+        images = bpy.data.images
+
+        for image in images:
+            if image.packed_file:  # 图像已经打包
+                pass
+            elif image.filepath:  # 图像未打包，检查路径
+                filepath = bpy.path.abspath(image.filepath)
+                if not os.path.exists(filepath):  # 如果文件不存在
+                    images.remove(image)
+            else:  # 没有路径的情况
+                pass
 
     def repair_sss(self, option):
         objs = bpy.context.selected_objects
@@ -74,7 +90,8 @@ class SmallFeatureOperator(bpy.types.Operator):
         if option == "SUBSURFACE_EV":
             result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
             if len(result) > 0:
-                self.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
+                self.report(type={'WARNING'},
+                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
                 self.report(type={'WARNING'},
                             message="Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑")
 
@@ -253,3 +270,32 @@ def force_process(node_tree, output_node):
             mix_shader_node.inputs[0].default_value = 0.001
             return True
     return False
+
+
+class ModifyColorspaceOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.modify_colorspace"
+    bl_label = "执行"
+    bl_description = "修改贴图色彩空间"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.main(context)
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def main(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_modify_colorspace
+
+        source_colorspace = props.source_colorspace
+        target_colorspace = props.target_colorspace
+        keywords = props.keywords
+
+        for image in bpy.data.images:
+            if keywords:
+                keyword_list = [keyword.lower().strip() for keyword in keywords.split(",")]
+                if any(keyword in image.name.lower().strip() for keyword in keyword_list):
+                    # 修改图像的色彩空间
+                    image.colorspace_settings.name = target_colorspace
+            else:
+                if image.colorspace_settings.name == source_colorspace:
+                    image.colorspace_settings.name = target_colorspace

@@ -36,6 +36,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             self.remove_material(objs, props)
         elif content_type == 'REMOVE_MODIFIER':
             self.remove_modifiers(objs, props)
+        elif content_type == 'REMOVE_CONSTRAINT':
+            self.remove_constraint(objs, props)
         elif content_type == 'REMOVE_VERTEX_GROUP':
             self.remove_vgs(objs, props)
         elif content_type == 'REMOVE_SHAPE_KEY':
@@ -206,6 +208,18 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             for modifier in reversed(modifiers_to_remove):
                 obj.modifiers.remove(modifier)
 
+    def remove_constraint(self, objs, props):
+        """移除约束"""
+        keep_first = props.keep_first
+        for obj in objs:
+            constraints = obj.constraints
+            if keep_first:
+                constraints_to_remove = constraints[1:]
+            else:
+                constraints_to_remove = constraints
+            for constraint in reversed(constraints_to_remove):
+                obj.constraints.remove(constraint)
+
     def remove_vgs(self, objs, props):
         """移除顶点组"""
         keep_locked = props.keep_locked
@@ -244,6 +258,8 @@ def get_obj_by_type(objs, content_type):
         return [obj for obj in objs if obj.type in ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'VOLUME', 'GPENCIL']]
     elif content_type == 'REMOVE_MODIFIER':
         return [obj for obj in objs if obj.type in ['MESH', 'CURVE', 'SURFACE', 'FONT', 'VOLUME', 'LATTICE', 'GPENCIL']]
+    elif content_type == 'REMOVE_CONSTRAINT':
+        return objs
     elif content_type == 'REMOVE_VERTEX_GROUP':
         return [obj for obj in objs if obj.type in ['MESH']]
     elif content_type == 'REMOVE_SHAPE_KEY':
@@ -292,3 +308,281 @@ def modify_mmd_material(material):
     bpy.ops.mmd_tools.material_remove_sphere_texture()
     # 脚本
     mmd_material.comment = ""
+
+
+def create_curve(arrangement_type, radius):
+    if arrangement_type == "CIRCLE":
+        bpy.ops.curve.spirals(
+            align='WORLD', location=(0, 0, 0), rotation=(0, 0, 0),
+            spiral_type='ARCH', steps=100, radius=radius, curve_type='BEZIER',
+            edit_mode=False
+        )
+    elif arrangement_type == "ARC":
+        bpy.ops.curve.simple(
+            align='WORLD', location=(0, 0, 0), rotation=(0, 0, math.radians(45)),
+            Simple_Type='Arc', Simple_endangle=90, Simple_sides=3, Simple_radius=radius,
+            shape='2D', outputType='BEZIER', use_cyclic_u=False,
+            handleType='VECTOR', edit_mode=False
+        )
+    return bpy.context.active_object
+
+
+class ArrangeObjectOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.arrange_object"
+    bl_label = "执行"
+    bl_description = "排列物体"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.main(context)
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def check_props(self, props):
+        objs = bpy.context.selected_objects
+        if len(objs) == 0:
+            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            return False
+        arrangement_type = props.arrangement_type
+        if arrangement_type in ["ARC", "CIRCLE"]:
+            found = False
+            for addon in bpy.context.preferences.addons.keys():
+                # add_curve_extra_objects 3.6
+                # extra_curve_objectes 4.2 4.5
+                if "extra" in addon and "curve" in addon and "object" in addon:
+                    found = True
+                    break
+            if not found:
+                self.report({'ERROR'},
+                            "Please enable the 'Extra Objects' / 'Extra Curve Objects' add-on in Preferences.")
+                return False
+        return True
+
+    def main(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_arrange_object
+        if not self.check_props(props):
+            return
+
+        # 记录选择状态
+        active_object = bpy.context.active_object
+        selected_objects = bpy.context.selected_objects
+
+        arrangement_type = props.arrangement_type
+        direction = props.direction
+        order = props.order
+        start_x = props.start_trans[0]
+        start_y = props.start_trans[1]
+        start_z = props.start_trans[2]
+        spacing_x = props.spacing[0]
+        spacing_y = props.spacing[1]
+        spacing_z = props.spacing[2]
+        num_per_row = props.num_per_row
+        threshold = props.threshold
+        radius = props.radius
+        num_per_circle = props.num_per_circle
+        spacing_circle = props.spacing_circle
+        offset = props.offset
+
+        big_objs = []
+        normal_objs = []
+
+        # 获取选中物体的祖先节点
+        ancestors = {find_ancestor(obj) for obj in selected_objects}
+
+        # 分离大小物体
+        for ancestor in ancestors:
+            if "arrangement" in ancestor.keys():
+                continue
+            mesh_objs = get_mesh_objs(ancestor)
+            if has_big_obj(mesh_objs, threshold):
+                big_objs.append(ancestor)
+            else:
+                normal_objs.append(ancestor)
+
+        # 对原来的选中物体按面数进行排序
+        normal_objs_sorted = []
+        if order in {"FACE_ASC", "FACE_DESC"}:
+            # 计算每个对象的总面数的元组列表[(obj1,face_count1),(obj2,face_count2),...]
+            obj_face_counts = [(obj, sum(len(mesh.data.polygons) for mesh in get_mesh_objs(obj))) for obj in
+                               normal_objs]
+            reverse = order == "FACE_DESC"
+            obj_face_counts.sort(key=lambda x: x[1], reverse=reverse)
+            normal_objs_sorted = [obj for obj, _ in obj_face_counts]
+        elif order in {"NAME_ASC", "NAME_DESC"}:
+            normal_objs_sorted = normal_objs.copy()
+            reverse = order == "NAME_DESC"
+            normal_objs_sorted.sort(key=lambda obj: alphanum_key(obj.name), reverse=reverse)
+        elif order in {"SIZE_ASC", "SIZE_DESC"}:
+            reverse = order == "SIZE_DESC"
+            obj_size_list = [(obj, get_max_length(get_mesh_objs(obj))) for obj in normal_objs]
+            obj_size_list.sort(key=lambda x: x[1], reverse=reverse)
+            normal_objs_sorted = [obj for obj, _ in obj_size_list]
+        elif order == "DEFAULT":
+            normal_objs_sorted = normal_objs.copy()
+
+        for i, obj in enumerate(normal_objs_sorted):
+            # 移除原先约束
+            for constraint in obj.constraints:
+                if constraint.type in {'FOLLOW_PATH', 'LOCKED_TRACK'}:
+                    obj.constraints.remove(constraint)
+
+        # 每次复用集合
+        coll = get_collection("Controller Collection")
+        for obj in coll.objects:
+            if "arrangement" in obj.keys():
+                bpy.data.objects.remove(obj, do_unlink=True)
+
+        if arrangement_type == "ARRAY":
+            for i, obj in enumerate(normal_objs_sorted):
+                if direction == "HORIZONTAL":
+                    row = i // num_per_row
+                    col = i % num_per_row
+                    x = start_x + col * spacing_x
+                    y = start_y + row * spacing_y
+                    obj.location = (x, y, 0)
+                else:
+                    row = i // num_per_row
+                    col = i % num_per_row
+                    x = start_x + col * spacing_x
+                    z = start_z + row * spacing_z
+                    obj.location = (x, 0, z)
+
+            if len(coll.objects) == 0:
+                bpy.data.collections.remove(coll)
+        elif arrangement_type in ["ARC", "CIRCLE"]:
+            # 在TMP_SCENE中预先创建圆弧/圆环，以解决性能问题
+            curr_scene_name = bpy.context.scene.name
+            tmp_scene = bpy.data.scenes.new("TMP_SCENE")
+            bpy.context.window.scene = tmp_scene
+
+            # 添加空物体作为锁定追踪目标
+            bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
+            empty = bpy.context.active_object
+            empty.name = "Locked Track Target"
+            empty["arrangement"] = "Locked Track Target"
+
+            # 创建圆环
+            curves = []
+            num_circles = math.ceil(len(normal_objs_sorted) / num_per_circle)
+            for i in range(num_circles):
+                curve = create_curve(arrangement_type, radius + i * spacing_circle)
+                curve["arrangement"] = "Curve"
+                curves.append(curve)
+
+            # 恢复Scene
+            bpy.context.window.scene = bpy.data.scenes[curr_scene_name]
+            bpy.data.scenes.remove(tmp_scene)
+            # 恢复Link
+            coll.objects.link(empty)
+            for curve in curves:
+                coll.objects.link(curve)
+
+            curr_curve_character_index = 0
+            curr_curve_index = 0
+            for i, obj in enumerate(normal_objs_sorted):
+                if curr_curve_character_index >= num_per_circle:
+                    curr_curve_character_index = 0
+                    curr_curve_index += 1
+                curr_curve = curves[curr_curve_index]
+                # 位置归零，旋转暂不处理
+                obj.location = (0, 0, 0)
+
+                # 添加跟随路径约束
+                follow_path_cons = obj.constraints.new(type='FOLLOW_PATH')
+                follow_path_cons.target = curr_curve
+                follow_path_cons.use_fixed_location = True
+
+                if offset:
+                    # (1 / num_per_circle) 一个身位
+                    # (1 / num_per_circle) * unit   几分之一个身位
+                    # ((curr_curve_index + (1 / unit)) % (1 / unit) 当前环数对(1 / unit)求模，使其结果小于(1 / unit)
+                    # curr_offset 当前环所有物体共同的偏移量，其结果始终小于1个身位
+                    unit = 0.25  # 暂不对外提供参数
+                    curr_offset = (1 / num_per_circle) * unit * ((curr_curve_index + (1 / unit)) % (1 / unit))
+                    offset_factor = curr_curve_character_index / num_per_circle + curr_offset
+                else:
+                    if arrangement_type == "ARC":
+                        if num_per_circle == 1:
+                            offset_factor = 0.5
+                        else:
+                            offset_factor = curr_curve_character_index / (num_per_circle - 1)
+                    else:
+                        offset_factor = curr_curve_character_index / num_per_circle
+                offset_factor = 1 - offset_factor  # 使圆弧从左到右排列，不处理圆环实际左右情况
+                follow_path_cons.offset_factor = offset_factor
+                follow_path_cons.forward_axis = 'FORWARD_Y'
+                follow_path_cons.up_axis = 'UP_Z'
+                follow_path_cons.influence = 1
+
+                locked_track_cons = obj.constraints.new(type='LOCKED_TRACK')
+                locked_track_cons.target = empty
+                locked_track_cons.track_axis = 'TRACK_NEGATIVE_Y'
+                locked_track_cons.influence = 1
+
+                curr_curve_character_index += 1
+
+        # 排列X长度大于 threshold 的物体
+        for obj in big_objs:
+            obj.location = (0, 300, 0)
+
+        # 恢复选中状态
+        deselect_all_objects()
+        for obj in selected_objects:
+            try:  # 防止 StructRNA of type Object has been removed
+                select_and_activate(obj)
+            except:
+                pass
+        if active_object:
+            try:  # 防止 StructRNA of type Object has been removed
+                select_and_activate(active_object)
+            except:
+                pass
+
+
+def get_mesh_objs(ancestor):
+    """递归获取ancestor自身及其所有子对象中的mesh对象"""
+    mesh_objs = []
+
+    def recursive_search(obj):
+        if is_mmd_tools_enabled():
+            if obj.mmd_type == 'RIGID_GRP_OBJ':
+                return
+            if obj.mmd_type == 'JOINT_GRP_OBJ':
+                return
+
+        if obj.type == 'MESH':
+            mesh_objs.append(obj)
+        for child in obj.children:
+            # 递归检查子对象
+            recursive_search(child)
+
+    # 从ancestor开始递归
+    recursive_search(ancestor)
+    return mesh_objs
+
+
+def has_big_obj(objs, threshold):
+    for mesh_obj in objs:
+        # 计算物体在X轴上的长度
+        x_length = mesh_obj.dimensions[0]
+        y_length = mesh_obj.dimensions[1]
+        z_length = mesh_obj.dimensions[2]
+        # 如果物体在X轴上的长度大于5，就把它添加到big_objs列表中
+        if x_length > threshold or y_length > threshold or z_length > threshold:
+            return True
+    return False
+
+
+def get_max_length(objs):
+    max_length = 0
+    for mesh_obj in objs:
+        # 计算物体在X轴上的长度
+        x_length = mesh_obj.dimensions[0]
+        y_length = mesh_obj.dimensions[1]
+        z_length = mesh_obj.dimensions[2]
+
+        max_length = max(max_length, x_length)
+        max_length = max(max_length, y_length)
+        max_length = max(max_length, z_length)
+
+    return max_length
