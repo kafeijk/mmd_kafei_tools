@@ -287,20 +287,20 @@ class AddSsbOperator(bpy.types.Operator):
         batch_flag = batch.flag
         if not batch_flag:
             if not armature_data:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
+                self.report(type={'ERROR'}, message=f"Select MMD armature!")
                 return False
             pmx_armature = next(
                 (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data == armature_data), None)
             if not pmx_armature:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
+                self.report(type={'ERROR'}, message=f"Select MMD armature!")
                 return False
             pmx_root = find_pmx_root_with_child(pmx_armature)
             if not pmx_root:
-                self.report(type={'ERROR'}, message=f'请选择MMD模型骨架！')
+                self.report(type={'ERROR'}, message=f"Select MMD model!")
                 return False
             objs = find_pmx_objects(pmx_armature)
             if len(objs) == 0:
-                self.report(type={'ERROR'}, message=f'模型网格对象不存在！')
+                self.report(type={'ERROR'}, message=f"Mesh not found!")
                 return False
         else:
             if not check_batch_props(self, batch):
