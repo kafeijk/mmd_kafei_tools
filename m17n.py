@@ -55,6 +55,9 @@ translation_dict = {
         ("*", "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}"): "传递材质时UV复制失败！目标物体：{} (UV通道数：{})，源物体UV名称：{}",
         # transfer_preset_operators msg
         ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
+        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {} (excluding face locator), target model object count: {}, please check"): "模型配对失败。配对成功数：0，源模型物体数量：{}（不含面部定位器），目标模型物体数量：{}，请检查",
+        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {} , target model object count: {}, please check"): "模型配对失败。配对成功数：0，源模型物体数量：{}，目标模型物体数量：{}，请检查",
+
 
         # transfer_vg_weight_operators
         ("*", "Select at least one mesh!"): "请选择至少一个网格物体！",

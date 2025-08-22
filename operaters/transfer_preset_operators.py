@@ -749,11 +749,19 @@ def main(operator, context):
         # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
         if len(source_target_map) == 0:
             if toon_shading_flag:
-                raise RuntimeError(
-                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
+                msg = bpy.app.translations.pgettext_iface(
+                    "Model pairing failed. Successful pairs: 0, "
+                    "source model object count: {} (excluding face locators), "
+                    "target model object count: {}, please check"
+                ).format(len(source_objects),len(target_objects))
+                raise RuntimeError(msg)
             else:
-                raise RuntimeError(
-                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
+                msg = bpy.app.translations.pgettext_iface(
+                    "Model pairing failed. Successful pairs: 0, "
+                    "source model object count: {} , "
+                    "target model object count: {}, please check"
+                ).format(len(source_objects), len(target_objects))
+                raise RuntimeError(msg)
 
         # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
         # 记录源物体和目标物体的可见性
