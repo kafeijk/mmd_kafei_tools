@@ -257,7 +257,10 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
 
             for file in curr_list:
                 file_list.append(os.path.join(root, file))
-    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{pmx_count - len(file_list)}")
+    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
+        len(file_list), pmx_count, pmx_count - len(file_list)
+    )
+    print(msg)
     return file_list
 
 
@@ -285,7 +288,10 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
                 for model_file in model_files:
                     if is_render(root, model_file, suffix, ext, conflict_strategy):
                         file_list.append(os.path.join(root, model_file))
-    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{pmx_count - len(file_list)}")
+    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
+        len(file_list), pmx_count, pmx_count - len(file_list)
+    )
+    print(msg)
     return file_list
 
 

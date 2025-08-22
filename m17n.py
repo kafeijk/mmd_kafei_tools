@@ -84,6 +84,7 @@ translation_dict = {
         ("*", "Export failed, retrying soon, file: {}, {}"): "导出失败，即将重试，文件:{}，{}",
         ("*", "Continuous export error, please check. File path: {}"): "持续导出异常，请检查。文件路径:{}",
         ("*", "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "文件 \"{}\" 处理完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
+        ("*", "Actual files to process: {}. Total files: {}, skipped: {}"): "实际待处理数量：{}。文件总数：{}，跳过数量：{}",
 
     },
     "en_US": {
