@@ -130,7 +130,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
 
     selected_only: bpy.props.BoolProperty(
         name="仅选中",
-        description="影响范围为选中物体",
+        description="影响范围为选中物体所属模型",
         default=True,
     )
 

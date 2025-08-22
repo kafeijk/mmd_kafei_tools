@@ -538,8 +538,14 @@ def reset_cache_param(abc_filepath, selected_only, operator):
     active_object = bpy.context.active_object
     selected_objects = [obj for obj in bpy.context.selected_objects]
 
+    target_objs = []
     if selected_only:
-        target_objs = bpy.context.selected_objects
+        selected_objects = bpy.context.selected_objects
+        ancestors = {find_ancestor(obj) for obj in selected_objects}
+        for ancestor in ancestors:
+            mesh_objs = get_mesh_objs(ancestor)
+            if mesh_objs:
+                target_objs.extend(mesh_objs)
     else:
         target_objs = bpy.data.objects
 
