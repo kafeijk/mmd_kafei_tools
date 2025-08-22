@@ -66,6 +66,10 @@ translation_dict = {
         ("*", "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})"): "{} 与 {} 重合面数: {} (占比 A: {:.2%}, B: {:.2%})",
         ("*", "No overlapping mesh faces found"): "未发现网格面之间重合",
 
+        # Render Preview Operator msg
+        ("*", "\"{}\" rendering completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "\"{}\" 渲染完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
+        ("*", "Directory \"{}\" rendering completed (total {} seconds)"): "目录\"{}\" 渲染完成，总耗时: {} 秒",
+
         # utils
         ("*", "MMD Tools plugin not enabled!"): "未启用mmd_tools插件",
         ("*", "Model directory not found!"): "模型目录不存在！",

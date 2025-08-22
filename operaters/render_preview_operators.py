@@ -56,7 +56,6 @@ class RenderPreviewOperator(bpy.types.Operator):
 
             # 批量渲染
             start_time = time.time()
-            # 同一文件夹下出现"角色的多个pmx差分"或者"角色武器放在一起"很常见，所以搜索到的每个符合条件的pmx文件都会被渲染
             file_list = recursive_search_img(abs_path, suffix, threshold, search_strategy, conflict_strategy,
                                              IMG_TYPE_EXT_MAP[output_format])
             file_count = len(file_list)
@@ -67,18 +66,15 @@ class RenderPreviewOperator(bpy.types.Operator):
                 new_filepath = os.path.splitext(filepath)[0] + suffix + IMG_TYPE_EXT_MAP[output_format]
                 curr_time = time.time()
                 import_pmx(filepath)
-                print(f"\"{file_base_name}\"导入完成")
                 pmx_root = bpy.context.active_object
                 pmx_armature = find_pmx_armature(pmx_root)
                 convert_materials(pmx_armature, force_center)
-                print(f"\"{file_base_name}\"材质转换完成")
 
                 # 相机对准角色
                 show_object(pmx_root)
                 hide_object(pmx_armature)
                 select_and_activate(pmx_root)
                 camera_to_view_selected(props)
-                print(f"\"{file_base_name}\"对准完成")
 
                 # 隐藏可能会对渲染结果造成影响的物体
                 hide_object(pmx_root)
@@ -94,9 +90,18 @@ class RenderPreviewOperator(bpy.types.Operator):
                 bpy.context.scene.render.filepath = original_output_path
 
                 clean_scene()
-                print(
-                    f"\"{file_base_name}\" 渲染完成，进度{index + 1}/{file_count}，耗时{time.time() - curr_time}秒，总耗时: {time.time() - start_time} 秒")
-            print(f"目录\"{abs_path}\" 渲染完成，总耗时: {time.time() - start_time} 秒")
+                msg = bpy.app.translations.pgettext_iface(
+                    "\"{}\" rendering completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
+                ).format(
+                    file_base_name, index + 1, file_count,
+                    f"{time.time() - curr_time:.2f}", f"{time.time() - start_time:.2f}"
+                )
+                print(msg)
+
+            msg = bpy.app.translations.pgettext_iface("Directory \"{}\" rendering completed (total {} seconds)").format(
+                abs_path, f"{time.time() - start_time:.2f}",
+            )
+            print(msg)
         else:
             objs = bpy.context.selected_objects
             if len(objs) != 0:
