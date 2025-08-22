@@ -448,11 +448,12 @@ def install_library(name):
     # 获取 Blender 的 scripts/modules 目录
     blender_modules_path = os.path.join(bpy.utils.resource_path('LOCAL'), "scripts", "modules")
     if not os.path.exists(blender_modules_path):
-        raise RuntimeError(f"未找到指定目录：{blender_modules_path}")
+        raise RuntimeError(
+            bpy.app.translations.pgettext_iface("Specified directory not found: {}").format(blender_modules_path))
 
     file = os.path.join(os.path.dirname(__file__), "tools", name + ".zip")
     if not os.path.exists(file):
-        raise FileNotFoundError(f"未找到文件：{file}")
+        raise FileNotFoundError(bpy.app.translations.pgettext_iface("File not found: {}").format(file))
 
     # 解压 ZIP 文件
     with zipfile.ZipFile(file, 'r') as zip_ref:
