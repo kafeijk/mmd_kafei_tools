@@ -316,15 +316,22 @@ def import_pmx(filepath):
                                            clean_model=True
                                            # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                            )
-            print(f"导入成功，文件:{filepath}，attempt:{attempt + 1}")
+            msg = bpy.app.translations.pgettext_iface("Import successful, file: {}, retry count: {}").format(
+                filepath, attempt)
+            print(msg)
             return True
         except Exception as e:
-            print(f"导入失败，即将重试，文件:{filepath}，{e}")
+            msg = bpy.app.translations.pgettext_iface(
+                "Import failed, retrying soon, file: {}, {}"
+            ).format(filepath, e)
+            print(msg)
             attempt += 1
             clean_scene()
             time.sleep(1)  # 等待一秒后重试
     else:
-        raise Exception(f'持续导入异常，请检查。文件路径:{filepath}')
+        raise Exception(
+            bpy.app.translations.pgettext_iface("Continuous import error, please check. File path: {}").format(
+                filepath))
 
 
 def export_pmx(filepath):
@@ -338,14 +345,19 @@ def export_pmx(filepath):
                                          copy_textures=False
                                          # 其余参数默认。即使ExportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                          )
-            print(f"导出成功，文件:{filepath}，attempt:{attempt + 1}")
+            msg = bpy.app.translations.pgettext_iface("Export successful, file: {}, retry count: {}").format(
+                filepath, attempt)
+            print(msg)
             return True
         except Exception as e:
-            print(f"导出失败，即将重试，文件:{filepath}，{e}")
+            msg = bpy.app.translations.pgettext_iface("Export failed, retrying soon, file: {}, {}").format(filepath, e)
+            print(msg)
             attempt += 1
             time.sleep(1)  # 等待一秒后重试
     else:
-        raise Exception(f'持续导出异常，请检查。文件路径:{filepath}')
+        raise Exception(
+            bpy.app.translations.pgettext_iface("Continuous export error, please check. File path: {}").format(
+                filepath))
 
 
 def clean_scene():
@@ -484,12 +496,20 @@ def batch_process(func, props, f_flag=False):
 
         current_time = time.time() - curr_time
         total_time = time.time() - start_time
-        print(
-            f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{current_time:.6f}秒，总耗时: {total_time:.6f} 秒")
+        msg = bpy.app.translations.pgettext_iface(
+            "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
+        ).format(
+            file_base_name, index + 1, file_count,
+            f"{current_time:.2f}", f"{total_time:.2f}"
+        )
+        print(msg)
         clean_scene()
 
     total_time = time.time() - start_time
-    print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
+    msg = bpy.app.translations.pgettext_iface("Directory \"{}\" rendering completed (total {} seconds)").format(
+        abs_path, f"{total_time:.2f}",
+    )
+    print(msg)
 
 
 def check_batch_props(operator, batch):

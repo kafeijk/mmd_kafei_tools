@@ -76,7 +76,15 @@ translation_dict = {
         ("*", "MMD Tools plugin not enabled!"): "未启用mmd_tools插件",
         ("*", "Model directory not found!"): "模型目录不存在！",
         ("*", "Invalid root directory! Change to subfolder."): "模型目录为盘符根目录，请更换为其它目录！",
-        ("*", "Invalid name suffix!"): "名称后缀不合法！"
+        ("*", "Invalid name suffix!"): "名称后缀不合法！",
+        ("*", "Import successful, file: {}, retry count: {}"): "导入成功，文件:{}，重试次数:{}",
+        ("*", "Import failed, retrying soon, file: {}, {}"): "导入失败，即将重试，文件:{}，{}",
+        ("*", "Continuous import error, please check. File path: {}"): "持续导入异常，请检查。文件路径:{}",
+        ("*", "Export successful, file: {}, retry count: {}"): "导出成功，文件:{}，重试次数:{}",
+        ("*", "Export failed, retrying soon, file: {}, {}"): "导出失败，即将重试，文件:{}，{}",
+        ("*", "Continuous export error, please check. File path: {}"): "持续导出异常，请检查。文件路径:{}",
+        ("*", "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "文件 \"{}\" 处理完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
+
     },
     "en_US": {
         ("Operator", "传递"): "Execute",
