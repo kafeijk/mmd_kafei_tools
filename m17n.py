@@ -53,6 +53,8 @@ translation_dict = {
         ("*", "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology."): "UV传递失败！源物体：{} (loops：{}，面数：{}) → 目标物体：{} (loops：{}，面数：{})。请检查网格拓扑。",
         ("*", "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}"): "未能完整传递多材质，请检查网格拓扑与初始姿态。源物体：{}，面数：{}。目标物体：{}，面数：{}，匹配成功面数：{}",
         ("*", "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}"): "传递材质时UV复制失败！目标物体：{} (UV通道数：{})，源物体UV名称：{}",
+        # transfer_preset_operators msg
+        ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
 
         # transfer_vg_weight_operators
         ("*", "Select at least one mesh!"): "请选择至少一个网格物体！",

@@ -357,7 +357,9 @@ def matching(sources, targets, direction, tolerance=0):
                     source_target_map[source] = target_list[0]
             elif target_list:
                 source_target_map[source] = target_list[0]
-    print(f"配对完成，用时: {time.time() - start_time} 秒")
+    msg = bpy.app.translations.pgettext_iface("Pairing completed, time elapsed: {} seconds").format(
+        f"{time.time() - start_time:.2f}")
+    print(msg)
     return source_target_map
 
 
@@ -547,7 +549,6 @@ def reset_cache_param(abc_filepath, selected_only, operator):
     # 导入abc文件
     source_objs = import_abc_file(abc_filepath)
     source_character_map, _, _, _ = get_character_map(source_objs)
-
     source_target_map = {}
     # 源角色与目标角色的网格number，网格数一致即可，网格number可（因未选中）缺省，可（因网格复制）冗余
     for source_character, source_infos in source_character_map.items():
