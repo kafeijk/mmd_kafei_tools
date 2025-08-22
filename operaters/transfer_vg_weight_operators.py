@@ -65,7 +65,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
         for obj in objs:
             select_and_activate(obj)
         select_and_activate(active_object)
-        self.report({'INFO'}, "权重转移完成")
+        self.report({'INFO'}, "Weight transfer completed")
 
     def check_props(self, props):
         objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']

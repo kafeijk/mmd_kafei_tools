@@ -61,6 +61,7 @@ translation_dict = {
         ("*", "Source vertex group required!"): "请输入源顶点组名称！",
         ("*", "Target vertex group required!"): "请输入目标顶点组名称！",
         ("*", "Source and target vertex groups have same name!"): "源顶点组与目标顶点组名称相同！",
+        ("*", "Weight transfer completed"): "权重转移完成",
 
         # Quick Operation msg
         ("*", "Removed {} vertice(s)"): "移除了 {} 个顶点",
