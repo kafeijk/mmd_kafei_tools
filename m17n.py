@@ -60,6 +60,12 @@ translation_dict = {
         ("*", "Target vertex group required!"): "请输入目标顶点组名称！",
         ("*", "Source and target vertex groups have same name!"): "源顶点组与目标顶点组名称相同！",
 
+        # Quick Operation msg
+        ("*", "Removed {} vertice(s)"): "移除了 {} 个顶点",
+        ("*", "Check completed, click to view the report ↑↑↑"): "检测完成，点击查看报告↑↑↑",
+        ("*", "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})"): "{} 与 {} 重合面数: {} (占比 A: {:.2%}, B: {:.2%})",
+        ("*", "No overlapping mesh faces found"): "未发现网格面之间重合",
+
         # utils
         ("*", "MMD Tools plugin not enabled!"): "未启用mmd_tools插件",
         ("*", "Model directory not found!"): "模型目录不存在！",

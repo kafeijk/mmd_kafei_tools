@@ -27,7 +27,6 @@ class MergeVerticesOperator(bpy.types.Operator):
         # 记录当前模式
 
         total_vertices = self.get_total_vertices(objs)
-        print(f"total_vertices:{total_vertices}")
 
         if bpy.context.active_object and bpy.context.active_object.mode == "EDIT":
             bpy.ops.mesh.remove_doubles(threshold=1e-05)
@@ -48,8 +47,8 @@ class MergeVerticesOperator(bpy.types.Operator):
                 bpy.ops.object.mode_set(mode='OBJECT')
 
         total_vertices_after = self.get_total_vertices(objs)
-        print(f"total_vertices_after:{total_vertices_after}")
-        self.report(type={'INFO'}, message=f'移除了 {total_vertices - total_vertices_after} 个顶点')
+        self.report(type={'INFO'}, message=bpy.app.translations.pgettext_iface("Removed {} vertice(s)").format(
+            total_vertices - total_vertices_after))
 
     def get_total_vertices(self, objs):
         """强制刷新后计算总顶点数，仅考虑网格自身数据，不考虑修改器的影响"""
@@ -235,16 +234,23 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
                 ratio_a = len(intersection) / len(faces_a)
                 ratio_b = len(intersection) / len(faces_b)
 
-                msg = f"{obj_a.name} 与 {obj_b.name} 重合面数: {len(intersection)} (占比 A: {ratio_a:.2%}, B: {ratio_b:.2%})"
+                msg = bpy.app.translations.pgettext_iface(
+                    "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})").format(
+                    obj_a.name,
+                    obj_b.name,
+                    len(intersection),
+                    ratio_a,
+                    ratio_b
+                )
                 print(msg)
                 msgs.append(msg)
 
         if msgs:
             combined_msg = "\n".join(msgs)
             self.report(type={'INFO'}, message=combined_msg)
-            self.report(type={'INFO'}, message="检测完成，点击查看报告↑↑↑")
+            self.report(type={'INFO'}, message="Check completed, click to view the report ↑↑↑")
         else:
-            self.report(type={'INFO'}, message="未发现网格面之间重合")
+            self.report(type={'INFO'}, message="No overlapping mesh faces found")
 
 
 class CleanSceneOperator(bpy.types.Operator):
