@@ -8,6 +8,7 @@ from ..operaters.render_preview_operators import GenPreviewCameraOperator
 from ..operaters.scene_settings_operators import LoadRenderPresetOperator
 from ..operaters.render_preview_operators import RenderPreviewOperator
 from ..operaters.small_feature_operators import SmallFeatureOperator
+from ..operaters.small_feature_operators import GroupObjectOperator
 from ..operaters.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operaters.transfer_preset_operators import TransferPresetOperator
 from ..operaters.transfer_vg_weight_operators import TransferVgWeightOperator
@@ -297,6 +298,7 @@ class SmallFeaturePanel(bpy.types.Panel):
         scene = context.scene
         props = scene.mmd_kafei_tools_sf
         props2 = scene.mmd_kafei_tools_modify_colorspace
+        props3 = scene.mmd_kafei_tools_group_object
 
         layout = self.layout
         layout.use_property_split = True
@@ -326,6 +328,18 @@ class SmallFeaturePanel(bpy.types.Panel):
 
             operator_col = col.column()
             operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
+        elif option == "GROUP_OBJECT":
+            col = col.column()
+            col.prop(props3, "scope")
+            col.prop(props3, "search_type")
+            search_type = props3.search_type
+            if search_type == "NODE_NAME":
+                col.prop(props3, "node_keywords")
+            else:
+                col.prop(props3, "img_keywords")
+            col.prop(props3, "recursive")
+            col.operator(GroupObjectOperator.bl_idname, text=GroupObjectOperator.bl_label)
+
         else:
             operators_col = col.column()
             operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
@@ -728,8 +742,8 @@ class ChangeTexLocPanel(bpy.types.Panel):
         change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
-class AddSsbPanel:
-# class AddSsbPanel(bpy.types.Panel):
+# class AddSsbPanel:
+class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "修复次标准骨骼"
     bl_space_type = 'VIEW_3D'

@@ -11,6 +11,7 @@ class SmallFeatureProperty(bpy.types.PropertyGroup):
             ("SUBSURFACE_EV", "修复Eevee显示泛蓝", "修复Eevee显示泛蓝"),
             ("SUBSURFACE_CY", "修复Cycles显示模糊", "将原理化BSDF节点的次表面值归零"),
             ("MODIFY_COLORSPACE", "修改贴图色彩空间", "修改贴图色彩空间"),
+            ("GROUP_OBJECT", "网格对象分组", "为网格对象分组"),
         ],
         default="SCENE_ROOT"
     )
@@ -69,3 +70,51 @@ class ModifyColorspaceProperty(bpy.types.PropertyGroup):
     @staticmethod
     def unregister():
         del bpy.types.Scene.mmd_kafei_tools_modify_colorspace
+
+
+class GroupObjectProperty(bpy.types.PropertyGroup):
+    scope: bpy.props.EnumProperty(
+        name="影响范围",
+        description="指定受影响的网格对象范围",
+        items=[
+            ("ROOT", "模型", "作用于选中物体所在的整个模型"),
+            ("SELECTED_OBJECT", "物体", "仅作用于当前选中的物体"),
+        ],
+        default="ROOT"
+    )
+
+    search_type: bpy.props.EnumProperty(
+        name="定位方式",
+        description="根据何种方式定位贴图",
+        items=[
+            ("NODE_NAME", "节点名称", "根据材质中节点名称定位贴图"),
+            ("TEX_NAME", "贴图名称", "根据材质中贴图名称定位贴图"),
+        ],
+        default="NODE_NAME"
+    )
+
+    node_keywords: bpy.props.StringProperty(
+        name="关键词",
+        description="节点名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开",
+        default='mmd_base_tex'
+    )
+
+    img_keywords: bpy.props.StringProperty(
+        name="关键词",
+        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开",
+        default='BaseColor,Diffuse,Albedo'
+    )
+
+    recursive: bpy.props.BoolProperty(
+        name="递归搜索",
+        description="当材质中有嵌套节点组时，是否递归查找节点",
+        default=False
+    )
+
+    @staticmethod
+    def register():
+        bpy.types.Scene.mmd_kafei_tools_group_object = bpy.props.PointerProperty(type=GroupObjectProperty)
+
+    @staticmethod
+    def unregister():
+        del bpy.types.Scene.mmd_kafei_tools_group_object
