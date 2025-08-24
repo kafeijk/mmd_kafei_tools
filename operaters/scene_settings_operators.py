@@ -411,7 +411,6 @@ class LightSettingsOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_light_settings
 
-        # 校验是否选中MMD模型
         if self.check_props(props) is False:
             return
         active_object = bpy.context.active_object
@@ -519,8 +518,11 @@ class LightSettingsOperator(bpy.types.Operator):
         bone_name = props.bone_name
         vg_name = props.vg_name
         if target_type == "ARMATURE":
-            ancestor = find_ancestor(active_object)
-            armature = find_armature(ancestor)
+            if active_object.type == "ARMATURE":
+                armature = active_object
+            else:
+                ancestor = find_ancestor(active_object)
+                armature = find_armature(ancestor)
             set_cons(light_root, armature, subtarget=bone_name)
         elif target_type == "MESH":
             set_cons(light_root, active_object, subtarget=vg_name)
@@ -541,8 +543,11 @@ class LightSettingsOperator(bpy.types.Operator):
             if not active_object:
                 self.report(type={'ERROR'}, message=f'Select armature object!')
                 return False
-            ancestor = find_ancestor(active_object)
-            armature = find_armature(ancestor)
+            if active_object.type == "ARMATURE":
+                armature = active_object
+            else:
+                ancestor = find_ancestor(active_object)
+                armature = find_armature(ancestor)
             if not armature:
                 self.report(type={'ERROR'}, message=f'Armature not found!')
                 return False
