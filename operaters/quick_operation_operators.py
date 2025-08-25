@@ -31,6 +31,7 @@ class MergeVerticesOperator(bpy.types.Operator):
 
         if bpy.context.active_object and bpy.context.active_object.mode == "EDIT":
             bpy.ops.mesh.remove_doubles(threshold=1e-05)
+            bpy.ops.mesh.normals_tools(mode='RESET')
         else:
             deselect_all_objects()
             for obj in objs:
