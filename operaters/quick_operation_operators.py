@@ -110,10 +110,12 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
 
             # 设置材质名称
             mat = obj.data.materials[0]
-            if mat.name != obj_name:
-                mat.name = obj_name
+            mat_new = mat.copy()
+            while mat_new.name != obj_name:  # 防止潜在名称干扰导致的.xxx命名
+                mat_new.name = obj_name
             if is_mmd_tools_enabled():
-                mat.mmd_material.name_j = obj_name
+                mat_new.mmd_material.name_j = obj_name
+            obj.data.materials[0] = mat_new
 
 
 class SetObjNameByMatNameOperator(bpy.types.Operator):
