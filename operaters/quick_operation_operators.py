@@ -1,3 +1,4 @@
+import bmesh
 from ..utils import *
 from ..mmd_utils import *
 
@@ -165,16 +166,16 @@ def hash_face(face_verts):
 
 
 def get_faces(obj):
-    """获取对象的所有面的集合"""
+    """获取对象的所有面的映射: {face_hash: polygon_index}"""
     mesh = obj.data
-    faces = set()
+    faces = {}
     if not mesh or not mesh.polygons:
         return faces
 
     for poly in mesh.polygons:
         face_verts = [mesh.vertices[i].co for i in poly.vertices]
         face_hash = hash_face(face_verts)
-        faces.add(face_hash)
+        faces[face_hash] = poly.index
 
     return faces
 
@@ -215,8 +216,7 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
 
         faces_map = {}
         for obj in objs:
-            faces = get_faces(obj)
-            faces_map[obj] = faces
+            faces_map[obj] = get_faces(obj)
 
         msgs = []
         obj_list = list(faces_map.keys())
@@ -227,7 +227,8 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
                 faces_a = faces_map[obj_a]
                 faces_b = faces_map[obj_b]
 
-                intersection = faces_a & faces_b
+                # 求交集
+                intersection = set(faces_a.keys()) & set(faces_b.keys())
                 if not intersection:
                     continue
 
@@ -245,12 +246,37 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
                 print(msg)
                 msgs.append(msg)
 
+                # === 选中重合的面 ===
+                for obj, faces in [(obj_a, faces_a), (obj_b, faces_b)]:
+                    indices = [faces[face_hash] for face_hash in intersection]
+                    select_faces_by_index(obj, indices)
+
         if msgs:
             combined_msg = "\n".join(msgs)
             self.report(type={'INFO'}, message=combined_msg)
             self.report(type={'INFO'}, message="Check completed, click to view the report ↑↑↑")
         else:
             self.report(type={'INFO'}, message="No overlapping mesh faces found")
+
+
+def select_faces_by_index(obj, face_indices):
+    """在obj对象中选中指定索引的面（用bmesh）"""
+    mesh = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+
+    # 清空原有选择
+    for f in bm.faces:
+        f.select = False
+
+    # 选中
+    for idx in face_indices:
+        if 0 <= idx < len(bm.faces):
+            bm.faces[idx].select = True
+
+    bm.to_mesh(mesh)
+    bm.free()
 
 
 class CleanSceneOperator(bpy.types.Operator):
