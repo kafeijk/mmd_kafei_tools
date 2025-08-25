@@ -97,6 +97,9 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
             return
 
         for obj in objs:
+            if obj.type != "MESH":
+                continue
+
             # 跳过多材质
             material_count = len([m for m in obj.data.materials if m is not None])
             if material_count != 1:
@@ -111,8 +114,12 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
             # 设置材质名称
             mat = obj.data.materials[0]
             mat_new = mat.copy()
-            while mat_new.name != obj_name:  # 防止潜在名称干扰导致的.xxx命名
+            max_retry = 3
+            retry = 0
+            # 可解决大多数因重名导致的 .xxx 情况，但若场景中本身已存在两个同名材质（包括带 .xxx 后缀的情况），仍可能出现 .xxx 命名
+            while mat_new.name != obj_name and retry < max_retry:
                 mat_new.name = obj_name
+                retry += 1
             if is_mmd_tools_enabled():
                 mat_new.mmd_material.name_j = obj_name
             obj.data.materials[0] = mat_new
