@@ -24,8 +24,9 @@ class MergeVerticesOperator(bpy.types.Operator):
         if active_object is None:
             self.report(type={'ERROR'}, message=f'Activate the object!')
             return
-
-        # 记录当前模式
+        if active_object.type != "MESH":
+            self.report(type={'ERROR'}, message=f'Activate the mesh object!')
+            return
 
         total_vertices = self.get_total_vertices(objs)
 
@@ -142,6 +143,9 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
             return
 
         for obj in objs:
+            if obj.type != "MESH":
+                continue
+
             # 跳过多材质
             material_count = len([m for m in obj.data.materials if m is not None])
             if material_count != 1:
