@@ -658,26 +658,55 @@ class QuickOperationPanel(bpy.types.Panel):
         col = layout.column(align=True)
         operator_col = col.column(align=True)
 
-        # 选择 物理骨骼 烘焙骨骼
         operator_row = operator_col.row(align=True)
-        row1 = operator_row.row(align=True)
-        row1.operator(MergeVerticesOperator.bl_idname, text=MergeVerticesOperator.bl_label, icon="AUTOMERGE_OFF")
-        row2 = operator_row.row(align=True)
+        mmd_row = operator_row.row(align=True)
         if is_mmd_tools_enabled():
-            row2.operator('mmd_tools.separate_by_materials', text='Separate by Materials', icon='MOD_EXPLODE')
+            mmd_row.operator('mmd_tools.import_model', text='Import', icon='OUTLINER_OB_ARMATURE')
+            mmd_row.operator('mmd_tools.export_pmx', text='Export', icon='OUTLINER_OB_ARMATURE')
+        else:
+            mmd_row.operator(DummyOperator.bl_idname, text='Import', icon='OUTLINER_OB_ARMATURE')
+            mmd_row.operator(DummyOperator.bl_idname, text='Export', icon='OUTLINER_OB_ARMATURE')
+            mmd_row.enabled = False
+
+        operator_row = operator_col.row(align=True)
+        mmd_row = operator_row.row(align=True)
+        if is_mmd_tools_enabled():
+            mmd_row.operator('mmd_tools.convert_materials', text='Convert to Blender', icon='BLENDER')
+        else:
+            mmd_row.operator(DummyOperator.bl_idname, text='Convert to Blender', icon='BLENDER')
+            mmd_row.enabled = False
+
+        mmd_row2 = operator_row.row(align=True)
+        if is_mmd_tools_enabled():
+            mmd_row2.operator('mmd_tools.separate_by_materials', text='Separate by Materials', icon='MOD_EXPLODE')
 
             active_object = bpy.context.active_object
             if active_object:
                 root = find_pmx_root_with_child(active_object)
                 if root and active_object.type == 'MESH':
-                    row2.enabled = True
+                    mmd_row2.enabled = True
                 else:
-                    row2.enabled = False
+                    mmd_row2.enabled = False
             else:
-                row2.enabled = False
+                mmd_row2.enabled = False
         else:
-            row2.operator(DummyOperator.bl_idname, text='按材质分开', icon='MOD_EXPLODE')
-            row2.enabled = False
+            mmd_row2.operator(DummyOperator.bl_idname, text='Separate by Materials', icon='MOD_EXPLODE')
+            mmd_row2.enabled = False
+
+
+        operator_row = operator_col.row(align=True)
+        row = operator_row.row(align=True)
+        row.operator(MergeVerticesOperator.bl_idname, text=MergeVerticesOperator.bl_label, icon="AUTOMERGE_OFF")
+        mmd_row = operator_row.row(align=True)
+        if is_mmd_tools_enabled():
+            mmd_row.operator(DetectOverlappingFacesOperator.bl_idname,
+                          text=DetectOverlappingFacesOperator.bl_label,
+                          icon='VIEWZOOM')
+        else:
+            mmd_row.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
+                          icon='VIEWZOOM')
+            mmd_row.enabled = False
+
 
         operator_row = operator_col.row(align=True)
         operator_row.operator(SetMatNameByObjNameOperator.bl_idname, text=SetMatNameByObjNameOperator.bl_label,
@@ -686,17 +715,8 @@ class QuickOperationPanel(bpy.types.Panel):
                               icon='GREASEPENCIL')
 
         operator_row = operator_col.row(align=True)
-        row3 = operator_row.row(align=True)
-        if is_mmd_tools_enabled():
-            row3.operator(DetectOverlappingFacesOperator.bl_idname,
-                          text=DetectOverlappingFacesOperator.bl_label,
-                          icon='VIEWZOOM')
-        else:
-            row3.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
-                          icon='VIEWZOOM')
-            row3.enabled = False
-        row4 = operator_row.row(align=True)
-        row4.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
+        row = operator_row.row(align=True)
+        row.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
 
 
 class PrePostProcessingPanel(bpy.types.Panel):
@@ -742,8 +762,8 @@ class ChangeTexLocPanel(bpy.types.Panel):
         change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
-# class AddSsbPanel:
-class AddSsbPanel(bpy.types.Panel):
+class AddSsbPanel:
+# class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "修复次标准骨骼"
     bl_space_type = 'VIEW_3D'
