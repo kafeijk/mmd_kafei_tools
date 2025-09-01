@@ -396,6 +396,8 @@ class GroupObjectOperator(bpy.types.Operator):
         for ancestor, objs in ancestor_objs.items():
             img_objs = defaultdict(list)
             for obj in objs:
+                if obj.type != "MESH":
+                    continue
                 if not obj.data.materials:
                     continue
 
