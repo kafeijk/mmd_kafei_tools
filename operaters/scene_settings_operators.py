@@ -418,6 +418,7 @@ class LightSettingsOperator(bpy.types.Operator):
         light_coll = get_collection("3 Points Lighting")
 
         preset = props.preset
+        preset_flag = props.preset_flag
         colors = {
             # 主光 - 辅光 - 背光
             # 规则：辅光亮度/饱和度偏低，背光亮度/饱和度偏高
@@ -437,7 +438,9 @@ class LightSettingsOperator(bpy.types.Operator):
             main_light.data.energy = 150
             main_light.data.volume_factor = 0
             main_light["Tri-Lighting"] = "MainLight"
-        main_light.data.color = hex_to_rgb(main_light_color)
+            main_light.data.color = hex_to_rgb(main_light_color)
+        if preset_flag:
+            main_light.data.color = hex_to_rgb(main_light_color)
 
         # 辅光
         fill_light = get_obj_by_attr_value("Tri-Lighting", "FillLight")
@@ -447,7 +450,9 @@ class LightSettingsOperator(bpy.types.Operator):
             fill_light.data.energy = 150 * 0.2
             fill_light.data.volume_factor = 0
             fill_light["Tri-Lighting"] = "FillLight"
-        fill_light.data.color = hex_to_rgb(fill_light_color)
+            fill_light.data.color = hex_to_rgb(fill_light_color)
+        if preset_flag:
+            fill_light.data.color = hex_to_rgb(fill_light_color)
 
         # 背光
         back_light = get_obj_by_attr_value("Tri-Lighting", "BackLight")
@@ -457,7 +462,9 @@ class LightSettingsOperator(bpy.types.Operator):
             back_light.data.energy = 250
             back_light.data.volume_factor = 0
             back_light["Tri-Lighting"] = "BackLight"
-        back_light.data.color = hex_to_rgb(back_light_color)
+            back_light.data.color = hex_to_rgb(back_light_color)
+        if preset_flag:
+            back_light.data.color = hex_to_rgb(back_light_color)
 
         # 主光、辅光、背光与原点的水平直线距离
         main_distance = props.main_distance

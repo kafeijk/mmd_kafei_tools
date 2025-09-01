@@ -140,6 +140,7 @@ translation_dict = {
         ("*", "网格"): "Mesh",
         ("*", "顶点组"): "Vertex Group",
         ("*", "颜色预设"): "Color Preset",
+        ("*", "颜色影响"): "Color Influence",
         ("*", "红蓝"): "Red-Blue",
         ("*", "蓝紫"): "Blue-Purple",
         ("*", "主光距离"): "Key Light Distance",
@@ -168,6 +169,7 @@ translation_dict = {
         ("*", "背光到目标的直线距离"): "Direct distance of back light to target",
         ("*", "背光的旋转角度"): "Rotation angle of back light",
         ("*", "设置三点打光"): "Set three-point lighting",
+        ("*", "重新设置时是否修改灯光颜色"): "Affect existing light color on execute",
         # Small Features panel / parameter
         ("*", "小功能"): "Small Features",
         ("*", "用途"): "Operation",
