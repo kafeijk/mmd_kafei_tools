@@ -402,6 +402,10 @@ class GroupObjectOperator(bpy.types.Operator):
                 # 单物体所有材质匹配的贴图数量
                 img_names = set()
                 for mat in obj.data.materials:
+                    # 跳过有材质槽但无材质的mat
+                    if not mat:
+                        continue
+
                     # 获取节点
                     if search_type == "NODE_NAME":
                         node_map = find_nodes(mat, keyword_list, total_node_map, by="node", recursive=recursive)
