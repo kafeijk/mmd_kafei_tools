@@ -425,8 +425,8 @@ class GroupObjectOperator(bpy.types.Operator):
             else:
                 collection = bpy.context.scene.collection
 
-            # todo img_name 去掉后缀
             for img_name, objs in img_objs.items():
+                img_name = re.sub(r"\.\d+$", "", img_name)  # 去掉.xxx后缀
                 coll_name = os.path.splitext(img_name)[0]
                 # 检查是否已存在同名子集合
                 # https://docs.blender.org/manual/en/latest/advanced/limits.html
