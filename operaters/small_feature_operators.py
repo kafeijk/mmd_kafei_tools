@@ -14,10 +14,10 @@ def find_nodes(mat, names, total_node_map, by="node", recursive=False):
     by="node" -> 根据节点名称
     by="tex"  -> 根据贴图名称
     """
-    if not mat or not mat.node_tree:
-        return None
-
     node_map = defaultdict(list)
+
+    if not mat or not mat.node_tree:
+        return node_map
 
     def _match(node, keywords):
         """匹配规则"""
