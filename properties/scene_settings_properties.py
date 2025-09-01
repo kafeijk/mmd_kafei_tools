@@ -121,7 +121,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     preset_flag: bpy.props.BoolProperty(
         name="颜色影响",
         description="重新设置时是否修改灯光颜色",
-        default=False
+        default=True
     )
 
     main_distance: bpy.props.FloatProperty(
