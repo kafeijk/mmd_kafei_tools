@@ -357,7 +357,9 @@ def matching(sources, targets, direction, tolerance=0):
                     source_target_map[source] = target_list[0]
             elif target_list:
                 source_target_map[source] = target_list[0]
-    print(f"配对完成，用时: {time.time() - start_time} 秒")
+    msg = bpy.app.translations.pgettext_iface("Pairing completed, time elapsed: {} seconds").format(
+        f"{time.time() - start_time:.2f}")
+    print(msg)
     return source_target_map
 
 
@@ -536,8 +538,14 @@ def reset_cache_param(abc_filepath, selected_only, operator):
     active_object = bpy.context.active_object
     selected_objects = [obj for obj in bpy.context.selected_objects]
 
+    target_objs = []
     if selected_only:
-        target_objs = bpy.context.selected_objects
+        selected_objects = bpy.context.selected_objects
+        ancestors = {find_ancestor(obj) for obj in selected_objects}
+        for ancestor in ancestors:
+            mesh_objs = get_mesh_objs(ancestor)
+            if mesh_objs:
+                target_objs.extend(mesh_objs)
     else:
         target_objs = bpy.data.objects
 
@@ -547,7 +555,6 @@ def reset_cache_param(abc_filepath, selected_only, operator):
     # 导入abc文件
     source_objs = import_abc_file(abc_filepath)
     source_character_map, _, _, _ = get_character_map(source_objs)
-
     source_target_map = {}
     # 源角色与目标角色的网格number，网格数一致即可，网格number可（因未选中）缺省，可（因网格复制）冗余
     for source_character, source_infos in source_character_map.items():
@@ -748,11 +755,19 @@ def main(operator, context):
         # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
         if len(source_target_map) == 0:
             if toon_shading_flag:
-                raise RuntimeError(
-                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}（不含面部定位器），目标模型物体数量：{len(target_objects)}，请检查")
+                msg = bpy.app.translations.pgettext_iface(
+                    "Model pairing failed. Successful pairs: 0, "
+                    "source model object count: {} (excluding face locators), "
+                    "target model object count: {}, please check"
+                ).format(len(source_objects),len(target_objects))
+                raise RuntimeError(msg)
             else:
-                raise RuntimeError(
-                    f"模型配对失败。配对成功数：0，源模型物体数量：{len(source_objects)}，目标模型物体数量：{len(target_objects)}，请检查")
+                msg = bpy.app.translations.pgettext_iface(
+                    "Model pairing failed. Successful pairs: 0, "
+                    "source model object count: {} , "
+                    "target model object count: {}, please check"
+                ).format(len(source_objects), len(target_objects))
+                raise RuntimeError(msg)
 
         # 考虑到可能会对pmx的网格物体进行隐藏（如多套衣服、耳朵、尾巴、皮肤冗余处等），处理时需要将这些物体取消隐藏使其处于可选中的状态，处理完成后恢复
         # 记录源物体和目标物体的可见性

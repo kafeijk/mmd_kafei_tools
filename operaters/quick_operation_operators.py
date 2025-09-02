@@ -1,3 +1,4 @@
+import bmesh
 from ..utils import *
 from ..mmd_utils import *
 
@@ -23,14 +24,15 @@ class MergeVerticesOperator(bpy.types.Operator):
         if active_object is None:
             self.report(type={'ERROR'}, message=f'Activate the object!')
             return
-
-        # 记录当前模式
+        if active_object.type != "MESH":
+            self.report(type={'ERROR'}, message=f'Activate the mesh object!')
+            return
 
         total_vertices = self.get_total_vertices(objs)
-        print(f"total_vertices:{total_vertices}")
 
         if bpy.context.active_object and bpy.context.active_object.mode == "EDIT":
             bpy.ops.mesh.remove_doubles(threshold=1e-05)
+            bpy.ops.mesh.normals_tools(mode='RESET')
         else:
             deselect_all_objects()
             for obj in objs:
@@ -48,8 +50,8 @@ class MergeVerticesOperator(bpy.types.Operator):
                 bpy.ops.object.mode_set(mode='OBJECT')
 
         total_vertices_after = self.get_total_vertices(objs)
-        print(f"total_vertices_after:{total_vertices_after}")
-        self.report(type={'INFO'}, message=f'移除了 {total_vertices - total_vertices_after} 个顶点')
+        self.report(type={'INFO'}, message=bpy.app.translations.pgettext_iface("Removed {} vertice(s)").format(
+            total_vertices - total_vertices_after))
 
     def get_total_vertices(self, objs):
         """强制刷新后计算总顶点数，仅考虑网格自身数据，不考虑修改器的影响"""
@@ -96,6 +98,9 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
             return
 
         for obj in objs:
+            if obj.type != "MESH":
+                continue
+
             # 跳过多材质
             material_count = len([m for m in obj.data.materials if m is not None])
             if material_count != 1:
@@ -109,10 +114,16 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
 
             # 设置材质名称
             mat = obj.data.materials[0]
-            if mat.name != obj_name:
-                mat.name = obj_name
+            mat_new = mat.copy()
+            max_retry = 3
+            retry = 0
+            # 可解决大多数因重名导致的 .xxx 情况，但若场景中本身已存在两个同名材质（包括带 .xxx 后缀的情况），仍可能出现 .xxx 命名
+            while mat_new.name != obj_name and retry < max_retry:
+                mat_new.name = obj_name
+                retry += 1
             if is_mmd_tools_enabled():
-                mat.mmd_material.name_j = obj_name
+                mat_new.mmd_material.name_j = obj_name
+            obj.data.materials[0] = mat_new
 
 
 class SetObjNameByMatNameOperator(bpy.types.Operator):
@@ -132,6 +143,9 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
             return
 
         for obj in objs:
+            if obj.type != "MESH":
+                continue
+
             # 跳过多材质
             material_count = len([m for m in obj.data.materials if m is not None])
             if material_count != 1:
@@ -166,16 +180,16 @@ def hash_face(face_verts):
 
 
 def get_faces(obj):
-    """获取对象的所有面的集合"""
+    """获取对象的所有面的映射: {face_hash: polygon_index}"""
     mesh = obj.data
-    faces = set()
+    faces = {}
     if not mesh or not mesh.polygons:
         return faces
 
     for poly in mesh.polygons:
         face_verts = [mesh.vertices[i].co for i in poly.vertices]
         face_hash = hash_face(face_verts)
-        faces.add(face_hash)
+        faces[face_hash] = poly.index
 
     return faces
 
@@ -216,8 +230,7 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
 
         faces_map = {}
         for obj in objs:
-            faces = get_faces(obj)
-            faces_map[obj] = faces
+            faces_map[obj] = get_faces(obj)
 
         msgs = []
         obj_list = list(faces_map.keys())
@@ -228,23 +241,56 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
                 faces_a = faces_map[obj_a]
                 faces_b = faces_map[obj_b]
 
-                intersection = faces_a & faces_b
+                # 求交集
+                intersection = set(faces_a.keys()) & set(faces_b.keys())
                 if not intersection:
                     continue
 
                 ratio_a = len(intersection) / len(faces_a)
                 ratio_b = len(intersection) / len(faces_b)
 
-                msg = f"{obj_a.name} 与 {obj_b.name} 重合面数: {len(intersection)} (占比 A: {ratio_a:.2%}, B: {ratio_b:.2%})"
+                msg = bpy.app.translations.pgettext_iface(
+                    "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})").format(
+                    obj_a.name,
+                    obj_b.name,
+                    len(intersection),
+                    ratio_a,
+                    ratio_b
+                )
                 print(msg)
                 msgs.append(msg)
+
+                # === 选中重合的面 ===
+                for obj, faces in [(obj_a, faces_a), (obj_b, faces_b)]:
+                    indices = [faces[face_hash] for face_hash in intersection]
+                    select_faces_by_index(obj, indices)
 
         if msgs:
             combined_msg = "\n".join(msgs)
             self.report(type={'INFO'}, message=combined_msg)
-            self.report(type={'INFO'}, message="检测完成，点击查看报告↑↑↑")
+            self.report(type={'INFO'}, message="Check completed, click to view the report ↑↑↑")
         else:
-            self.report(type={'INFO'}, message="未发现网格面之间重合")
+            self.report(type={'INFO'}, message="No overlapping mesh faces found")
+
+
+def select_faces_by_index(obj, face_indices):
+    """在obj对象中选中指定索引的面（用bmesh）"""
+    mesh = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+
+    # 清空原有选择
+    for f in bm.faces:
+        f.select = False
+
+    # 选中
+    for idx in face_indices:
+        if 0 <= idx < len(bm.faces):
+            bm.faces[idx].select = True
+
+    bm.to_mesh(mesh)
+    bm.free()
 
 
 class CleanSceneOperator(bpy.types.Operator):

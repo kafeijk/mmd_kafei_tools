@@ -411,7 +411,6 @@ class LightSettingsOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_light_settings
 
-        # 校验是否选中MMD模型
         if self.check_props(props) is False:
             return
         active_object = bpy.context.active_object
@@ -419,6 +418,7 @@ class LightSettingsOperator(bpy.types.Operator):
         light_coll = get_collection("3 Points Lighting")
 
         preset = props.preset
+        preset_flag = props.preset_flag
         colors = {
             # 主光 - 辅光 - 背光
             # 规则：辅光亮度/饱和度偏低，背光亮度/饱和度偏高
@@ -438,7 +438,9 @@ class LightSettingsOperator(bpy.types.Operator):
             main_light.data.energy = 150
             main_light.data.volume_factor = 0
             main_light["Tri-Lighting"] = "MainLight"
-        main_light.data.color = hex_to_rgb(main_light_color)
+            main_light.data.color = hex_to_rgb(main_light_color)
+        if preset_flag:
+            main_light.data.color = hex_to_rgb(main_light_color)
 
         # 辅光
         fill_light = get_obj_by_attr_value("Tri-Lighting", "FillLight")
@@ -448,7 +450,9 @@ class LightSettingsOperator(bpy.types.Operator):
             fill_light.data.energy = 150 * 0.2
             fill_light.data.volume_factor = 0
             fill_light["Tri-Lighting"] = "FillLight"
-        fill_light.data.color = hex_to_rgb(fill_light_color)
+            fill_light.data.color = hex_to_rgb(fill_light_color)
+        if preset_flag:
+            fill_light.data.color = hex_to_rgb(fill_light_color)
 
         # 背光
         back_light = get_obj_by_attr_value("Tri-Lighting", "BackLight")
@@ -458,7 +462,9 @@ class LightSettingsOperator(bpy.types.Operator):
             back_light.data.energy = 250
             back_light.data.volume_factor = 0
             back_light["Tri-Lighting"] = "BackLight"
-        back_light.data.color = hex_to_rgb(back_light_color)
+            back_light.data.color = hex_to_rgb(back_light_color)
+        if preset_flag:
+            back_light.data.color = hex_to_rgb(back_light_color)
 
         # 主光、辅光、背光与原点的水平直线距离
         main_distance = props.main_distance
@@ -519,8 +525,11 @@ class LightSettingsOperator(bpy.types.Operator):
         bone_name = props.bone_name
         vg_name = props.vg_name
         if target_type == "ARMATURE":
-            ancestor = find_ancestor(active_object)
-            armature = find_armature(ancestor)
+            if active_object.type == "ARMATURE":
+                armature = active_object
+            else:
+                ancestor = find_ancestor(active_object)
+                armature = find_armature(ancestor)
             set_cons(light_root, armature, subtarget=bone_name)
         elif target_type == "MESH":
             set_cons(light_root, active_object, subtarget=vg_name)
@@ -541,8 +550,11 @@ class LightSettingsOperator(bpy.types.Operator):
             if not active_object:
                 self.report(type={'ERROR'}, message=f'Select armature object!')
                 return False
-            ancestor = find_ancestor(active_object)
-            armature = find_armature(ancestor)
+            if active_object.type == "ARMATURE":
+                armature = active_object
+            else:
+                ancestor = find_ancestor(active_object)
+                armature = find_armature(ancestor)
             if not armature:
                 self.report(type={'ERROR'}, message=f'Armature not found!')
                 return False

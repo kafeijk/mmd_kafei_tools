@@ -53,18 +53,45 @@ translation_dict = {
         ("*", "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology."): "UV传递失败！源物体：{} (loops：{}，面数：{}) → 目标物体：{} (loops：{}，面数：{})。请检查网格拓扑。",
         ("*", "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}"): "未能完整传递多材质，请检查网格拓扑与初始姿态。源物体：{}，面数：{}。目标物体：{}，面数：{}，匹配成功面数：{}",
         ("*", "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}"): "传递材质时UV复制失败！目标物体：{} (UV通道数：{})，源物体UV名称：{}",
+        # transfer_preset_operators msg
+        ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
+        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {} (excluding face locator), target model object count: {}, please check"): "模型配对失败。配对成功数：0，源模型物体数量：{}（不含面部定位器），目标模型物体数量：{}，请检查",
+        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {} , target model object count: {}, please check"): "模型配对失败。配对成功数：0，源模型物体数量：{}，目标模型物体数量：{}，请检查",
+
 
         # transfer_vg_weight_operators
         ("*", "Select at least one mesh!"): "请选择至少一个网格物体！",
         ("*", "Source vertex group required!"): "请输入源顶点组名称！",
         ("*", "Target vertex group required!"): "请输入目标顶点组名称！",
         ("*", "Source and target vertex groups have same name!"): "源顶点组与目标顶点组名称相同！",
+        ("*", "Weight transfer completed"): "权重转移完成",
+
+        # Quick Operation msg
+        ("*", "Removed {} vertice(s)"): "移除了 {} 个顶点",
+        ("*", "Check completed, click to view the report ↑↑↑"): "检测完成，点击查看报告↑↑↑",
+        ("*", "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})"): "{} 与 {} 重合面数: {} (占比 A: {:.2%}, B: {:.2%})",
+        ("*", "No overlapping mesh faces found"): "未发现网格面之间重合",
+
+        # Render Preview Operator msg
+        ("*", "\"{}\" rendering completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "\"{}\" 渲染完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
+        ("*", "Directory \"{}\" rendering completed (total {} seconds)"): "目录\"{}\" 渲染完成，总耗时: {} 秒",
 
         # utils
         ("*", "MMD Tools plugin not enabled!"): "未启用mmd_tools插件",
         ("*", "Model directory not found!"): "模型目录不存在！",
         ("*", "Invalid root directory! Change to subfolder."): "模型目录为盘符根目录，请更换为其它目录！",
-        ("*", "Invalid name suffix!"): "名称后缀不合法！"
+        ("*", "Invalid name suffix!"): "名称后缀不合法！",
+        ("*", "Import successful, file: {}, retry count: {}"): "导入成功，文件:{}，重试次数:{}",
+        ("*", "Import failed, retrying soon, file: {}, {}"): "导入失败，即将重试，文件:{}，{}",
+        ("*", "Continuous import error, please check. File path: {}"): "持续导入异常，请检查。文件路径:{}",
+        ("*", "Export successful, file: {}, retry count: {}"): "导出成功，文件:{}，重试次数:{}",
+        ("*", "Export failed, retrying soon, file: {}, {}"): "导出失败，即将重试，文件:{}，{}",
+        ("*", "Continuous export error, please check. File path: {}"): "持续导出异常，请检查。文件路径:{}",
+        ("*", "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "文件 \"{}\" 处理完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
+        ("*", "Actual files to process: {}. Total files: {}, skipped: {}"): "实际待处理数量：{}。文件总数：{}，跳过数量：{}",
+        ("*", "Specified directory not found: {}"): "未找到指定目录：{}",
+        ("*", "File not found: {}"): "未找到文件：{}",
+
     },
     "en_US": {
         ("Operator", "传递"): "Execute",
@@ -113,6 +140,7 @@ translation_dict = {
         ("*", "网格"): "Mesh",
         ("*", "顶点组"): "Vertex Group",
         ("*", "颜色预设"): "Color Preset",
+        ("*", "颜色影响"): "Color Influence",
         ("*", "红蓝"): "Red-Blue",
         ("*", "蓝紫"): "Blue-Purple",
         ("*", "主光距离"): "Key Light Distance",
@@ -128,6 +156,13 @@ translation_dict = {
         ("*", "关键词"): "Keywords",
         ("*", "线性"): "Linear",
         ("*", "非彩色"): "Non-Color",
+        ("*", "影响范围"): "Influence Range",
+        ("*", "定位方式"): "Search Method",
+        ("*", "模型"): "Model",
+        ("*", "物体"): "Mesh Object",
+        ("*", "节点名称"): "Node Name",
+        ("*", "贴图名称"): "Texture Name",
+        ("*", "递归搜索"): "Recursive Search",
         # Scene Settings description
         ("*", "世界背景为黑色，无光照贡献"): "World background is black with no light contribution",
         ("*", "执行渲染设置"): "Apply render settings",
@@ -141,6 +176,7 @@ translation_dict = {
         ("*", "背光到目标的直线距离"): "Direct distance of back light to target",
         ("*", "背光的旋转角度"): "Rotation angle of back light",
         ("*", "设置三点打光"): "Set three-point lighting",
+        ("*", "重新设置时是否修改灯光颜色"): "Affect existing light color on execute",
         # Small Features panel / parameter
         ("*", "小功能"): "Small Features",
         ("*", "用途"): "Operation",
@@ -149,11 +185,22 @@ translation_dict = {
         ("*", "修复Eevee显示泛蓝"): "Fix Eevee Blue Tint Display Issue",
         ("*", "修复Cycles显示模糊"): "Fix Cycles Blurry Display Issue",
         ("*", "修改贴图色彩空间"): "Adjust Texture Color Space",
+        ("*", "网格对象分组"): "Group Mesh Objects",
         # Small Features description
         ("*", "创建一个空物体，以实现对整个场景的统一控制"): "Create an empty object to manage the entire scene",
         ("*", "移除丢失的图像，以解决无法打包文件，找不到资源路径的问题"): "Remove missing images to fix file packing and missing resource paths",
         ("*", "将原理化BSDF节点的次表面值归零"): "Reset the subsurface value of Principled BSDF nodes to zero",
         ("*", "贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开。若启用关键词搜索，则源色彩空间参数将被忽略"): "Texture name keywords for searching textures. Case insensitive, can be separated by commas. If keyword search is enabled, the source color space parameters will be ignored",
+        ("*", "为网格对象分组"): "Group mesh objects",
+        ("*", "指定受影响的网格对象范围"): "Specify affected mesh object range",
+        ("*", "作用于选中物体所在的整个模型"): "Apply to the entire model of selected objects",
+        ("*", "仅作用于当前选中的物体"): "Apply only to currently selected objects",
+        ("*", "根据何种方式定位贴图"): "Method to search textures",
+        ("*", "根据材质中节点名称定位贴图"): "Search textures by node name in material",
+        ("*", "根据材质中贴图名称定位贴图"): "Search textures by texture name in material",
+        ("*", "节点名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开"): "Node name keywords for searching textures. Case-insensitive, separate with commas",
+        ("*", "贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开"): "Texture name keywords for searching textures. Case-insensitive, separate with commas",
+        ("*", "当材质中有嵌套节点组时，是否递归查找节点"): "Recursively search nodes when nested node groups exist in material",
 
         # General Preset Processing description
         ("*", "提供预设的模型"): "Provide preset model",
@@ -172,7 +219,7 @@ translation_dict = {
         ("*", "根据面部定位器识别面部顶点"): "Identify face vertices based on the face locator",
         ("*", "面部对象的顶点组"): "Vertex group of face object",
         ("*", "缓存文件地址"): "File path of the cache file",
-        ("*", "影响范围为选中物体"): "Limit the effect to selected objects",
+        ("*", "影响范围为选中物体所属模型"): "Limit the effect to the model containing the selected objects",
         ("*", "匹配过程中，顶点数、顶点位置的误差百分比。"): "Percentage of tolerance in vertex count and position during matching",
         ("*", "复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用"): "Duplicate the face object and make the locator follow it, in order to avoid the issue where the original face object cannot be followed due to Geometry Nodes. Enable this option if needed",
 

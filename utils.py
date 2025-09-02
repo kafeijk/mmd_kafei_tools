@@ -257,7 +257,10 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
 
             for file in curr_list:
                 file_list.append(os.path.join(root, file))
-    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{pmx_count - len(file_list)}")
+    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
+        len(file_list), pmx_count, pmx_count - len(file_list)
+    )
+    print(msg)
     return file_list
 
 
@@ -285,7 +288,10 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
                 for model_file in model_files:
                     if is_render(root, model_file, suffix, ext, conflict_strategy):
                         file_list.append(os.path.join(root, model_file))
-    print(f"实际待处理数量：{len(file_list)}。文件总数：{pmx_count}，跳过数量：{pmx_count - len(file_list)}")
+    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
+        len(file_list), pmx_count, pmx_count - len(file_list)
+    )
+    print(msg)
     return file_list
 
 
@@ -316,15 +322,22 @@ def import_pmx(filepath):
                                            clean_model=True
                                            # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                            )
-            print(f"导入成功，文件:{filepath}，attempt:{attempt + 1}")
+            msg = bpy.app.translations.pgettext_iface("Import successful, file: {}, retry count: {}").format(
+                filepath, attempt)
+            print(msg)
             return True
         except Exception as e:
-            print(f"导入失败，即将重试，文件:{filepath}，{e}")
+            msg = bpy.app.translations.pgettext_iface(
+                "Import failed, retrying soon, file: {}, {}"
+            ).format(filepath, e)
+            print(msg)
             attempt += 1
             clean_scene()
             time.sleep(1)  # 等待一秒后重试
     else:
-        raise Exception(f'持续导入异常，请检查。文件路径:{filepath}')
+        raise Exception(
+            bpy.app.translations.pgettext_iface("Continuous import error, please check. File path: {}").format(
+                filepath))
 
 
 def export_pmx(filepath):
@@ -338,14 +351,19 @@ def export_pmx(filepath):
                                          copy_textures=False
                                          # 其余参数默认。即使ExportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
                                          )
-            print(f"导出成功，文件:{filepath}，attempt:{attempt + 1}")
+            msg = bpy.app.translations.pgettext_iface("Export successful, file: {}, retry count: {}").format(
+                filepath, attempt)
+            print(msg)
             return True
         except Exception as e:
-            print(f"导出失败，即将重试，文件:{filepath}，{e}")
+            msg = bpy.app.translations.pgettext_iface("Export failed, retrying soon, file: {}, {}").format(filepath, e)
+            print(msg)
             attempt += 1
             time.sleep(1)  # 等待一秒后重试
     else:
-        raise Exception(f'持续导出异常，请检查。文件路径:{filepath}')
+        raise Exception(
+            bpy.app.translations.pgettext_iface("Continuous export error, please check. File path: {}").format(
+                filepath))
 
 
 def clean_scene():
@@ -430,11 +448,12 @@ def install_library(name):
     # 获取 Blender 的 scripts/modules 目录
     blender_modules_path = os.path.join(bpy.utils.resource_path('LOCAL'), "scripts", "modules")
     if not os.path.exists(blender_modules_path):
-        raise RuntimeError(f"未找到指定目录：{blender_modules_path}")
+        raise RuntimeError(
+            bpy.app.translations.pgettext_iface("Specified directory not found: {}").format(blender_modules_path))
 
     file = os.path.join(os.path.dirname(__file__), "tools", name + ".zip")
     if not os.path.exists(file):
-        raise FileNotFoundError(f"未找到文件：{file}")
+        raise FileNotFoundError(bpy.app.translations.pgettext_iface("File not found: {}").format(file))
 
     # 解压 ZIP 文件
     with zipfile.ZipFile(file, 'r') as zip_ref:
@@ -484,12 +503,20 @@ def batch_process(func, props, f_flag=False):
 
         current_time = time.time() - curr_time
         total_time = time.time() - start_time
-        print(
-            f"文件 \"{file_base_name}\" 处理完成，进度{index + 1}/{file_count}，耗时{current_time:.6f}秒，总耗时: {total_time:.6f} 秒")
+        msg = bpy.app.translations.pgettext_iface(
+            "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
+        ).format(
+            file_base_name, index + 1, file_count,
+            f"{current_time:.2f}", f"{total_time:.2f}"
+        )
+        print(msg)
         clean_scene()
 
     total_time = time.time() - start_time
-    print(f"目录\"{abs_path}\" 处理完成，总耗时: {total_time:.6f} 秒")
+    msg = bpy.app.translations.pgettext_iface("Directory \"{}\" rendering completed (total {} seconds)").format(
+        abs_path, f"{total_time:.2f}",
+    )
+    print(msg)
 
 
 def check_batch_props(operator, batch):
@@ -806,3 +833,25 @@ def alphanum_key(s):
 def natural_sort(l):
     """按照人类期望的方式对给定的列表进行排序"""
     l.sort(key=alphanum_key)
+
+
+def get_mesh_objs(ancestor):
+    """递归获取ancestor自身及其所有子对象中的mesh对象"""
+    mesh_objs = []
+
+    def recursive_search(obj):
+        if is_mmd_tools_enabled():
+            if obj.mmd_type == 'RIGID_GRP_OBJ':
+                return
+            if obj.mmd_type == 'JOINT_GRP_OBJ':
+                return
+
+        if obj.type == 'MESH':
+            mesh_objs.append(obj)
+        for child in obj.children:
+            # 递归检查子对象
+            recursive_search(child)
+
+    # 从ancestor开始递归
+    recursive_search(ancestor)
+    return mesh_objs

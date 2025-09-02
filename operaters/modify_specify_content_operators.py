@@ -539,28 +539,6 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 pass
 
 
-def get_mesh_objs(ancestor):
-    """递归获取ancestor自身及其所有子对象中的mesh对象"""
-    mesh_objs = []
-
-    def recursive_search(obj):
-        if is_mmd_tools_enabled():
-            if obj.mmd_type == 'RIGID_GRP_OBJ':
-                return
-            if obj.mmd_type == 'JOINT_GRP_OBJ':
-                return
-
-        if obj.type == 'MESH':
-            mesh_objs.append(obj)
-        for child in obj.children:
-            # 递归检查子对象
-            recursive_search(child)
-
-    # 从ancestor开始递归
-    recursive_search(ancestor)
-    return mesh_objs
-
-
 def has_big_obj(objs, threshold):
     for mesh_obj in objs:
         # 计算物体在X轴上的长度

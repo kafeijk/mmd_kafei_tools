@@ -1,9 +1,46 @@
+from collections import defaultdict
+
 from ..utils import *
 
 if bpy.app.version < (4, 0, 0):
     SUBSURFACE = 'Subsurface'
 else:
     SUBSURFACE = 'Subsurface Weight'
+
+
+def find_nodes(mat, names, total_node_map, by="node", recursive=False):
+    """
+    在材质 mat 中查找符合条件的节点
+    by="node" -> 根据节点名称
+    by="tex"  -> 根据贴图名称
+    """
+    node_map = defaultdict(list)
+
+    if not mat or not mat.node_tree:
+        return node_map
+
+    def _match(node, keywords):
+        """匹配规则"""
+        if node.bl_idname != "ShaderNodeTexImage":
+            return False
+        if by == "node":
+            return any(keyword in node.name.lower().strip() for keyword in keywords)
+        elif by == "tex" and node.image:
+            return any(keyword in node.image.name.lower().strip() for keyword in keywords)
+        return False
+
+    def _search(node_tree, node_tree_name=None):
+        for node in node_tree.nodes:
+            if _match(node, names):
+                node_map[node_tree_name].append(node)
+            if recursive and node.type == 'GROUP' and node.node_tree:
+                if node.node_tree.name in total_node_map.keys():
+                    node_map[node.node_tree.name] = total_node_map.get(node.node_tree.name)
+                    continue
+                _search(node.node_tree, node.node_tree.name)
+
+    _search(mat.node_tree)
+    return node_map
 
 
 class SmallFeatureOperator(bpy.types.Operator):
@@ -299,3 +336,117 @@ class ModifyColorspaceOperator(bpy.types.Operator):
             else:
                 if image.colorspace_settings.name == source_colorspace:
                     image.colorspace_settings.name = target_colorspace
+
+
+class GroupObjectOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.group_object"
+    bl_label = "执行"
+    bl_description = "为网格对象分组"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.group_by_tex(context)
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def group_by_tex(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_group_object
+
+        selected_objects = bpy.context.selected_objects
+        if len(selected_objects) == 0:
+            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            return
+        active_object = bpy.context.active_object
+        if active_object is None:
+            self.report(type={'ERROR'}, message=f'Activate the object!')
+            return
+
+        scope = props.scope
+        search_type = props.search_type
+        node_keywords = props.node_keywords
+        img_keywords = props.img_keywords
+        recursive = props.recursive
+
+        ancestors = set()
+        for obj in selected_objects:
+            ancestor = find_ancestor(obj)
+            if not ancestor:
+                continue
+            ancestors.add(ancestor)
+
+        # 影响范围
+        ancestor_objs = {}
+        if scope == "ROOT":
+            for ancestor in ancestors:
+                objs = get_mesh_objs(ancestor)
+                ancestor_objs[ancestor] = objs
+        elif scope == "SELECTED_OBJECT":
+            objs = bpy.context.selected_objects
+            ancestor_objs[None] = objs
+
+        # 关键词
+        if search_type == "NODE_NAME":
+            keywords = node_keywords
+        else:
+            keywords = img_keywords
+        keyword_list = [keyword.lower().strip() for keyword in keywords.split(",")]
+
+        # 记录 节点组 - 匹配节点列表 避免重复查询
+        total_node_map = defaultdict(list)
+        for ancestor, objs in ancestor_objs.items():
+            img_objs = defaultdict(list)
+            for obj in objs:
+                if obj.type != "MESH":
+                    continue
+                if not obj.data.materials:
+                    continue
+
+                # 单物体所有材质匹配的贴图数量
+                img_names = set()
+                for mat in obj.data.materials:
+                    # 跳过有材质槽但无材质的mat
+                    if not mat:
+                        continue
+
+                    # 获取节点
+                    if search_type == "NODE_NAME":
+                        node_map = find_nodes(mat, keyword_list, total_node_map, by="node", recursive=recursive)
+
+                    else:
+                        node_map = find_nodes(mat, keyword_list, total_node_map, by="tex", recursive=recursive)
+
+                    for node_tree_name, nodes in node_map.items():
+                        if node_tree_name and node_tree_name not in total_node_map.keys():
+                            total_node_map[node_tree_name].extend(nodes)
+                        for node in nodes:
+                            if node.image:
+                                img_names.add(node.image.name)
+
+                if len(img_names) == 1:
+                    img_name = img_names.pop()
+                    img_objs[img_name].append(obj)
+
+            if ancestor:
+                collection = ancestor.users_collection[0]
+            else:
+                collection = bpy.context.scene.collection
+
+            for img_name, objs in img_objs.items():
+                img_name = re.sub(r"\.\d+$", "", img_name)  # 去掉.xxx后缀
+                coll_name = os.path.splitext(img_name)[0]
+                # 检查是否已存在同名子集合
+                # https://docs.blender.org/manual/en/latest/advanced/limits.html
+                # Blender的ID限定在63个ASCII字符，所以image_name和collection_name限定长度是一致的，即使image_name名称被截断，也不影响collection的创建
+                if coll_name in collection.children:
+                    sub_col = collection.children[coll_name]
+                else:
+                    sub_col = bpy.data.collections.new(coll_name)
+                    collection.children.link(sub_col)
+                for obj in objs:
+                    # 先把 obj 从所属集合里移除
+                    for c in obj.users_collection:
+                        c.objects.unlink(obj)
+
+                    # 再加到新子集合
+                    if obj.name not in sub_col.objects:
+                        sub_col.objects.link(obj)
