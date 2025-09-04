@@ -198,20 +198,19 @@ def check_props(operator, option):
                 operator.report(type={'ERROR'}, message=f'No bones selected!')
                 return False
 
-            lr = ""
+            unsupported_pbs = []
             for pb in selected_pbs:
-                # 去除.xxx后缀
-                basename = re.sub(r'\.\d+$', '', pb.name)
-                # 去除LR
-                if basename.endswith(('.L', '.R', '.l', '.r', '_L', '_R', '_l', '_r')):
-                    curr_lr = basename[-1].lower()
-                    if not lr:
-                        lr = curr_lr
-                    else:
-                        if curr_lr != lr:
-                            operator.report(type={'ERROR'}, message=f'Select bones on one side!')
-                            return False
-        return True
+                if pb.rotation_mode != 'QUATERNION':
+                    unsupported_pbs.append(pb)
+            if unsupported_pbs:
+                print(bpy.app.translations.pgettext_iface("不支持的骨骼（未处于四元数旋转模式）："))
+                for pb in unsupported_pbs:
+                    print(pb.name)
+                operator.report(type={'ERROR'},
+                                message="仅支持四元数旋转模式，详情请查看控制台")
+                return False
+
+    return True
 
 
 def is_valid_bone(bone_info, pb):
@@ -453,7 +452,7 @@ def getBoneConverter(bone):
     return _ConverterWrap
 
 
-def do_mirror_pose(bone_a, bone_b):
+def calculate_mirror_pose(bone_a, bone_b):
     x, y, z = bone_a.location
     rw, rx, ry, rz = bone_a.rotation_quaternion
 
@@ -472,10 +471,8 @@ def do_mirror_pose(bone_a, bone_b):
     loc = converter.convert_location(_loc(location))
     # 将vmd旋转值转为blender旋转值
     curr_rot = converter.convert_rotation(_rot(rotation_xyzw))
-    bone_b.location = loc
-    bone_b.rotation_quaternion = curr_rot
 
-    bone_b.scale = bone_a.scale
+    return loc, curr_rot, bone_a.scale
 
 
 def get_mirror_name(bl_name):
@@ -515,11 +512,28 @@ def mirror_pose():
     if not selected_pbs:
         return
 
+    bone_pairs = {}
     for pb in selected_pbs:
         mirror_pb_name = get_mirror_name(pb.name)
-        mirror_bone = pbs.get(mirror_pb_name)
-        if mirror_bone:
-            do_mirror_pose(pb, mirror_bone)
+        mirror_pb = pbs.get(mirror_pb_name)
+        if not mirror_pb:
+            bone_pairs[pb] = None
+        if pb in bone_pairs.keys() or mirror_pb in bone_pairs.keys():
+            continue
+        bone_pairs[pb] = mirror_pb
+
+    for pb, mirror_pb in bone_pairs.items():
+        if mirror_pb is None:
+            pb.location, pb.rotation_quaternion, pb.scale = calculate_mirror_pose(pb, pb)
+            continue
+        if pb in selected_pbs and mirror_pb in selected_pbs:
+            tmp_location, tmp_quaternion, tmp_scale = calculate_mirror_pose(pb, mirror_pb)
+            pb.location, pb.rotation_quaternion, pb.scale = calculate_mirror_pose(mirror_pb, pb)
+            mirror_pb.location, mirror_pb.rotation_quaternion, mirror_pb.scale = tmp_location, tmp_quaternion, tmp_scale
+        else:
+            mirror_pb.location, mirror_pb.rotation_quaternion, mirror_pb.scale = calculate_mirror_pose(pb, mirror_pb)
+
+    # 重设选择状态会影响重复修改原骨骼，不重设选择状态会影响K帧，暂不修改选择状态
 
 
 def remove_invalid_rigidbody_joint():
@@ -628,7 +642,7 @@ def get_bone_info(armature, original_mode):
     if bpy.app.version < (4, 0, 0):
         return eb_hide_map, original_mode, armature.data.layers
     else:
-        bpy.ops.object.mode_set(mode='POSE')    # Warning: `Collection.bones` is not available in armature edit mode
+        bpy.ops.object.mode_set(mode='POSE')  # Warning: `Collection.bones` is not available in armature edit mode
         layers = [c for c in armature.data.collections_all if c.is_visible]
         return eb_hide_map, original_mode, layers
 

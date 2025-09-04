@@ -337,6 +337,8 @@ translation_dict = {
         ("*", "从当前选中项的父级开始缩减选择"): "Reduce selection from parent bones",
         ("*", "从当前选中项的子级开始缩减选择"): "Reduce selection from child bones",
         ("*", "清理无效的刚体和关节。如果刚体所关联的骨骼不存在，则删除该刚体及与之关联的关节；如果刚体没有关联的骨骼，则不处理"): "Clean invalid rigid body and joints. Delete the rigid body and its joint if the associated bone is missing; do nothing if there is no associated bone",
+        ("*", "仅支持四元数旋转模式，详情请查看控制台"): "Only quaternion rotation mode is supported. See console for details",
+        ("*", "不支持的骨骼（未处于四元数旋转模式）："): "Unsupported bones (not in quaternion rotation mode):",
         # Weight Transfer panel / parameter
         ("*", "权重转移"): "Weight Transfer",
         ("*", "源顶点组"): "Source Vertex Group",
