@@ -63,24 +63,25 @@ class SmallFeatureOperator(bpy.types.Operator):
         option = props.option
         if option == 'SCENE_ROOT':
             self.gen_scene_root()
-        elif option == "REMOVE_MISSING_IMAGES":
-            self.remove_unpacked_missing_images()
+        elif option == "REMOVE_MISSING_DATA":
+            self.remove_missing_external_data()
         elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
             self.repair_sss(option)
 
-    def remove_unpacked_missing_images(self):
-        """移除丢失的图像，以解决无法打包文件，找不到资源路径的问题"""
-        images = bpy.data.images
+    def remove_missing_external_data(self):
+        """移除丢失的可打包外部数据（图像、字体、声音）"""
 
-        for image in images:
-            if image.packed_file:  # 图像已经打包
-                pass
-            elif image.filepath:  # 图像未打包，检查路径
-                filepath = bpy.path.abspath(image.filepath)
-                if not os.path.exists(filepath):  # 如果文件不存在
-                    images.remove(image)
-            else:  # 没有路径的情况
-                pass
+        def remove_if_missing(data_block):
+            for item in list(data_block):
+                if item.packed_file:
+                    continue
+                filepath = getattr(item, "filepath", "")
+                if filepath and not os.path.exists(bpy.path.abspath(filepath)):
+                    data_block.remove(item)
+
+        remove_if_missing(bpy.data.images)
+        remove_if_missing(bpy.data.fonts)
+        remove_if_missing(bpy.data.sounds)
 
     def repair_sss(self, option):
         objs = bpy.context.selected_objects
