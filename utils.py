@@ -513,7 +513,7 @@ def batch_process(func, props, f_flag=False):
         clean_scene()
 
     total_time = time.time() - start_time
-    msg = bpy.app.translations.pgettext_iface("Directory \"{}\" rendering completed (total {} seconds)").format(
+    msg = bpy.app.translations.pgettext_iface("Directory \"{}\" processing completed (total {} seconds)").format(
         abs_path, f"{total_time:.2f}",
     )
     print(msg)

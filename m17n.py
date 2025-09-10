@@ -89,6 +89,7 @@ translation_dict = {
         ("*", "Continuous export error, please check. File path: {}"): "持续导出异常，请检查。文件路径:{}",
         ("*", "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "文件 \"{}\" 处理完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
         ("*", "Actual files to process: {}. Total files: {}, skipped: {}"): "实际待处理数量：{}。文件总数：{}，跳过数量：{}",
+        ("*", "Directory \"{}\" processing completed (total {} seconds)"): "目录\"{}\" 处理完成，总耗时: {} 秒",
         ("*", "Specified directory not found: {}"): "未找到指定目录：{}",
         ("*", "File not found: {}"): "未找到文件：{}",
 
