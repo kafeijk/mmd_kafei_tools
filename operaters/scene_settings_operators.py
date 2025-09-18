@@ -225,8 +225,9 @@ def set_eevee_next():
     safe_set(scene.eevee, "use_raytracing", True)
     safe_set(scene.eevee.ray_tracing_options, "screen_trace_quality", 1)
     safe_set(scene.eevee.ray_tracing_options, "use_denoise", True)
-    safe_set(scene.eevee.ray_tracing_options, "denoise_temporal", False)
-    safe_set(scene.eevee.ray_tracing_options, "denoise_bilateral", False)
+    safe_set(scene.eevee.ray_tracing_options, "denoise_spatial", True)
+    safe_set(scene.eevee.ray_tracing_options, "denoise_temporal", True)
+    safe_set(scene.eevee.ray_tracing_options, "denoise_bilateral", True)
 
     # 快速GI近似
     safe_set(scene.eevee, "use_fast_gi", False)
