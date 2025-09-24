@@ -203,8 +203,9 @@ def convert_materials(pmx_armature, force_center):
             bpy.data.objects.remove(obj_to_remove, do_unlink=True)
 
 
-def camera_to_view_selected(props):
-    camera = gen_preview_camera(props)
+def camera_to_view_selected(props, camera=None):
+    if not camera:
+        camera = gen_preview_camera(props)
 
     # 备份当前选中和激活的对象
     active_object = bpy.context.active_object
@@ -307,7 +308,7 @@ def gen_preview_camera(props):
     # 在“预览相机”集合中生成一个相机
     # 检查是否已有名为“预览相机”的相机对象
     # 即使场景中存在其它相机，也不把这个相机进行返回，因为不清楚这个相机的用途
-    camera_name = "预览相机"
+    camera_name = bpy.app.translations.pgettext_iface("预览相机")
     custom_property_name = 'preview_camera'
     for camera in bpy.data.objects:
         if camera.type == 'CAMERA' and custom_property_name in camera.keys():
@@ -323,7 +324,7 @@ def gen_preview_camera(props):
                 pass
             return camera
     # 场景中是否含有名称为“预览相机”的集合，没有则不一定新建（没有相机的情况下才会新建）
-    collection_name = "预览相机"
+    collection_name = bpy.app.translations.pgettext_iface("预览相机")
     if collection_name in bpy.data.collections:
         preview_collection = bpy.data.collections[collection_name]
     else:

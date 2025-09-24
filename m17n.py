@@ -403,6 +403,7 @@ translation_dict = {
         ("*", "自动"): "Auto Follow",
         ("*", "强制居中"): "Force Center",
         ("*", "对齐角色"): "Alignment",
+        ("*", "预览相机"): "Preview Camera",
         ("Operator", "加载渲染预设"): "Load Render Preset",
         ("Operator", "预览"): "Preview",
         ("Operator", "渲染"): "Render",
