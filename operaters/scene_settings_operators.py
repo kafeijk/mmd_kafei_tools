@@ -728,6 +728,11 @@ class CameraSettingsOperator(bpy.types.Operator):
         bpy.context.window.scene = main_scene
         bpy.data.scenes.remove(tmp_scene)
 
+        # 选中相机控制器 激活相机
+        deselect_all_objects()
+        select_and_activate(camera.parent)
+        bpy.context.scene.camera = camera
+
     def check_props(self, props):
         active_object = bpy.context.active_object
         target_type = props.target_type
@@ -937,10 +942,10 @@ def copy_and_prune_armature(armature, bone_name):
 
 def create_follow_camera(props, preview_props):
     # 生成相机及所在集合
-    camera_name = bpy.app.translations.pgettext_iface("相机跟随")
+    camera_name = bpy.app.translations.pgettext_iface("跟随相机")
     camera_data = bpy.data.cameras.new(name=camera_name)
     camera = bpy.data.objects.new(name=camera_name, object_data=camera_data)
-    collection_name = bpy.app.translations.pgettext_iface("相机跟随")
+    collection_name = bpy.app.translations.pgettext_iface("相机")
     collection = get_collection(collection_name)
     collection.objects.link(camera)
 

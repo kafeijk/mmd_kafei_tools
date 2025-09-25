@@ -177,6 +177,9 @@ translation_dict = {
         ("*", "最大不同帧间隔"): "Max Keyframe Gap",
         ("*", "起始帧"): "Frame Start",
         ("*", "结束帧"): "Frame End",
+        ("*", "相机"): "Camera",
+        ("*", "跟随相机"): "Tracking Camera",
+        ("*", "相机控制器"): "Camera Controller",
         # Scene Settings description
         ("*", "世界背景为黑色，无光照贡献"): "World background is black with no light contribution",
         ("*", "执行渲染设置"): "Apply render settings",
