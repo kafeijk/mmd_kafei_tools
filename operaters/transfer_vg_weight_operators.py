@@ -61,10 +61,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
                     source_vg.remove([v_index])
 
         # 恢复选择状态
-        deselect_all_objects()
-        for obj in objs:
-            select_and_activate(obj)
-        select_and_activate(active_object)
+        restore_selection(objs, active_object)
         self.report({'INFO'}, "Weight transfer completed")
 
     def check_props(self, props):

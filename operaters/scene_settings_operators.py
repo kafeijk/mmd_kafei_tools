@@ -953,7 +953,7 @@ def create_follow_camera(props, preview_props):
     deselect_all_objects()
     select_and_activate(empty)
     bpy.ops.object.transform_apply(scale=True)
-    restore_selected_active_state(selected_objects, active_object)
+    restore_selection(selected_objects, active_object)
     camera.parent = empty
     camera.matrix_parent_inverse = empty.matrix_world.inverted()
 

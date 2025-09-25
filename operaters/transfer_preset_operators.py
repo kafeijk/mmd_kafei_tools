@@ -595,11 +595,7 @@ def reset_cache_param(abc_filepath, selected_only, operator):
         bpy.data.objects.remove(source_obj, do_unlink=True)
 
     if selected_only:
-        deselect_all_objects()
-        for obj in selected_objects:
-            select_and_activate(obj)
-        if active_object:
-            select_and_activate(active_object)
+        restore_selection(selected_objects, active_object)
 
     # 输出异常信息
     if all(target_obj_flag_map.values()) and not non_compliant_list:

@@ -298,10 +298,7 @@ def camera_to_view_selected(props, camera=None):
         pass
 
     # 恢复默认选中
-    deselect_all_objects()
-    for obj in objs:
-        select_and_activate(obj)
-    select_and_activate(active_object)
+    restore_selection(objs, active_object)
 
 
 def gen_preview_camera(props):
