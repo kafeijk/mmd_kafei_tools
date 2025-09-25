@@ -557,7 +557,8 @@ class LightSettingsOperator(bpy.types.Operator):
                 self.report(type={'ERROR'}, message=f'Armature not found!')
                 return False
             if bone_name not in armature.pose.bones:
-                self.report(type={'ERROR'}, message=f'Bone "{bone_name}" not found!')
+                self.report(type={'ERROR'},
+                            message=bpy.app.translations.pgettext_iface("Bone \"{}\" not found!").format(bone_name))
                 return False
             return True
         elif target_type == "MESH":
@@ -568,7 +569,16 @@ class LightSettingsOperator(bpy.types.Operator):
                 self.report(type={'ERROR'}, message=f'Select mesh object!')
                 return False
             if vg_name not in active_object.vertex_groups:
-                self.report(type={'ERROR'}, message=f'Vertex Groups "{vg_name}" not found!')
+                msg = bpy.app.translations.pgettext_iface("Vertex group \"{}\" not found!").format(vg_name)
+                self.report({'ERROR'}, message=msg)
+                return False
+            # 校验顶点组是否至少含有一个顶点
+            vg_index = active_object.vertex_groups[vg_name].index
+            has_vertex = any(v for v in active_object.data.vertices if vg_index in [g.group for g in v.groups])
+            if not has_vertex:
+                msg = bpy.app.translations.pgettext_iface("Object \"{}\" vertex group \"{}\" has no vertices!").format(
+                    active_object.name, vg_name)
+                self.report({'ERROR'}, message=msg)
                 return False
             return True
 
