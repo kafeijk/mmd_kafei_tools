@@ -321,7 +321,7 @@ def gen_preview_camera(props):
                 pass
             return camera
     # 场景中是否含有名称为“预览相机”的集合，没有则不一定新建（没有相机的情况下才会新建）
-    collection_name = bpy.app.translations.pgettext_iface("预览相机")
+    collection_name = bpy.app.translations.pgettext_iface("相机")
     if collection_name in bpy.data.collections:
         preview_collection = bpy.data.collections[collection_name]
     else:
