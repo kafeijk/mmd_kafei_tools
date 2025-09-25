@@ -742,6 +742,12 @@ class CameraSettingsOperator(bpy.types.Operator):
         deselect_all_objects()
         select_and_activate(camera.parent)
         bpy.context.scene.camera = camera
+        # 切换下视图（确保view_camera执行后肯定在相应视图）
+        bpy.ops.view3d.view_axis(type='FRONT')
+        # 视图 - 摄像机 对应快捷键0
+        bpy.ops.view3d.view_camera()
+        # 摄像机边界框 对应快捷键home
+        bpy.ops.view3d.view_center_camera()
 
     def check_props(self, props):
         active_object = bpy.context.active_object
