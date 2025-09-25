@@ -29,6 +29,13 @@ translation_dict = {
         ("*", "HDRI Map not found. Add manually. Path: {}"): "未找到环境贴图，请自行添加！参考路径：{}",
         ("*", "Unsupported output format! Use image format instead."): "输出文件格式不正确，请更改为图像类型格式！",
 
+        # scene_settings_operators
+        ("*", "Select armature object!"): "请选择骨架对象！",
+        ("*", "Select mesh object!"): "请选择网格对象！",
+        ("*", "Bone \"{}\" not found!"): "未找到骨骼“{}”！",
+        ("*", "Vertex group \"{}\" not found!"): "未找到顶点组“{}”！",
+        ("*", "Object \"{}\" vertex group \"{}\" has no vertices!"): "对象“{}”的顶点组“{}”没有顶点！",
+
         # small_feature_operators
         ("*", "Affected materials: {}"): "受影响材质：{}",
         ("*", "Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑"): "检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑",
@@ -164,6 +171,12 @@ translation_dict = {
         ("*", "节点名称"): "Node Name",
         ("*", "贴图名称"): "Texture Name",
         ("*", "递归搜索"): "Recursive Search",
+        ("*", "相机设置"): "Camera Settings",
+        ("*", "增量阈值 X"): "Incremental Threshold X",
+        ("*", "相机旋转 X"): "Cam Rot X",
+        ("*", "最大不同帧间隔"): "Max Keyframe Gap",
+        ("*", "起始帧"): "Frame Start",
+        ("*", "结束帧"): "Frame End",
         # Scene Settings description
         ("*", "世界背景为黑色，无光照贡献"): "World background is black with no light contribution",
         ("*", "执行渲染设置"): "Apply render settings",
@@ -178,6 +191,14 @@ translation_dict = {
         ("*", "背光的旋转角度"): "Rotation angle of back light",
         ("*", "设置三点打光"): "Set three-point lighting",
         ("*", "重新设置时是否修改灯光颜色"): "Affect existing light color on execute",
+        ("*", "相机跟随目标的类型"): "Type of target the camera follows",
+        ("*", "相机跟随的骨骼名称"): "Name of the bone the camera follows",
+        ("*", "骨骼X轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置"):"Increment threshold on bone X-axis; camera updates when bone moves beyond this value",
+        ("*", "骨骼Y轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置"):"Increment threshold on bone Y-axis; camera updates when bone moves beyond this value",
+        ("*", "骨骼Z轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置"):"Increment threshold on bone Z-axis; camera updates when bone moves beyond this value",
+        ("*", "相机X轴旋转"):"Camera rotation around X-axis",
+        ("*", "两个不同关键帧之间的最大帧间隔，用于避免角色几乎不动时相机缓慢移动的问题"):"Maximum gap between distinct keyframes; prevents slow camera movement when character is nearly still",
+        ("*", "生成相机跟随动画"): "Generate camera follow animation",
         # Small Features panel / parameter
         ("*", "小功能"): "Small Features",
         ("*", "用途"): "Operation",

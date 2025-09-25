@@ -37,6 +37,7 @@ from ..operaters.scene_settings_operators import WorldSettingsOperator
 from ..operaters.scene_settings_operators import ResolutionSettingsOperator
 from ..operaters.scene_settings_operators import SwapResolutionOperator
 from ..operaters.scene_settings_operators import LightSettingsOperator
+from ..operaters.scene_settings_operators import CameraSettingsOperator
 from ..operaters.quick_operation_operators import MergeVerticesOperator
 from ..operaters.quick_operation_operators import DummyOperator
 from ..operaters.quick_operation_operators import SetMatNameByObjNameOperator
@@ -284,13 +285,56 @@ class LightSettingsPanel(bpy.types.Panel):
         operators_col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
 
 
+class CameraSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_camera_settings"
+    bl_label = "相机设置"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 4
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_camera_settings
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+        col = col.column()
+
+        col.prop(props, "target_type")
+        target_type = props.target_type
+        if target_type == "ARMATURE":
+            col.prop(props, "bone_name")
+        elif target_type == "MESH":
+            col.prop(props, "vg_name")
+            frame_col = col.column(align=True)
+            frame_col.prop(scene, "frame_start", text="起始帧")
+            frame_col.prop(scene, "frame_end", text="结束帧")
+
+        col.prop(props, "rotation_euler_x")
+
+        threshold_col = col.column(align=True)
+        threshold_col.prop(props, "threshold_x")
+        threshold_col.prop(props, "threshold_y")
+        threshold_col.prop(props, "threshold_z")
+
+        col = col.column()
+        col.prop(props, "max_gap")
+
+        col.operator(CameraSettingsOperator.bl_idname, text=CameraSettingsOperator.bl_label)
+
+
 class SmallFeaturePanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_sf"
     bl_label = "小功能"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_scene_settings"
-    bl_order = 4
+    bl_order = 5
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):

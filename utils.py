@@ -81,6 +81,20 @@ def deselect_all_objects():
     bpy.context.view_layer.objects.active = None
 
 
+def restore_selected_active_state(selected_objects, active_object):
+    deselect_all_objects()
+    for obj in selected_objects:
+        try:  # 防止 StructRNA of type Object has been removed
+            select_and_activate(obj)
+        except:
+            pass
+    if active_object:
+        try:  # 防止 StructRNA of type Object has been removed
+            select_and_activate(active_object)
+        except:
+            pass
+
+
 def record_visibility(obj):
     """记录物体的可见性"""
     return obj.hide_select, obj.hide_get(), obj.hide_viewport, obj.hide_render
