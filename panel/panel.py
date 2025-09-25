@@ -258,21 +258,15 @@ class LightSettingsPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        target_type_col = col.column()
-        target_type_col.prop(props, "target_type")
-
+        col.prop(props, "target_type")
         target_type = props.target_type
         if target_type == "ARMATURE":
-            bone_name_col = col.column()
-            bone_name_col.prop(props, "bone_name")
+            col.prop(props, "bone_name")
         elif target_type == "MESH":
-            vg_name_col = col.column()
-            vg_name_col.prop(props, "vg_name")
+            col.prop(props, "vg_name")
 
-        col = col.column()
         col.prop(props, "preset")
         col.prop(props, "preset_flag")
         col.prop(props, "main_distance")
@@ -281,8 +275,7 @@ class LightSettingsPanel(bpy.types.Panel):
         col.prop(props, "back_distance")
         col.prop(props, "back_angle")
 
-        operators_col = col.column()
-        operators_col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
+        col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
 
 
 class CameraSettingsPanel(bpy.types.Panel):
@@ -736,20 +729,18 @@ class QuickOperationPanel(bpy.types.Panel):
             mmd_row2.operator(DummyOperator.bl_idname, text='Separate by Materials', icon='MOD_EXPLODE')
             mmd_row2.enabled = False
 
-
         operator_row = operator_col.row(align=True)
         row = operator_row.row(align=True)
         row.operator(MergeVerticesOperator.bl_idname, text=MergeVerticesOperator.bl_label, icon="AUTOMERGE_OFF")
         mmd_row = operator_row.row(align=True)
         if is_mmd_tools_enabled():
             mmd_row.operator(DetectOverlappingFacesOperator.bl_idname,
-                          text=DetectOverlappingFacesOperator.bl_label,
-                          icon='VIEWZOOM')
+                             text=DetectOverlappingFacesOperator.bl_label,
+                             icon='VIEWZOOM')
         else:
             mmd_row.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
-                          icon='VIEWZOOM')
+                             icon='VIEWZOOM')
             mmd_row.enabled = False
-
 
         operator_row = operator_col.row(align=True)
         operator_row.operator(SetMatNameByObjNameOperator.bl_idname, text=SetMatNameByObjNameOperator.bl_label,
@@ -806,7 +797,7 @@ class ChangeTexLocPanel(bpy.types.Panel):
 
 
 class AddSsbPanel:
-# class AddSsbPanel(bpy.types.Panel):
+    # class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "修复次标准骨骼"
     bl_space_type = 'VIEW_3D'
