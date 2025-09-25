@@ -526,17 +526,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
             obj.location = (0, 300, 0)
 
         # 恢复选中状态
-        deselect_all_objects()
-        for obj in selected_objects:
-            try:  # 防止 StructRNA of type Object has been removed
-                select_and_activate(obj)
-            except:
-                pass
-        if active_object:
-            try:  # 防止 StructRNA of type Object has been removed
-                select_and_activate(active_object)
-            except:
-                pass
+        restore_selection(selected_objects, active_object)
 
 
 def has_big_obj(objs, threshold):

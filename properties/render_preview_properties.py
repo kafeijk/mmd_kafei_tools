@@ -23,7 +23,6 @@ def update_rotation(scene, depsgraph):
 
 
 class RenderPreviewProperty(bpy.types.PropertyGroup):
-    # todo 相机角度预设暂时连接到说明文档上面，这里暂不提供相关功能
     type: bpy.props.EnumProperty(
         name="类型",
         description="类型",

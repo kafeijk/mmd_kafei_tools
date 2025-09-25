@@ -173,3 +173,71 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     @staticmethod
     def unregister():
         del bpy.types.Scene.mmd_kafei_tools_light_settings
+
+
+class CameraSettingsProperty(bpy.types.PropertyGroup):
+    target_type: bpy.props.EnumProperty(
+        name="目标类型",
+        description="相机跟随目标的类型",
+        items=[
+            ("ARMATURE", "骨架", "骨架"),
+            ("MESH", "网格", "网格")
+
+        ],
+        default="ARMATURE"
+    )
+
+    bone_name: bpy.props.StringProperty(
+        name="骨骼",
+        description="相机跟随的骨骼名称",
+        default="下半身"
+    )
+
+    vg_name: bpy.props.StringProperty(
+        name="顶点组",
+        description="顶点组名称",
+        default='Group'
+    )
+
+    threshold_x: bpy.props.FloatProperty(
+        name="增量阈值 X",
+        description="骨骼X轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
+        default=0.1,
+        subtype='DISTANCE'
+    )
+
+    threshold_y: bpy.props.FloatProperty(
+        name="Y",
+        description="骨骼Y轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
+        default=0.1,
+        subtype='DISTANCE'
+
+    )
+
+    threshold_z: bpy.props.FloatProperty(
+        name="Z",
+        description="骨骼Z轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
+        default=1,
+        subtype='DISTANCE'
+    )
+
+    rotation_euler_x: bpy.props.FloatProperty(
+        name="相机旋转 X",
+        description="相机X轴旋转",
+        subtype="ANGLE",
+        default=math.radians(85)
+    )
+
+    max_gap: bpy.props.IntProperty(
+        name="最大不同帧间隔",
+        description="两个不同关键帧之间的最大帧间隔，用于避免角色几乎不动时相机缓慢移动的问题",
+        default=15,
+    )
+
+    @staticmethod
+    def register():
+        bpy.types.Scene.mmd_kafei_tools_camera_settings = bpy.props.PointerProperty(type=CameraSettingsProperty)
+
+    @staticmethod
+    def unregister():
+        del bpy.types.Scene.mmd_kafei_tools_camera_settings

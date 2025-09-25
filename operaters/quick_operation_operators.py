@@ -228,6 +228,9 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
         rig = find_pmx_armature(root)
         objs = find_pmx_objects(rig)
 
+        # 切换对象模式
+        deselect_all_objects()
+
         faces_map = {}
         for obj in objs:
             faces_map[obj] = get_faces(obj)

@@ -1,7 +1,5 @@
-import bpy
-
+from .render_preview_operators import camera_to_view_selected
 from ..utils import *
-from ..mmd_utils import *
 
 
 class RenderSettingsOperator(bpy.types.Operator):
@@ -18,7 +16,6 @@ class RenderSettingsOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_render_settings
         engine = props.engine
-
         # 设置渲染参数。关于着色方式 - 渲染，初始加载可能会耗费时间，因此暂不添加
         if engine == "EEVEE":
             blender_version = bpy.app.version
@@ -225,8 +222,9 @@ def set_eevee_next():
     safe_set(scene.eevee, "use_raytracing", True)
     safe_set(scene.eevee.ray_tracing_options, "screen_trace_quality", 1)
     safe_set(scene.eevee.ray_tracing_options, "use_denoise", True)
-    safe_set(scene.eevee.ray_tracing_options, "denoise_temporal", False)
-    safe_set(scene.eevee.ray_tracing_options, "denoise_bilateral", False)
+    safe_set(scene.eevee.ray_tracing_options, "denoise_spatial", True)
+    safe_set(scene.eevee.ray_tracing_options, "denoise_temporal", True)
+    safe_set(scene.eevee.ray_tracing_options, "denoise_bilateral", True)
 
     # 快速GI近似
     safe_set(scene.eevee, "use_fast_gi", False)
@@ -559,7 +557,8 @@ class LightSettingsOperator(bpy.types.Operator):
                 self.report(type={'ERROR'}, message=f'Armature not found!')
                 return False
             if bone_name not in armature.pose.bones:
-                self.report(type={'ERROR'}, message=f'Bone "{bone_name}" not found!')
+                self.report(type={'ERROR'},
+                            message=bpy.app.translations.pgettext_iface("Bone \"{}\" not found!").format(bone_name))
                 return False
             return True
         elif target_type == "MESH":
@@ -570,7 +569,16 @@ class LightSettingsOperator(bpy.types.Operator):
                 self.report(type={'ERROR'}, message=f'Select mesh object!')
                 return False
             if vg_name not in active_object.vertex_groups:
-                self.report(type={'ERROR'}, message=f'Vertex Groups "{vg_name}" not found!')
+                msg = bpy.app.translations.pgettext_iface("Vertex group \"{}\" not found!").format(vg_name)
+                self.report({'ERROR'}, message=msg)
+                return False
+            # 校验顶点组是否至少含有一个顶点
+            vg_index = active_object.vertex_groups[vg_name].index
+            has_vertex = any(v for v in active_object.data.vertices if vg_index in [g.group for g in v.groups])
+            if not has_vertex:
+                msg = bpy.app.translations.pgettext_iface("Object \"{}\" vertex group \"{}\" has no vertices!").format(
+                    active_object.name, vg_name)
+                self.report({'ERROR'}, message=msg)
                 return False
             return True
 
@@ -580,7 +588,7 @@ def find_armature(obj):
     递归查找 obj 的子对象，直到找到骨架（ARMATURE）对象。
     返回第一个找到的骨架对象，如果没有找到则返回 None。
     """
-    if obj.type == 'ARMATURE':
+    if obj.type == 'ARMATURE' and ".dummy_armature" not in obj.name:
         return obj
 
     for child in obj.children:
@@ -652,3 +660,358 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         lights = [obj for obj in bpy.context.scene.objects if obj.type == 'LIGHT']
         for light in lights:
             set_visibility(light, (False, True, False, True))
+
+
+class CameraSettingsOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.camera_settings"
+    bl_label = "执行"
+    bl_description = "生成相机跟随动画"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.gen_camera_animation(context)
+        return {'FINISHED'}
+
+    def gen_camera_animation(self, context):
+        """
+        根据指定骨骼生成相机跟随动画。
+        逻辑说明：
+        - 相机的Z轴位置对跟随效果较为敏感，因此将XYZ分量拆开单独处理，而不是类似限制距离约束的球体。
+        - 对XY分量分别检查，如果骨骼位置的变化超过对应阈值，则更新相机的最新XY位置，Z位置需额外阈值校验。
+        - 相机位置 += (当前骨骼位置 - 上一次记录的骨骼位置)
+        - 可能会在不同关键帧之间产生较长连续间隙，从而导致相机缓慢移动但角色基本不动的问题，需根据最大不同帧间隔调整
+        - 根据顶点组中顶点移动时，顶点如果消失（如受到焊接修改器、遮罩修改器影响），相机动画会受到影响<Vector (0.0000, 0.0000, 0.0000)>，但不会报错，需文档提示用户
+        """
+        props = bpy.context.scene.mmd_kafei_tools_camera_settings
+        preview_props = bpy.context.scene.mmd_kafei_tools_render_preview
+
+        if self.check_props(props) is False:
+            return
+
+        active_object = bpy.context.active_object
+
+        # 获取跟随目标
+        armature = None
+        armature_copied = None
+        empty = None
+        target_type = props.target_type
+        if target_type == "ARMATURE":
+            if active_object.type == "ARMATURE":
+                armature = active_object
+            else:
+                ancestor = find_ancestor(active_object)
+                armature = find_armature(ancestor)
+        else:
+            empty = set_empty(props, active_object)
+
+        # 创建跟随相机
+        camera = create_follow_camera(props, preview_props)
+
+        # 拷贝骨架并精简骨骼
+        if target_type == "ARMATURE":
+            bone_name = props.bone_name
+            armature_copied = copy_and_prune_armature(armature, bone_name)
+
+        # 记录当前场景
+        main_scene = bpy.context.scene
+
+        # 创建并切换到临时场景
+        # 添加一个新的空场景，并拷贝当前场景的设置。可排除frame_start、frame_end、fps等设置因新场景初始化带来的影响
+        scenes_before = set(bpy.data.scenes)
+        bpy.ops.scene.new(type='EMPTY')
+        scenes_after = set(bpy.data.scenes)
+        tmp_scene = (scenes_after - scenes_before).pop()
+        bpy.context.window.scene = tmp_scene
+        tmp_scene.name = "TmpScene"
+
+        # 烘焙相机动画
+        if target_type == "ARMATURE":
+            tmp_scene.collection.objects.link(armature_copied)
+            bake_camera_animation(props, camera, armature=armature_copied)
+            bpy.data.objects.remove(armature_copied, do_unlink=True)
+        else:
+            tmp_scene.collection.objects.link(empty)
+            bake_camera_animation(props, camera, empty=empty)
+            bpy.data.objects.remove(empty, do_unlink=True)
+
+        # 恢复主场景
+        bpy.context.window.scene = main_scene
+        bpy.data.scenes.remove(tmp_scene)
+
+        # 选中相机控制器 激活相机
+        deselect_all_objects()
+        select_and_activate(camera.parent)
+        bpy.context.scene.camera = camera
+        # 切换下视图（确保view_camera执行后肯定在相应视图）
+        bpy.ops.view3d.view_axis(type='FRONT')
+        # 视图 - 摄像机 对应快捷键0
+        bpy.ops.view3d.view_camera()
+        # 摄像机边界框 对应快捷键home
+        bpy.ops.view3d.view_center_camera()
+
+    def check_props(self, props):
+        active_object = bpy.context.active_object
+        target_type = props.target_type
+        bone_name = props.bone_name
+        vg_name = props.vg_name
+        if target_type == "ARMATURE":
+            if not active_object:
+                self.report(type={'ERROR'}, message=f'Select armature object!')
+                return False
+            if active_object.type == "ARMATURE":
+                armature = active_object
+            else:
+                ancestor = find_ancestor(active_object)
+                armature = find_armature(ancestor)
+            if not armature:
+                self.report(type={'ERROR'}, message=f'Armature not found!')
+                return False
+            if bone_name not in armature.pose.bones:
+                self.report(type={'ERROR'},
+                            message=bpy.app.translations.pgettext_iface("Bone \"{}\" not found!").format(bone_name))
+                return False
+            return True
+        elif target_type == "MESH":
+            # 获取选中网格对象
+            selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+            if not selected_objects:
+                self.report(type={'ERROR'}, message=f'Select mesh object!')
+                return False
+
+            # 先校验active_object是否含有指定顶点组，否则在选中对象中查找
+            if active_object and active_object.type == "MESH" and vg_name in active_object.vertex_groups:
+                mesh_object = active_object
+            else:
+                mesh_object = next((obj for obj in selected_objects if vg_name in obj.vertex_groups), None)
+
+            if not mesh_object:
+                msg = bpy.app.translations.pgettext_iface("Vertex group \"{}\" not found!").format(vg_name)
+                self.report({'ERROR'}, message=msg)
+                return False
+
+            # 校验顶点组是否至少含有一个顶点
+            vg_index = mesh_object.vertex_groups[vg_name].index
+            has_vertex = any(v for v in mesh_object.data.vertices if vg_index in [g.group for g in v.groups])
+            if not has_vertex:
+                msg = bpy.app.translations.pgettext_iface("Object \"{}\" vertex group \"{}\" has no vertices!").format(
+                    mesh_object.name, vg_name)
+                self.report({'ERROR'}, message=msg)
+                return False
+
+            return True
+
+
+def set_empty(props, active_object):
+    # 获取跟随对象
+    vg_name = props.vg_name
+    selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+    if active_object and active_object.type == "MESH" and vg_name in active_object.vertex_groups:
+        mesh_object = active_object
+    else:
+        mesh_object = next((obj for obj in selected_objects if vg_name in obj.vertex_groups), None)
+
+    # 获取跟随顶点
+    vg_index = mesh_object.vertex_groups[vg_name].index
+    vertex = next(
+        (v for v in mesh_object.data.vertices if vg_index in [g.group for g in v.groups]),
+        None
+    )
+
+    # 创建空物体子级
+    empty = bpy.data.objects.new("TmpEmpty", None)
+    bpy.context.scene.collection.objects.link(empty)
+    empty.parent = mesh_object
+    empty.parent_type = 'VERTEX'
+    empty.parent_vertices[0] = vertex.index
+    return empty
+
+
+def bake_camera_animation(props, camera, armature=None, empty=None):
+    bone_name = props.bone_name
+    threshold_x = props.threshold_x
+    threshold_y = props.threshold_y
+    threshold_z = props.threshold_z
+    max_gap = props.max_gap
+    savepoint_x = None
+    savepoint_y = None
+    savepoint_z = None
+    # 获取帧范围
+    target_type = props.target_type
+    if target_type == "ARMATURE":
+        frame_start, frame_end = get_armature_keyframe_range(armature)
+    else:
+        frame_start, frame_end = bpy.context.scene.frame_start, bpy.context.scene.frame_end
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    for frame in range(frame_start, frame_end):
+        bpy.context.scene.frame_set(frame)
+
+        if target_type == "ARMATURE":
+            # 获取指定骨骼实际全局位置
+            eval_arm = armature.evaluated_get(depsgraph)
+            eval_bone = eval_arm.pose.bones[bone_name]
+            global_mat = eval_arm.matrix_world @ eval_bone.matrix
+            lo_x, lo_y, lo_z = global_mat.to_translation()
+
+        else:
+            # 获取空物体实际全局位置
+            eval_obj = empty.evaluated_get(depsgraph)
+            lo = eval_obj.matrix_world.translation
+            lo_x, lo_y, lo_z = lo.x, lo.y, lo.z
+
+        # 第一帧作为参考帧
+        if savepoint_x is None and savepoint_y is None and savepoint_z is None:
+            savepoint_x, savepoint_y, savepoint_z = lo_x, lo_y, lo_z
+            continue
+
+        # 第二帧起计算差值
+        delta_x = lo_x - savepoint_x
+        delta_y = lo_y - savepoint_y
+        delta_z = lo_z - savepoint_z
+
+        if abs(delta_x) <= threshold_x and abs(delta_y) <= threshold_y and abs(delta_z) <= threshold_z:
+            continue
+
+        camera.location[0] += delta_x
+        camera.location[1] += delta_y
+        if abs(delta_z) > threshold_z:
+            camera.location[2] += delta_z
+
+        # 插入关键帧
+        camera.keyframe_insert(data_path="location", frame=frame)
+
+        # 更新参考点
+        savepoint_x, savepoint_y, savepoint_z = lo_x, lo_y, lo_z
+
+    # 根据 最大不同帧间隔 设置关键帧
+    action = camera.animation_data.action if camera.animation_data else None
+    fcurves = [fc for fc in action.fcurves if fc.data_path == "location"]
+
+    # fc.array_index X/Y/Z 三个通道索引
+    # kp.co.x 帧号
+    # kp.co.y 关键帧的数值
+    keyframes = {}
+    for fc in fcurves:
+        keyframes[fc.array_index] = [(kp.co.x, kp.co.y) for kp in fc.keyframe_points]
+
+    # 遍历 X/Y/Z 三个通道的关键帧列表
+    all_frame_numbers = []
+    for klist in keyframes.values():
+        # 遍历该通道里的每个关键帧 (frame, value)
+        for k in klist:
+            frame_number = k[0]  # 取出帧号
+            all_frame_numbers.append(frame_number)
+    # 去重并排序
+    frames = sorted(set(all_frame_numbers))
+
+    for i in range(len(frames) - 1):
+        f1, f2 = int(frames[i]), int(frames[i + 1])
+        gap = f2 - f1
+        if gap <= max_gap:
+            continue
+
+        # 获取帧上的 location 值
+        loc1 = Vector((
+            fcurves[0].evaluate(f1),
+            fcurves[1].evaluate(f1),
+            fcurves[2].evaluate(f1),
+        ))
+        loc2 = Vector((
+            fcurves[0].evaluate(f2),
+            fcurves[1].evaluate(f2),
+            fcurves[2].evaluate(f2),
+        ))
+
+        # 差值判断
+        if (loc2 - loc1).length < PRECISION:
+            continue
+
+        # 目标插入帧
+        insert_frame = f2 - max_gap
+        # 插入 loc1
+        camera.location = loc1
+        camera.keyframe_insert(data_path="location", frame=insert_frame)
+
+    bpy.context.scene.frame_set(0)
+
+
+def copy_and_prune_armature(armature, bone_name):
+    armature_copied = copy_obj(armature)
+    armature_copied.parent = None
+    deselect_all_objects()
+    select_and_activate(armature_copied)
+    bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature_copied.data.edit_bones
+    # 获取指定骨骼及其父骨骼链
+    keep_bones = set()
+    bone = edit_bones.get(bone_name)
+    while bone:
+        keep_bones.add(bone.name)
+        bone = bone.parent
+    # 遍历所有骨骼，删除不在 keep_bones 中的骨骼
+    for bone in list(edit_bones):
+        if bone.name not in keep_bones:
+            edit_bones.remove(bone)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return armature_copied
+
+
+def create_follow_camera(props, preview_props):
+    # 生成相机及所在集合
+    camera_name = bpy.app.translations.pgettext_iface("跟随相机")
+    camera_data = bpy.data.cameras.new(name=camera_name)
+    camera = bpy.data.objects.new(name=camera_name, object_data=camera_data)
+    collection_name = bpy.app.translations.pgettext_iface("相机")
+    collection = get_collection(collection_name)
+    collection.objects.link(camera)
+
+    # 创建相机父级并缩放，以便控制及观察
+    empty = bpy.data.objects.new(bpy.app.translations.pgettext_iface("相机控制器"), None)
+    empty.scale = [0.1, 0.1, 0.1]
+    collection.objects.link(empty)
+    active_object = bpy.context.active_object
+    selected_objects = bpy.context.selected_objects
+    deselect_all_objects()
+    select_and_activate(empty)
+    bpy.ops.object.transform_apply(scale=True)
+    restore_selection(selected_objects, active_object)
+    camera.parent = empty
+    camera.matrix_parent_inverse = empty.matrix_world.inverted()
+
+    # 设置相机初始位置
+    bpy.context.scene.frame_set(0)
+    preview_props.scale = 1
+    preview_props.rotation_euler_x = props.rotation_euler_x
+    preview_props.rotation_euler_y = math.radians(0)
+    preview_props.rotation_euler_z = math.radians(0)
+    preview_props.align = True
+    preview_props.type = 'PERSPECTIVE'
+    camera_to_view_selected(preview_props, camera)
+    camera.keyframe_insert(data_path="location", frame=0)
+    return camera
+
+
+def get_armature_keyframe_range(armature):
+    """ 获取指定 Armature 对象的关键帧范围 """
+    if armature.animation_data is None:
+        return None, None
+
+    action = armature.animation_data.action
+    if action is None:
+        return None, None
+
+    # 用于存储所有关键帧帧号
+    keyframe_numbers = []
+
+    for fcurve in action.fcurves:
+        for keyframe_point in fcurve.keyframe_points:
+            frame_number = keyframe_point.co.x  # co.x 帧号
+            keyframe_numbers.append(frame_number)
+
+    # 如果找到了关键帧
+    if keyframe_numbers:
+        min_frame = int(min(keyframe_numbers))
+        max_frame = int(max(keyframe_numbers))
+        return min_frame, max_frame
+
+    return None, None

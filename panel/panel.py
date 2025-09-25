@@ -37,6 +37,7 @@ from ..operaters.scene_settings_operators import WorldSettingsOperator
 from ..operaters.scene_settings_operators import ResolutionSettingsOperator
 from ..operaters.scene_settings_operators import SwapResolutionOperator
 from ..operaters.scene_settings_operators import LightSettingsOperator
+from ..operaters.scene_settings_operators import CameraSettingsOperator
 from ..operaters.quick_operation_operators import MergeVerticesOperator
 from ..operaters.quick_operation_operators import DummyOperator
 from ..operaters.quick_operation_operators import SetMatNameByObjNameOperator
@@ -257,21 +258,15 @@ class LightSettingsPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        target_type_col = col.column()
-        target_type_col.prop(props, "target_type")
-
+        col.prop(props, "target_type")
         target_type = props.target_type
         if target_type == "ARMATURE":
-            bone_name_col = col.column()
-            bone_name_col.prop(props, "bone_name")
+            col.prop(props, "bone_name")
         elif target_type == "MESH":
-            vg_name_col = col.column()
-            vg_name_col.prop(props, "vg_name")
+            col.prop(props, "vg_name")
 
-        col = col.column()
         col.prop(props, "preset")
         col.prop(props, "preset_flag")
         col.prop(props, "main_distance")
@@ -280,8 +275,50 @@ class LightSettingsPanel(bpy.types.Panel):
         col.prop(props, "back_distance")
         col.prop(props, "back_angle")
 
-        operators_col = col.column()
-        operators_col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
+        col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
+
+
+class CameraSettingsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_camera_settings"
+    bl_label = "相机设置"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_scene_settings"
+    bl_order = 4
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_camera_settings
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        col = layout.column()
+        col = col.column()
+
+        col.prop(props, "target_type")
+        target_type = props.target_type
+        if target_type == "ARMATURE":
+            col.prop(props, "bone_name")
+        elif target_type == "MESH":
+            col.prop(props, "vg_name")
+            frame_col = col.column(align=True)
+            frame_col.prop(scene, "frame_start", text="起始帧")
+            frame_col.prop(scene, "frame_end", text="结束帧")
+
+        col.prop(props, "rotation_euler_x")
+
+        threshold_col = col.column(align=True)
+        threshold_col.prop(props, "threshold_x")
+        threshold_col.prop(props, "threshold_y")
+        threshold_col.prop(props, "threshold_z")
+
+        col = col.column()
+        col.prop(props, "max_gap")
+
+        col.operator(CameraSettingsOperator.bl_idname, text=CameraSettingsOperator.bl_label)
 
 
 class SmallFeaturePanel(bpy.types.Panel):
@@ -290,7 +327,7 @@ class SmallFeaturePanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_scene_settings"
-    bl_order = 4
+    bl_order = 5
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -692,20 +729,18 @@ class QuickOperationPanel(bpy.types.Panel):
             mmd_row2.operator(DummyOperator.bl_idname, text='Separate by Materials', icon='MOD_EXPLODE')
             mmd_row2.enabled = False
 
-
         operator_row = operator_col.row(align=True)
         row = operator_row.row(align=True)
         row.operator(MergeVerticesOperator.bl_idname, text=MergeVerticesOperator.bl_label, icon="AUTOMERGE_OFF")
         mmd_row = operator_row.row(align=True)
         if is_mmd_tools_enabled():
             mmd_row.operator(DetectOverlappingFacesOperator.bl_idname,
-                          text=DetectOverlappingFacesOperator.bl_label,
-                          icon='VIEWZOOM')
+                             text=DetectOverlappingFacesOperator.bl_label,
+                             icon='VIEWZOOM')
         else:
             mmd_row.operator(DummyOperator.bl_idname, text=DetectOverlappingFacesOperator.bl_label,
-                          icon='VIEWZOOM')
+                             icon='VIEWZOOM')
             mmd_row.enabled = False
-
 
         operator_row = operator_col.row(align=True)
         operator_row.operator(SetMatNameByObjNameOperator.bl_idname, text=SetMatNameByObjNameOperator.bl_label,
@@ -762,7 +797,7 @@ class ChangeTexLocPanel(bpy.types.Panel):
 
 
 class AddSsbPanel:
-# class AddSsbPanel(bpy.types.Panel):
+    # class AddSsbPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_add_ssb"
     bl_label = "修复次标准骨骼"
     bl_space_type = 'VIEW_3D'
