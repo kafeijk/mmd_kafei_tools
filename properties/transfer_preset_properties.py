@@ -23,7 +23,17 @@ def auto_fill(self, context):
 
 def update_preset(self, context):
     if self.direction == 'PMX2PMX':
+        self.material_flag = True
+        self.uv_flag = False
+        self.vgs_flag = True
+        self.modifiers_flag = True
         self.toon_shading_flag = False
+    elif self.direction == 'PMX2ABC':
+        self.material_flag = True
+        self.uv_flag = True
+        self.vgs_flag = True
+        self.modifiers_flag = True
+        self.normal_flag = True
 
 
 class TransferPresetProperty(bpy.types.PropertyGroup):
