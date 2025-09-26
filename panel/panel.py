@@ -1024,27 +1024,40 @@ class AboutPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_developer_extras
+        flag = props.flag
 
         layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
         col = layout.column(align=True)
-        row = col.row(align=True)
-        row.operator(
+        col.operator(
             "wm.url_open",
             text="用户文档",
             icon='URL'
         ).url = r"https://www.yuque.com/laibeikafeizaishuo/xgbdou/qtop1t7zzts9nzgv"
 
-        row = col.row(align=True)
-        row.operator(
+        col.operator(
             "wm.url_open",
             text="开源地址",
             icon='URL'
         ).url = r"https://github.com/kafeijk/mmd_kafei_tools/releases"
 
+        # 版本号
         row = col.row(align=True)
         row.label(
             text='Version: ' + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
                                     addon.bl_info['name'] == 'mmd_kafei_tools'][0]))
+
+        # 开发者选项开关
+        icon = 'HIDE_ON' if not flag else 'HIDE_OFF'
+        row.prop(props, "flag", text="", icon=icon, emboss=False)
+
+        # 语言选择
+        if flag:
+            row = col.row(align=True)
+            row.prop(props, "language", expand=True)
 
 
 def show_batch_props(col, show_flag, create_box, batch, fill_suffix_operator=None):

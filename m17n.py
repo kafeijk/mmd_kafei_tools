@@ -471,4 +471,4 @@ translation_dict = {
 }
 
 translation_dict["zh_HANS"] = translation_dict["zh_CN"]
-translation_dict["en_GB"] = translation_dict["en_US"]
+translation_dict["ja_JP"] = translation_dict["en_GB"] = translation_dict["en_US"]
