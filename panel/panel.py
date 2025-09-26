@@ -204,42 +204,44 @@ class OutputSettingsPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
+        props = scene.mmd_kafei_tools_output_settings
+        rd = context.scene.render
 
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-        row = layout.row(align=True)
-        col1 = row.column(align=True)
-        col2 = row.column(align=True)
-        col2.scale_x = 0.3
 
-        props = scene.mmd_kafei_tools_output_settings
-        rd = context.scene.render
+        col = layout.column()
+
+        row = col.row(align=True)
+        props_col = row.column(align=True)
+        button_col = row.column(align=True)
+        button_col.scale_x = 0.3
 
         # 分辨率
-        col1.prop(props, "resolution", text="Resolution")
-        col1.prop(rd, "resolution_x", text="X")
-        col1.prop(rd, "resolution_y", text="Y")
-        col2.operator(ResolutionSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
-        col2.operator(SwapResolutionOperator.bl_idname, text="⇅", emboss=True)
+        props_col.prop(props, "resolution", text="Resolution")
+        props_col.prop(rd, "resolution_x", text="X")
+        props_col.prop(rd, "resolution_y", text="Y")
+        button_col.operator(ResolutionSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
+        button_col.operator(SwapResolutionOperator.bl_idname, text="⇅", emboss=True)
 
         # 帧率
-        col1.separator()
-        col11 = col1.column(heading="Frame Rate")
+        props_col.separator()
+        frame_col = props_col.column(heading="Frame Rate")
         if bpy.types.RENDER_PT_format._preset_class is None:
             bpy.types.RENDER_PT_format._preset_class = bpy.types.RENDER_MT_framerate_presets
         args = rd.fps, rd.fps_base, bpy.types.RENDER_PT_format._preset_class.bl_label
         fps_label_text, show_framerate = bpy.types.RENDER_PT_format._draw_framerate_label(*args)
-        col11.menu("RENDER_MT_framerate_presets", text=fps_label_text)
+        frame_col.menu("RENDER_MT_framerate_presets", text=fps_label_text)
         if show_framerate:
-            col111 = col11.column(align=True)
-            col111.prop(rd, "fps")
-            col111.prop(rd, "fps_base", text="Base")
+            custom_fps_col = frame_col.column(align=True)
+            custom_fps_col.prop(rd, "fps")
+            custom_fps_col.prop(rd, "fps_base", text="Base")
 
         # 输出文件格式
-        col1.separator()
+        props_col.separator()
         image_settings = rd.image_settings
-        col1.template_image_settings(image_settings, color_management=False)
+        props_col.template_image_settings(image_settings, color_management=False)
 
 
 class LightSettingsPanel(bpy.types.Panel):
@@ -263,9 +265,9 @@ class LightSettingsPanel(bpy.types.Panel):
         col.prop(props, "target_type")
         target_type = props.target_type
         if target_type == "ARMATURE":
-            col.prop(props, "bone_name")
+            col.prop(props, "bone_name", icon='BONE_DATA')
         elif target_type == "MESH":
-            col.prop(props, "vg_name")
+            col.prop(props, "vg_name", icon='GROUP_VERTEX')
 
         col.prop(props, "preset")
         col.prop(props, "preset_flag")
@@ -294,16 +296,14 @@ class CameraSettingsPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
-        col = col.column()
 
         col.prop(props, "target_type")
         target_type = props.target_type
         if target_type == "ARMATURE":
-            col.prop(props, "bone_name")
+            col.prop(props, "bone_name", icon='BONE_DATA')
         elif target_type == "MESH":
-            col.prop(props, "vg_name")
+            col.prop(props, "vg_name", icon='GROUP_VERTEX')
             frame_col = col.column(align=True)
             frame_col.prop(scene, "frame_start", text="起始帧")
             frame_col.prop(scene, "frame_end", text="结束帧")
@@ -315,7 +315,6 @@ class CameraSettingsPanel(bpy.types.Panel):
         threshold_col.prop(props, "threshold_y")
         threshold_col.prop(props, "threshold_z")
 
-        col = col.column()
         col.prop(props, "max_gap")
 
         col.operator(CameraSettingsOperator.bl_idname, text=CameraSettingsOperator.bl_label)
@@ -339,14 +338,11 @@ class SmallFeaturePanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        option_col = col.column()
-        option_col.prop(props, "option")
+        col.prop(props, "option")
 
         option = props.option
-
         if option == "MODIFY_COLORSPACE":
             source_colorspace_col = col.column()
             source_colorspace_col.prop(props2, "source_colorspace")
@@ -356,29 +352,22 @@ class SmallFeaturePanel(bpy.types.Panel):
             else:
                 source_colorspace_col.enabled = True
 
-            target_colorspace_col = col.column()
-            target_colorspace_col.prop(props2, "target_colorspace")
-
-            keywords_col = col.column()
-            keywords_col.prop(props2, "keywords")
-
-            operator_col = col.column()
-            operator_col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
+            col.prop(props2, "target_colorspace")
+            col.prop(props2, "keywords", icon="FILE_IMAGE")
+            col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
         elif option == "GROUP_OBJECT":
-            col = col.column()
             col.prop(props3, "scope")
             col.prop(props3, "search_type")
             search_type = props3.search_type
             if search_type == "NODE_NAME":
-                col.prop(props3, "node_keywords")
+                col.prop(props3, "node_keywords", icon="NODE")
             else:
-                col.prop(props3, "img_keywords")
+                col.prop(props3, "img_keywords", icon="FILE_IMAGE")
             col.prop(props3, "recursive")
             col.operator(GroupObjectOperator.bl_idname, text=GroupObjectOperator.bl_label)
 
         else:
-            operators_col = col.column()
-            operators_col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
+            col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
 
 
 class ToolsPanel(bpy.types.Panel):
@@ -407,48 +396,34 @@ class RemoveSpecifyContentPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_modify_specify_content
-        batch = props.batch
 
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        content_type_col = col.column()
-        content_type_col.prop(props, "content_type")
+        col.prop(props, "content_type")
         content_type = props.content_type
         if content_type == 'ADD_UV_MAP':
-            uv_name_col = col.column()
-            uv_name_col.prop(props, "uv_name")
-            average_islands_flag_col = col.column()
-            average_islands_flag_col.prop(props, "average_islands_flag")
+            col.prop(props, "uv_name", icon="GROUP_UVS")
+            col.prop(props, "average_islands_flag")
         elif content_type == 'ADD_COLOR_ATTRIBUTE':
-            color_attribute_name_col = col.column()
-            color_attribute_name_col.prop(props, "color_attribute_name")
-            color_col = col.column()
-            color_col.prop(props, "color")
+            col.prop(props, "color_attribute_name", icon="GROUP_VCOL")
+            col.prop(props, "color")
         elif content_type == 'REMOVE_UV_MAP':
-            keep_first_col = col.column()
-            keep_first_col.prop(props, "keep_first")
+            col.prop(props, "keep_first")
         elif content_type == 'REMOVE_COLOR_ATTRIBUTE':
-            keep_first_col = col.column()
-            keep_first_col.prop(props, "keep_first")
+            col.prop(props, "keep_first")
         elif content_type == 'REMOVE_MATERIAL':
-            create_default_col = col.column()
-            create_default_col.prop(props, "create_default")
+            col.prop(props, "create_default")
         elif content_type in ['REMOVE_MODIFIER', 'REMOVE_CONSTRAINT']:
-            keep_first_col = col.column()
-            keep_first_col.prop(props, "keep_first")
+            col.prop(props, "keep_first")
         elif content_type == 'REMOVE_VERTEX_GROUP':
-            keep_locked_col = col.column()
-            keep_locked_col.prop(props, "keep_locked")
+            col.prop(props, "keep_locked")
         elif content_type == 'REMOVE_SHAPE_KEY':
-            keep_current_col = col.column()
-            keep_current_col.prop(props, "keep_current")
+            col.prop(props, "keep_current")
 
-        operator_col = col.column()
-        operator_col.operator(ModifySpecifyContentOperator.bl_idname, text=ModifySpecifyContentOperator.bl_label)
+        col.operator(ModifySpecifyContentOperator.bl_idname, text=ModifySpecifyContentOperator.bl_label)
 
 
 class ArrangeObjectPanel(bpy.types.Panel):
@@ -467,7 +442,6 @@ class ArrangeObjectPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
         arrangement_type = props.arrangement_type
@@ -477,31 +451,31 @@ class ArrangeObjectPanel(bpy.types.Panel):
         col.prop(props, "order")
 
         if arrangement_type == "ARRAY":
-            col2 = col.column(align=True)
-            col2.prop(props, "start_trans", index=0, text="起始 X")
+            start_trans_col = col.column(align=True)
+            start_trans_col.prop(props, "start_trans", index=0, text="起始 X")
             direction = props.direction
             if direction == "HORIZONTAL":
-                col2.prop(props, "start_trans", index=1, text="Y")
+                start_trans_col.prop(props, "start_trans", index=1, text="Y")
             else:
-                col2.prop(props, "start_trans", index=2, text="Z")
-            col2.prop(props, "spacing", index=0, text="间距 X")
+                start_trans_col.prop(props, "start_trans", index=2, text="Z")
+
+            spacing_col = col.column(align=True)
+            spacing_col.prop(props, "spacing", index=0, text="间距 X")
             if direction == "HORIZONTAL":
-                col2.prop(props, "spacing", index=1, text="Y")
+                spacing_col.prop(props, "spacing", index=1, text="Y")
             else:
-                col2.prop(props, "spacing", index=2, text="Z")
+                spacing_col.prop(props, "spacing", index=2, text="Z")
 
-            col2.prop(props, "num_per_row")
-            col2.prop(props, "threshold")
+            col.prop(props, "num_per_row")
+            col.prop(props, "threshold")
         elif arrangement_type in ["ARC", "CIRCLE"]:
-            col2 = col.column(align=True)
-            col2.prop(props, "radius")
-            col2.prop(props, "num_per_circle")
-            col2.prop(props, "spacing_circle")
-            col2.prop(props, "offset")
-            col2.prop(props, "threshold")
+            col.prop(props, "radius")
+            col.prop(props, "num_per_circle")
+            col.prop(props, "spacing_circle")
+            col.prop(props, "offset")
+            col.prop(props, "threshold")
 
-        operator_col = col.column()
-        operator_col.operator(ArrangeObjectOperator.bl_idname, text=ArrangeObjectOperator.bl_label)
+        col.operator(ArrangeObjectOperator.bl_idname, text=ArrangeObjectOperator.bl_label)
 
 
 class ModelModificationPanel(bpy.types.Panel):
@@ -534,19 +508,17 @@ class ChangeRestPosePanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        prop_col = col.column()
-        prop_col.prop(props, "h_joint_strategy")
-        prop_col.prop(props, "force_apply")
+        col.prop(props, "h_joint_strategy")
+        col.prop(props, "force_apply")
 
-        operator_col = col.column(align=True)
-        operator_row = operator_col.row(align=True)
-        operator_row.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
-        operator_row.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
-        operator_row = operator_col.row(align=True)
-        operator_row.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
+        col = col.column(align=True)
+        row = col.row(align=True)
+        row.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
+        row.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        row = col.row(align=True)
+        row.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
 
 
 class BonePanel(bpy.types.Panel):
@@ -564,8 +536,8 @@ class BonePanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column(align=True)
+
         operator_col = col.column(align=True)
 
         # 选择 物理骨骼 烘焙骨骼
@@ -661,18 +633,13 @@ class TransferVgWeightPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        source_vg_name_col = col.column()
-        source_vg_name_col.prop(props, "source_vg_name", icon='GROUP_VERTEX')
-        target_vg_name_col = col.column()
-        target_vg_name_col.prop(props, "target_vg_name", icon='GROUP_VERTEX')
-        selected_v_only_col = col.column()
-        selected_v_only_col.prop(props, "selected_v_only")
+        col.prop(props, "source_vg_name", icon='GROUP_VERTEX')
+        col.prop(props, "target_vg_name", icon='GROUP_VERTEX')
+        col.prop(props, "selected_v_only")
 
-        operator_col = col.column()
-        operator_col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
+        col.operator(TransferVgWeightOperator.bl_idname, text=TransferVgWeightOperator.bl_label)
 
 
 class QuickOperationPanel(bpy.types.Panel):
@@ -690,10 +657,9 @@ class QuickOperationPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column(align=True)
-        operator_col = col.column(align=True)
 
+        operator_col = col.column(align=True)
         operator_row = operator_col.row(align=True)
         mmd_row = operator_row.row(align=True)
         if is_mmd_tools_enabled():
@@ -742,14 +708,13 @@ class QuickOperationPanel(bpy.types.Panel):
                              icon='VIEWZOOM')
             mmd_row.enabled = False
 
-        operator_row = operator_col.row(align=True)
-        operator_row.operator(SetMatNameByObjNameOperator.bl_idname, text=SetMatNameByObjNameOperator.bl_label,
-                              icon='GREASEPENCIL')
-        operator_row.operator(SetObjNameByMatNameOperator.bl_idname, text=SetObjNameByMatNameOperator.bl_label,
-                              icon='GREASEPENCIL')
+        row = operator_col.row(align=True)
+        row.operator(SetMatNameByObjNameOperator.bl_idname, text=SetMatNameByObjNameOperator.bl_label,
+                     icon='GREASEPENCIL')
+        row.operator(SetObjNameByMatNameOperator.bl_idname, text=SetObjNameByMatNameOperator.bl_label,
+                     icon='GREASEPENCIL')
 
-        operator_row = operator_col.row(align=True)
-        row = operator_row.row(align=True)
+        row = operator_col.row(align=True)
         row.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
 
 
