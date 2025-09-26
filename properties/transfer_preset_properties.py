@@ -118,7 +118,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     force: bpy.props.BoolProperty(
         name="强制跟随",
         description="复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用",
-        default=False,
+        default=True,
     )
 
     abc_filepath: bpy.props.StringProperty(
