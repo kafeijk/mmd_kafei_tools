@@ -64,83 +64,55 @@ class TransferPresetPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        direction_col = col.column()
-        direction_col.prop(props, "direction")
-        common_param_col = col.column()
-        common_param_box = common_param_col.box()
-        direction = props.direction
+        col.prop(props, "direction")
+        param_box = col.box()
+        param_col = param_box.column()
 
+        direction = props.direction
         if direction in ['PMX2ABC', 'PMX2PMX']:
             if direction == 'PMX2ABC':
-                source_pmx2abc_col = common_param_box.column()
-                source_pmx2abc_col.prop(props, "source_pmx2abc")
-            if direction == 'PMX2PMX':
-                source_col = common_param_box.column()
-                source_col.prop(props, "source")
-                target_col = common_param_box.column()
-                target_col.prop(props, "target")
+                param_col.prop(props, "source_pmx2abc")
+            else:
+                param_col.prop(props, "source")
+                param_col.prop(props, "target")
 
-            material_flag_col = common_param_box.column()
-            material_flag_col.prop(props, "material_flag")
-
-            uv_flag_col = common_param_box.column()
-            uv_flag_col.prop(props, "uv_flag")
-            vgs_col = common_param_box.column()
-            vgs_col.prop(props, "vgs_flag")
-
-            modifiers_col = common_param_box.column()
-            modifiers_col.prop(props, "modifiers_flag")
-
-            if direction == 'PMX2PMX':
-                tolerance_col = common_param_box.column()
-                tolerance_col.prop(props, "tolerance")
+            transfer_param_col = param_col.column()
+            transfer_param_col.prop(props, "material_flag")
+            transfer_param_col.prop(props, "uv_flag")
+            transfer_param_col.prop(props, "vgs_flag")
+            transfer_param_col.prop(props, "modifiers_flag")
 
             if direction == 'PMX2ABC':
-                normal_flag_col = common_param_box.column()
-                normal_flag_col.prop(props, "normal_flag")
+                transfer_param_col.prop(props, "normal_flag")
 
-                toon_shading_flag_col = common_param_box.column()
-                toon_shading_flag_col.prop(props, "toon_shading_flag")
-
+                param_col.prop(props, "toon_shading_flag")
                 if props.toon_shading_flag:
-                    toon_shading_flag_col = common_param_box.column()
-                    box = toon_shading_flag_col.box()
-                    box.prop(props, "face_locator")
-                    face_col = box.column()
+                    toon_shading_box = param_col.box()
+                    toon_shading_col = toon_shading_box.column()
 
-                    face_col.prop(props, "auto_face_location")
-                    auto_face_location = props.auto_face_location
-                    if not auto_face_location:
-                        face_box = box.box()
-                        face_box.prop(props, "face_object")
-                        # 顶点组太多了，让用户手动输入名称
-                        face_box.prop(props, "face_vg", icon='GROUP_VERTEX')
+                    toon_shading_col.prop(props, "face_locator")
+                    toon_shading_col.prop(props, "auto_face_location")
 
-                    force_col = box.column()
-                    force_col.prop(props, "force")
+                    if not props.auto_face_location:
+                        face_object_box = toon_shading_col.box()
+                        face_object_col = face_object_box.column()
 
-                    material_flag_col.enabled = False
-                    uv_flag_col.enabled = False
-                    vgs_col.enabled = False
-                    modifiers_col.enabled = False
-                    normal_flag_col.enabled = False
+                        face_object_col.prop(props, "face_object")
+                        face_object_col.prop(props, "face_vg", icon='GROUP_VERTEX')
+
+                    toon_shading_col.prop(props, "force")
+
+                    transfer_param_col.enabled = False
                 else:
-                    material_flag_col.enabled = True
-                    uv_flag_col.enabled = True
-                    vgs_col.enabled = True
-                    modifiers_col.enabled = True
-                    normal_flag_col.enabled = True
-
-        if direction == 'ABC2ABC':
-            abc_filepath_col = common_param_box.column()
-            abc_filepath_col.prop(props, "abc_filepath")
-            selected_only_col = common_param_box.column()
-            selected_only_col.prop(props, "selected_only")
-        row = layout.row()
-        row.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
+                    transfer_param_col.enabled = True
+            else:
+                param_col.prop(props, "tolerance")
+        else:
+            param_col.prop(props, "abc_filepath")
+            param_col.prop(props, "selected_only")
+        col.operator(TransferPresetOperator.bl_idname, text=TransferPresetOperator.bl_label)
 
 
 class SceneSettingsPanel(bpy.types.Panel):
@@ -747,18 +719,14 @@ class ChangeTexLocPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        new_folder_col = col.column()
-        new_folder_col.prop(props, "new_folder")
-        remove_empty_col = col.column()
-        remove_empty_col.prop(props, "remove_empty")
+        col.prop(props, "new_folder")
+        col.prop(props, "remove_empty")
 
         show_batch_props(col, False, True, batch, FillSuffixChangeTexlocOperator)
 
-        change_tex_loc_col = col.column()
-        change_tex_loc_col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
+        col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
 
 
 class AddSsbPanel:
@@ -867,12 +835,11 @@ class RemoveUvMapPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
+
         show_batch_props(col, False, False, batch, FillSuffixRemoveUvMapOperator)
 
-        operator_col = col.column()
-        operator_col.operator(RemoveUvMapOperator.bl_idname, text=RemoveUvMapOperator.bl_label)
+        col.operator(RemoveUvMapOperator.bl_idname, text=RemoveUvMapOperator.bl_label)
 
 
 class OrganizePanelPanel(bpy.types.Panel):
@@ -894,25 +861,13 @@ class OrganizePanelPanel(bpy.types.Panel):
         layout.use_property_decorate = False
 
         col = layout.column()
-        bone_panel_flag_col = col.column()
-        bone_panel_flag_col.prop(props, "bone_panel_flag")
-
-        fix_bone_name_flag_row = col.row()
-        fix_bone_name_flag_row.prop(props, "fix_bone_name_flag")
-
-        morph_panel_flag_col = col.column()
-        morph_panel_flag_col.prop(props, "morph_panel_flag")
-
-        fix_morph_name_flag_row = col.row()
-        fix_morph_name_flag_row.prop(props, "fix_morph_name_flag")
-
-        rigid_body_panel_flag_col = col.column()
-        rigid_body_panel_flag_col.prop(props, "rigid_body_panel_flag")
-        display_panel_flag_col = col.column()
-        display_panel_flag_col.prop(props, "display_panel_flag")
-
-        translation_flag_col = col.column()
-        translation_flag_col.prop(props, "translation_flag")
+        col.prop(props, "bone_panel_flag")
+        col.prop(props, "fix_bone_name_flag")
+        col.prop(props, "morph_panel_flag")
+        col.prop(props, "fix_morph_name_flag")
+        col.prop(props, "rigid_body_panel_flag")
+        col.prop(props, "display_panel_flag")
+        col.prop(props, "translation_flag")
 
         overwrite_flag_row = col.row()
         overwrite_flag_row.separator()
@@ -923,8 +878,7 @@ class OrganizePanelPanel(bpy.types.Panel):
 
         show_batch_props(col, False, True, batch, FillSuffixOrganizePanelOperator)
 
-        organize_panel_col = col.column()
-        organize_panel_col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
+        col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
 
 
 class RenderPreviewPanel(bpy.types.Panel):
@@ -945,35 +899,32 @@ class RenderPreviewPanel(bpy.types.Panel):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column()
 
-        type_col = col.column()
-        type_col.prop(props, "type")
-        scale_col = col.column()
-        scale_col.prop(props, "scale")
+        col.prop(props, "type")
+        col.prop(props, "scale")
+
         rotation_col = col.column(align=True)
         rotation_col.prop(props, "rotation_euler_x")
         rotation_col_y = rotation_col.column(align=True)
         rotation_col_y.prop(props, "rotation_euler_y")
-        rotation_col_y.enabled = not align  # Disable if align is True
+        rotation_col_y.enabled = not align
         rotation_col.prop(props, "rotation_euler_z")
-        auto_follow_col = rotation_col.column()
-        auto_follow_col.prop(props, "auto_follow")
-        auto_follow = props.auto_follow
-        if auto_follow:
+
+        col.prop(props, "auto_follow")
+        if props.auto_follow:
             bpy.context.space_data.lock_camera = True
-        align_col = col.column()
-        align_col.prop(props, "align")
+        col.prop(props, "align")
 
-        batch_box = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
-        if batch_box:
-            force_center_col = batch_box.column()
-            force_center_col.prop(props, "force_center")
+        batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
 
-        load_render_preset_row = col.row()
+        if batch_ui:
+            batch_ui.prop(props, "force_center")
+
+        col = col.column(align=True)
+        load_render_preset_row = col.row(align=True)
         load_render_preset_row.operator(LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
-        render_row = col.row()
+        render_row = col.row(align=True)
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
         render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
 
@@ -990,13 +941,12 @@ class AboutPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_developer_extras
-        flag = props.flag
 
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-
         col = layout.column(align=True)
+
         col.operator(
             "wm.url_open",
             text="用户文档",
@@ -1016,42 +966,37 @@ class AboutPanel(bpy.types.Panel):
                                     addon.bl_info['name'] == 'mmd_kafei_tools'][0]))
 
         # 开发者选项开关
-        icon = 'HIDE_ON' if not flag else 'HIDE_OFF'
+        icon = 'HIDE_ON' if not props.flag else 'HIDE_OFF'
         row.prop(props, "flag", text="", icon=icon, emboss=False)
 
         # 语言选择
-        if flag:
+        if props.flag:
             row = col.row(align=True)
             row.prop(props, "language", expand=True)
 
 
 def show_batch_props(col, show_flag, create_box, batch, fill_suffix_operator=None):
     if show_flag:
-        batch_col = col.column()
-        batch_col.prop(batch, "flag")
-        batch_flag = batch.flag
-        if not batch_flag:
+        col.prop(batch, "flag")
+        if not batch.flag:
             return
     if create_box:
-        batch_ui = col.box()
+        batch_box = col.box()
+        batch_ui = batch_box.column()
     else:
         batch_ui = col
 
-    directory_col = batch_ui.column()
-    directory_col.prop(batch, "directory")
-    search_strategy_col = batch_ui.column()
-    search_strategy_col.prop(batch, "search_strategy")
-    threshold_col = batch_ui.column()
-    threshold_col.prop(batch, "threshold")
-    suffix_col = batch_ui.column()
+    batch_ui.prop(batch, "directory")
+    batch_ui.prop(batch, "search_strategy")
+    batch_ui.prop(batch, "threshold")
     if fill_suffix_operator:
-        suffix_row = suffix_col.row(align=True)
+        suffix_row = batch_ui.row(align=True)
         suffix_row.prop(batch, "suffix")
         suffix_row.operator(fill_suffix_operator.bl_idname, text="", icon="FILE_REFRESH")
     else:
-        suffix_col.prop(batch, "suffix")
-    conflict_strategy_col = batch_ui.column()
-    conflict_strategy_col.prop(batch, "conflict_strategy")
+        suffix_row = batch_ui.row(align=True)
+        suffix_row.prop(batch, "suffix")
+    batch_ui.prop(batch, "conflict_strategy")
     return batch_ui
 
 
