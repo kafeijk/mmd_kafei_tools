@@ -6,7 +6,7 @@ from ..utils import *
 class TransferPresetOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.transfer_preset"  # 引用时的唯一标识符
     bl_label = "传递"  # 显示名称（F3搜索界面，不过貌似需要注册，和panel中显示的内容区别开）
-    bl_description = "将源模型的材质传递到目标模型上"
+    bl_description = "将源模型的材质等数据传递到目标模型上"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -331,13 +331,15 @@ def get_face_area(operator, mapping, props):
     source_face_vert_location = {}
     if auto_face_location is False:
         for source, target in mapping.items():
-            print(source.name)
             if source.name == face_object.name:
                 face_obj = target
                 break
         if face_obj is None:
-            operator.report(type={'ERROR'},
-                            message=f"未在PMX模型中找到名为“{face_object.name}”的面部对象，或ABC模型中缺少“{face_object.name}”的配对对象，请检查。")
+            msg = bpy.app.translations.pgettext_iface(
+                "Could not find a face object named \"{}\" in the PMX model, "
+                "or the ABC model is missing a corresponding object for \"{}\". Please check."
+            ).format(face_object.name, face_object.name)
+            operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
 
         group_names = {v.index: v.name for v in face_object.vertex_groups}
@@ -365,8 +367,11 @@ def get_face_area(operator, mapping, props):
                                 else:
                                     source_face_vert_location[key] = source_face_vert_location[key] + 1
         if count < 3:
-            operator.report(type={'ERROR'},
-                            message=f"在面部对象“{face_object.name}”中，未找到属于顶点组“{face_vg}”且权重为1的至少三个不重合的顶点。")
+            msg = bpy.app.translations.pgettext_iface(
+                "In the face object \"{}\", "
+                "fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."
+            ).format(face_object.name, face_vg)
+            operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
 
     else:
@@ -428,8 +433,11 @@ def get_face_area(operator, mapping, props):
         if face_flag:
             face_obj = face_min_z_obj
         else:
-            operator.report(type={'ERROR'},
-                            message=f"在PMX模型中未找到属于顶点组“{vg_name}”且权重为1的至少三个非重合顶点。")
+            msg = bpy.app.translations.pgettext_iface(
+                "In the PMX model, "
+                "fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."
+            ).format(vg_name)
+            operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
     select_and_activate(face_obj)
     bpy.ops.object.mode_set(mode='EDIT')
@@ -456,7 +464,10 @@ def get_face_area(operator, mapping, props):
     # 面部待选区域  随机松散块测试 face = random.choice(islands) if islands else None
     face_area = max(islands, key=len) if islands else None
     if face_area is None:
-        operator.report(type={'ERROR'}, message=f"面部对象匹配失败，源模型与目标模型的静置姿态需完全一致，请检查。")
+        operator.report(type={'ERROR'},
+                        message=f"Face object matching failed. "
+                                f"The rest poses of the source and target models must be exactly the same. "
+                                f"Please check.")
         return None, None, None, False
 
     return face_obj, face_area, bm, True

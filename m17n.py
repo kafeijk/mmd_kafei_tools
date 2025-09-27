@@ -64,6 +64,10 @@ translation_dict = {
         ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
         ("*", "Model pairing failed. Successful pairs: 0, source model object count: {}{}, target model object count: {}, please check."): "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。",
         ("*", " (excluding face locators)"): "（不含面部定位器）",
+        ("*", "Could not find a face object named \"{}\" in the PMX model, or the ABC model is missing a corresponding object for \"{}\". Please check."): "未在PMX模型中找到名为“{}”的面部对象，或ABC模型中缺少“{}”的配对对象，请检查。",
+        ("*", "In the face object \"{}\", fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."): "在面部对象“{}”中，未找到属于顶点组“{}”且权重为1的至少三个不重合的顶点。",
+        ("*", "In the PMX model, fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."): "在PMX模型中未找到属于顶点组“{}”且权重为1的至少三个非重合顶点。",
+        ("*", "Face object matching failed. The rest poses of the source and target models must be exactly the same. Please check."): "面部对象匹配失败，源模型与目标模型的静置姿态需完全一致，请检查。",
 
         # transfer_vg_weight_operators
         ("*", "Select at least one mesh!"): "请选择至少一个网格物体！",
@@ -246,6 +250,7 @@ translation_dict = {
         ("*", "影响范围为选中物体所属模型"): "Limit the effect to the model containing the selected objects",
         ("*", "匹配过程中，顶点数、顶点位置的误差百分比。"): "Percentage of tolerance in vertex count and position during matching",
         ("*", "复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用"): "Duplicate the face object and make the locator follow it, in order to avoid the issue where the original face object cannot be followed due to Geometry Nodes. Enable this option if needed",
+        ("*", "将源模型的材质等数据传递到目标模型上"): "Transfer materials and other data from the source model to the target model",
 
         # Tools panel
         ("*", "工具"): "Tools",
