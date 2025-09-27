@@ -159,14 +159,6 @@ def reset(struct):
                 pass
 
 
-def safe_set(obj, attr, value):
-    """安全设置属性，如果不存在就跳过"""
-    try:
-        setattr(obj, attr, value)
-    except Exception as e:
-        print(f"{e}")
-
-
 def set_eevee():
     # 预设目的：快速渲染视频。非图像渲染，非渲染高质量视频
     scene = bpy.context.scene

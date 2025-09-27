@@ -1,6 +1,6 @@
 import bpy
 
-from .batch_properties import BatchProperty
+from ..utils import safe_set
 
 
 class DeveloperExtrasProperty(bpy.types.PropertyGroup):
@@ -24,6 +24,13 @@ class DeveloperExtrasProperty(bpy.types.PropertyGroup):
     def update_preset(self, context):
         # 界面语言设置
         prefs = context.preferences
+
+        if self.language == "zh_HANS":
+            safe_set(prefs.view, "language", "zh_CN")
+        elif self.language == "en_GB":
+            safe_set(prefs.view, "language", "en_US")
+
+        safe_set(prefs.view, "language", self.language)
         prefs.view.language = self.language
         prefs.view.use_translate_tooltips = True
         prefs.view.use_translate_interface = True
