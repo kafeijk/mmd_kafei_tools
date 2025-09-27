@@ -31,10 +31,11 @@ class DeveloperExtrasProperty(bpy.types.PropertyGroup):
             safe_set(prefs.view, "language", "en_US")
 
         safe_set(prefs.view, "language", self.language)
-        prefs.view.language = self.language
-        prefs.view.use_translate_tooltips = True
-        prefs.view.use_translate_interface = True
-        prefs.view.use_translate_reports = True
+        safe_set(prefs.view, "use_translate_tooltips", True)
+        safe_set(prefs.view, "use_translate_interface", True)
+        safe_set(prefs.view, "use_translate_reports", True)
+        safe_set(prefs.view, "use_translate_new_dataname", False)
+
 
     @staticmethod
     def register():
