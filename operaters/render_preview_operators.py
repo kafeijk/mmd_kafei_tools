@@ -6,7 +6,7 @@ from ..utils import *
 class GenPreviewCameraOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.gen_preview_camera"
     bl_label = "预览"
-    bl_description = "生成预览相机，仅预览用，渲染时相机参数取决于插件面板设置"
+    bl_description = "生成预览相机，仅预览用。实际渲染时相机参数取决于插件面板设置"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
