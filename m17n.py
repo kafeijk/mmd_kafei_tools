@@ -50,6 +50,7 @@ translation_dict = {
         ("*", "Face locator required!"): "请输入面部定位器对象！",
         ("*", "Face locator not parented to bone!"): "面部定位器未绑定到父级骨骼！",
         ("*", "Face object required!"): "请输入面部对象！",
+        ("*", "The face object must be a mesh object!"): "面部对象必须为网格类型对象！",
         ("*", "Face vertex group required!"): "请输入面部顶点组！",
         ("*", "Cache file path required!"): "请输入缓存文件地址！",
         ("*", "Cache file not found!"): "缓存文件地址不存在！",

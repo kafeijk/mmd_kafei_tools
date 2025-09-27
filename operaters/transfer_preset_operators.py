@@ -204,6 +204,9 @@ class TransferPresetOperator(bpy.types.Operator):
                 if face_object is None:
                     self.report(type={'ERROR'}, message=f'Face object required!')
                     return False
+                if face_object.type != "MESH":
+                    self.report(type={'ERROR'}, message=f'The face object must be a mesh object!')
+                    return False
                 if face_vg is None or face_vg == '':
                     self.report(type={'ERROR'}, message=f'Face vertex group required!')
                     return False
