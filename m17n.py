@@ -35,6 +35,7 @@ translation_dict = {
         ("*", "Bone \"{}\" not found!"): "未找到骨骼“{}”！",
         ("*", "Vertex group \"{}\" not found!"): "未找到顶点组“{}”！",
         ("*", "Object \"{}\" vertex group \"{}\" has no vertices!"): "对象“{}”的顶点组“{}”没有顶点！",
+        ("*", "Armature has no keyframes!"): "骨架未导入动作！",
 
         # small_feature_operators
         ("*", "Affected materials: {}"): "受影响材质：{}",
