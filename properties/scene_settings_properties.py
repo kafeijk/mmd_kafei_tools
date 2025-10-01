@@ -217,7 +217,7 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
     threshold_z: bpy.props.FloatProperty(
         name="Z",
         description="骨骼Z轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
-        default=1,
+        default=0.1,
         subtype='DISTANCE'
     )
 

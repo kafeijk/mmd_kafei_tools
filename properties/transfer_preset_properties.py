@@ -23,7 +23,17 @@ def auto_fill(self, context):
 
 def update_preset(self, context):
     if self.direction == 'PMX2PMX':
+        self.material_flag = True
+        self.uv_flag = False
+        self.vgs_flag = True
+        self.modifiers_flag = True
         self.toon_shading_flag = False
+    elif self.direction == 'PMX2ABC':
+        self.material_flag = True
+        self.uv_flag = True
+        self.vgs_flag = True
+        self.modifiers_flag = True
+        self.normal_flag = True
 
 
 class TransferPresetProperty(bpy.types.PropertyGroup):
@@ -118,7 +128,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     force: bpy.props.BoolProperty(
         name="强制跟随",
         description="复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用",
-        default=False,
+        default=True,
     )
 
     abc_filepath: bpy.props.StringProperty(

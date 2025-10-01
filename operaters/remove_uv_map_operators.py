@@ -4,7 +4,7 @@ from ..utils import *
 class RemoveUvMapOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.remove_uv_map"
     bl_label = "执行"
-    bl_description = "移除冗余UV贴图"
+    bl_description = "移除冗余UV"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):

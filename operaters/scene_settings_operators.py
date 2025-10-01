@@ -159,14 +159,6 @@ def reset(struct):
                 pass
 
 
-def safe_set(obj, attr, value):
-    """安全设置属性，如果不存在就跳过"""
-    try:
-        setattr(obj, attr, value)
-    except Exception as e:
-        print(f"{e}")
-
-
 def set_eevee():
     # 预设目的：快速渲染视频。非图像渲染，非渲染高质量视频
     scene = bpy.context.scene
@@ -770,6 +762,10 @@ class CameraSettingsOperator(bpy.types.Operator):
                 self.report(type={'ERROR'},
                             message=bpy.app.translations.pgettext_iface("Bone \"{}\" not found!").format(bone_name))
                 return False
+            frame_start, frame_end = get_armature_keyframe_range(armature)
+            if not frame_start and not frame_end:
+                self.report(type={'ERROR'}, message=f'Armature has no keyframes!')
+                return False
             return True
         elif target_type == "MESH":
             # 获取选中网格对象
@@ -875,14 +871,16 @@ def bake_camera_animation(props, camera, armature=None, empty=None):
         camera.location[0] += delta_x
         camera.location[1] += delta_y
         if abs(delta_z) > threshold_z:
-            camera.location[2] += delta_z
+            camera.location[2] += delta_z / 2  # 假设角色高度为1，相机视野高为1。若角色蹲下使高为0.5，则为了使角色处于中心，相机应下降0.25
 
         # 插入关键帧
         camera.keyframe_insert(data_path="location", frame=frame)
 
         # 更新参考点
-        savepoint_x, savepoint_y, savepoint_z = lo_x, lo_y, lo_z
+        savepoint_x, savepoint_y = lo_x, lo_y
 
+        if abs(delta_z) > threshold_z:
+            savepoint_z = lo_z
     # 根据 最大不同帧间隔 设置关键帧
     action = camera.animation_data.action if camera.animation_data else None
     fcurves = [fc for fc in action.fcurves if fc.data_path == "location"]

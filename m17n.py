@@ -35,6 +35,7 @@ translation_dict = {
         ("*", "Bone \"{}\" not found!"): "未找到骨骼“{}”！",
         ("*", "Vertex group \"{}\" not found!"): "未找到顶点组“{}”！",
         ("*", "Object \"{}\" vertex group \"{}\" has no vertices!"): "对象“{}”的顶点组“{}”没有顶点！",
+        ("*", "Armature has no keyframes!"): "骨架未导入动作！",
 
         # small_feature_operators
         ("*", "Affected materials: {}"): "受影响材质：{}",
@@ -50,21 +51,25 @@ translation_dict = {
         ("*", "Face locator required!"): "请输入面部定位器对象！",
         ("*", "Face locator not parented to bone!"): "面部定位器未绑定到父级骨骼！",
         ("*", "Face object required!"): "请输入面部对象！",
+        ("*", "The face object must be a mesh object!"): "面部对象必须为网格类型对象！",
         ("*", "Face vertex group required!"): "请输入面部顶点组！",
         ("*", "Cache file path required!"): "请输入缓存文件地址！",
         ("*", "Cache file not found!"): "缓存文件地址不存在！",
         ("*", "ABC cache file path required!"): "请输入ABC缓存文件地址！",
         ("*", "Armature not found in {}!"): "在{}中未找到模型骨架！",
         ("*", "Mesh not found in {}!"): "在{}中未找到网格对象！",
-        ("*", "Invalid parent type for face locator! Required: Bone, Found: {}"): "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
+        ("*", "Invalid parent type for face locator! Required: BONE, Found: {}"): "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
         ("*", "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology."): "UV传递失败！源物体：{} (loops：{}，面数：{}) → 目标物体：{} (loops：{}，面数：{})。请检查网格拓扑。",
         ("*", "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}"): "未能完整传递多材质，请检查网格拓扑与初始姿态。源物体：{}，面数：{}。目标物体：{}，面数：{}，匹配成功面数：{}",
         ("*", "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}"): "传递材质时UV复制失败！目标物体：{} (UV通道数：{})，源物体UV名称：{}",
         # transfer_preset_operators msg
         ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
-        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {} (excluding face locator), target model object count: {}, please check"): "模型配对失败。配对成功数：0，源模型物体数量：{}（不含面部定位器），目标模型物体数量：{}，请检查",
-        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {} , target model object count: {}, please check"): "模型配对失败。配对成功数：0，源模型物体数量：{}，目标模型物体数量：{}，请检查",
-
+        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {}{}, target model object count: {}, please check."): "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。",
+        ("*", " (excluding face locators)"): "（不含面部定位器）",
+        ("*", "Could not find a face object named \"{}\" in the PMX model, or the ABC model is missing a corresponding object for \"{}\". Please check."): "未在PMX模型中找到名为“{}”的面部对象，或ABC模型中缺少“{}”的配对对象，请检查。",
+        ("*", "In the face object \"{}\", fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."): "在面部对象“{}”中，未找到属于顶点组“{}”且权重为1的至少三个不重合的顶点。",
+        ("*", "In the PMX model, fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."): "在PMX模型中未找到属于顶点组“{}”且权重为1的至少三个非重合顶点。",
+        ("*", "Face object matching failed. The rest poses of the source and target models must be exactly the same. Please check."): "面部对象匹配失败，源模型与目标模型的静置姿态需完全一致，请检查。",
 
         # transfer_vg_weight_operators
         ("*", "Select at least one mesh!"): "请选择至少一个网格物体！",
@@ -105,6 +110,7 @@ translation_dict = {
         ("Operator", "传递"): "Execute",
         ("Operator", "修改"): "Execute",
         ("Operator", "执行"): "Execute",
+        ("*", "执行"): "Execute",
         ("Operator", "设置"): "Execute",
 
         # General Preset Processing panel / parameter
@@ -202,6 +208,10 @@ translation_dict = {
         ("*", "相机X轴旋转"):"Camera rotation around X-axis",
         ("*", "两个不同关键帧之间的最大帧间隔，用于避免角色几乎不动时相机缓慢移动的问题"):"Maximum gap between distinct keyframes; prevents slow camera movement when character is nearly still",
         ("*", "生成相机跟随动画"): "Generate camera follow animation",
+        ("Operator", "设置视频分辨率"): "Set Video Resolution",
+        ("*", "设置视频分辨率"): "Set video resolution",
+        ("*", "交换分辨率 X 和 Y"): "Swap resolution X and Y",
+
         # Small Features panel / parameter
         ("*", "小功能"): "Small Features",
         ("*", "用途"): "Operation",
@@ -247,6 +257,7 @@ translation_dict = {
         ("*", "影响范围为选中物体所属模型"): "Limit the effect to the model containing the selected objects",
         ("*", "匹配过程中，顶点数、顶点位置的误差百分比。"): "Percentage of tolerance in vertex count and position during matching",
         ("*", "复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用"): "Duplicate the face object and make the locator follow it, in order to avoid the issue where the original face object cannot be followed due to Geometry Nodes. Enable this option if needed",
+        ("*", "将源模型的材质等数据传递到目标模型上"): "Transfer materials and other data from the source model to the target model",
 
         # Tools panel
         ("*", "工具"): "Tools",
@@ -266,9 +277,11 @@ translation_dict = {
         ("*", "移除颜色属性"): "Remove Color Attributes",
         ("*", "移除材质"): "Remove Materials",
         ("*", "移除修改器"): "Remove Modifiers",
+        ("*", "移除约束"): "Remove Constraints",
         ("*", "移除顶点组"): "Remove Vertex Groups",
         ("*", "移除形态键"): "Remove Shape Keys",
         # Object operations description
+        ("*", "修改指定内容"): "Modify Specified Content",
         ("*", "操作内容"): "Operation",
         ("*", "UV贴图名称"): "UV Map name",
         ("*", "颜色属性名称"): "Color attribute name",
@@ -300,6 +313,7 @@ translation_dict = {
         ("*", "间距"): "Spacing",
         ("*", "偏移"): "Offset",
         # Object Arrangement description
+        ("*", "排列物体"): "Arrange Objects",
         ("*", "排列类型"): "Arrangement type",
         ("*", "排列方向"): "Arrangement direction",
         ("*", "排列顺序"): "Arrangement order",
@@ -334,6 +348,7 @@ translation_dict = {
         ("*", "绑定刚体Joint，调整姿态时将会同步影响刚体Joint"): "Bind rigid body and joints. Adjusting the pose will simultaneously affect the rigid body and joints",
         ("*", "应用刚体Joint的变换并解除绑定"): "Apply the rigid body and joint transformation and unbind",
         ("*", "应用当前姿态对网格和骨架的影响"): "Apply the current pose",
+        ("*", "应用姿态时，如果网格对象存在形态键，则强制应用骨架修改器对网格对象的影响。若关闭此选项，则跳过具有形态键的网格对象"): "When applying a pose, if a mesh object has shape keys, the Armature modifier's effect will be forcibly applied. If this option is disabled, mesh objects with shape keys will be skipped.",
         # Bone operations panel / operator
         ("*", "骨骼操作"): "Bone Operations",
         ("Operator", "物理骨骼"): "Physical Bone",
@@ -373,6 +388,7 @@ translation_dict = {
         ("*", "源顶点组名称，必填项，如果不存在，则跳过处理"): "Source vertex group name (required). If it does not exist, skip processing",
         ("*", "目标顶点组名称，必填项，如果不存在，则会自动创建一个新的顶点组"): "Target vertex group name (required). If it does not exist, a new vertex group will be created automatically",
         ("*", "权重转移时，影响范围为编辑模式下被选中的顶点"): "During weight transfer, the affected range consists of vertices selected in Edit Mode",
+        ("*", "将选中对象的源顶点组的权重，转移到目标顶点组"): "Transfer weights from the source vertex group to the target vertex group of selected objects",
         # Quick Operation panel / parameter
         ("*", "快捷操作"): "Quick Operations",
         ("Operator", "合并顶点"): "Merge Vertices",
@@ -381,7 +397,7 @@ translation_dict = {
         ("Operator", "检测网格面重合度"): "Check Mesh Face Overlap",
         ("Operator", "清空场景"): "Clear Scene",
         # Quick Operation panel / description
-        ("*", "按距离合并顶点，合并间距0.00001，并重设法向。支持一次选择多个网格对象并分别处理。在物体模式，作用范围为选择的物体；在编辑模式，作用范围为选择的顶点"): "Merge vertices by distance (0.00001), and recalculate normals. Supports selecting multiple mesh objects and processing them individually. In Object Mode, the scope is the selected objects; in Edit Mode, the scope is the selected vertices",
+        ("*", "按距离合并顶点，合并间距1e-05，并重设法向。支持一次选择多个网格对象并分别处理。在物体模式，作用范围为选择的物体；在编辑模式，作用范围为选择的顶点"): "Merge vertices by distance (1e-05), and recalculate normals. Supports selecting multiple mesh objects and processing them individually. In Object Mode, the scope is the selected objects; in Edit Mode, the scope is the selected vertices",
         ("*", "根据网格实际名称设置材质名称。支持一次选择多个网格对象并分别处理"): "Set material names based on actual mesh names. Supports selecting multiple mesh objects and processing them individually",
         ("*", "根据材质名称设置实际网格名称。支持一次选择多个网格对象并分别处理。"): "Set mesh names based on material names. Supports selecting multiple mesh objects and processing them individually",
         ("*", "检测网格面之间的重合度"): "Check overlap between mesh faces",
@@ -417,6 +433,7 @@ translation_dict = {
         ("*", "修复表情日文名称，避免使用时出现乱码及名称过长的情况"): "Fix the morph name to prevent garbled characters and overly long names when used",
         ("*", "为面板中的项目（骨骼、表情、显示枠）设置有限且紧凑的英文名称，以增强在MMD本体英文模式中模型操作的能力"): "Set concise and limited English names for the items in the panel (bone, morph, display) to enhance the model's operability in the English mode of MikuMikuDance",
         ("*", "如果面板项目已经存在英文名称，则覆盖原有名称"): "If the panel items already have English names, overwrite the existing names",
+        ("*", "整理面板"): "Organize Panel",
         # Preview Rendering panel / parameter / operator
         ("*", "渲染预览图"): "Preview Rendering",
         ("*", "类型"): "Type",
@@ -429,6 +446,7 @@ translation_dict = {
         ("*", "对齐角色"): "Alignment",
         ("*", "预览相机"): "Preview Camera",
         ("Operator", "加载渲染预设"): "Load Render Preset",
+        ("*", "加载渲染预设"): "Load Render Preset",
         ("Operator", "预览"): "Preview",
         ("Operator", "渲染"): "Render",
         # Preview Rendering description
@@ -436,6 +454,7 @@ translation_dict = {
         ("*", "相机旋转值跟随活动相机视角"): "Camera rotation values follow the active camera's view",
         ("*", "受隐藏部位的影响，某些角色渲染的结果可能不会居中。此选项可使角色强制居中，但会花费更多的时间"): "Due to hidden parts, the rendered result of some characters may not be centered. This option forces the character to be centered, but it may take more time",
         ("*", "尽可能使角色处于画面中心。\n（重要）该参数在角色处于初始状态时效果良好，如果出现意料外的情况请手动关闭\n开启时Y轴旋转失效，不适用于多角色共同被选择的情况"): "Attempt to keep the character at the center of the screen.\n(Important) This parameter works well when the character is in its initial state. If unexpected issues occur, please disable it manually.\nWhen enabled, Y-axis rotation will not function and it is not suitable for situations where multiple characters are selected together",
+        ("*", "生成预览相机，仅预览用。实际渲染时相机参数取决于插件面板设置"): "Create a preview camera for preview purposes only. For actual rendering, the camera parameters follow the addon panel settings.",
         # Batch parameter
         ("*", "批量"): "Batch",
         ("*", "模型目录"): "Model Directory",
@@ -472,4 +491,4 @@ translation_dict = {
 }
 
 translation_dict["zh_HANS"] = translation_dict["zh_CN"]
-translation_dict["en_GB"] = translation_dict["en_US"]
+translation_dict["ja_JP"] = translation_dict["en_GB"] = translation_dict["en_US"]

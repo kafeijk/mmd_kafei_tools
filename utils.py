@@ -858,3 +858,11 @@ def get_mesh_objs(ancestor):
     # 从ancestor开始递归
     recursive_search(ancestor)
     return mesh_objs
+
+
+def safe_set(obj, attr, value):
+    """安全设置属性，如果不存在就跳过"""
+    try:
+        setattr(obj, attr, value)
+    except Exception as e:
+        print(f"{e}")
