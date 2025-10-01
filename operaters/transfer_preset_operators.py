@@ -192,7 +192,7 @@ class TransferPresetOperator(bpy.types.Operator):
                 if face_locator.parent_type != 'BONE':
                     self.report(type={'ERROR'},
                                 message=bpy.app.translations.pgettext_iface(
-                                    "Invalid parent type for face locator! Required: Bone, Found: {}").format(
+                                    "Invalid parent type for face locator! Required: BONE, Found: {}").format(
                                     face_locator.parent_type))
                     return False
                 vg_name = face_locator.parent_bone

@@ -58,7 +58,7 @@ translation_dict = {
         ("*", "ABC cache file path required!"): "请输入ABC缓存文件地址！",
         ("*", "Armature not found in {}!"): "在{}中未找到模型骨架！",
         ("*", "Mesh not found in {}!"): "在{}中未找到网格对象！",
-        ("*", "Invalid parent type for face locator! Required: Bone, Found: {}"): "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
+        ("*", "Invalid parent type for face locator! Required: BONE, Found: {}"): "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
         ("*", "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology."): "UV传递失败！源物体：{} (loops：{}，面数：{}) → 目标物体：{} (loops：{}，面数：{})。请检查网格拓扑。",
         ("*", "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}"): "未能完整传递多材质，请检查网格拓扑与初始姿态。源物体：{}，面数：{}。目标物体：{}，面数：{}，匹配成功面数：{}",
         ("*", "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}"): "传递材质时UV复制失败！目标物体：{} (UV通道数：{})，源物体UV名称：{}",
