@@ -1,3 +1,4 @@
+import bmesh
 from collections import defaultdict
 from ..tools.jaconv.jaconv import *
 from ..utils import *
@@ -29,6 +30,78 @@ class OrganizePanelOperator(bpy.types.Operator):
         return True
 
 
+def fix_material_morphs(pmx_root, props):
+    """移除范围为“全材質”的材质表情，避免装配变形引发的性能问题"""
+    if not props.compatibility_flag:
+        return
+    if not props.fix_all_materials_flag:
+        return
+
+    mmd_root = pmx_root.mmd_root
+    morphs = getattr(mmd_root, "material_morphs")
+    if len(morphs) == 0:
+        return
+
+    # 获取范围含“全材質”的材质Morph
+    morph_to_remove = []
+    for idx, morph in enumerate(morphs):
+        if any(d.material == "" for d in morph.data):
+            morph_to_remove.append(idx)
+
+    # 按索引从大到小删除，避免索引错位
+    for idx in sorted(morph_to_remove, reverse=True):
+        morphs.remove(idx)
+
+
+def delete_mesh_verts(rb):
+    """删除网格所有顶点"""
+    mesh = rb.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.delete(bm, geom=bm.verts[:], context='VERTS')
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+
+
+def fix_rigid_body_size(pmx_root, props):
+    """检测尺寸为0的受物理影响的刚体并设置默认值0.1，避免物理烘焙因尺寸为0出现异常"""
+    if not props.compatibility_flag:
+        return
+    if not props.fix_rigid_body_size_flag:
+        return
+
+    rb_parent = find_rigid_body_parent(pmx_root)
+    rbs = [obj for obj in rb_parent.children if obj.type == 'MESH']
+
+    shape_dims = {
+        'SPHERE': [0],
+        'CAPSULE': [0, 1],
+        'BOX': [0, 1, 2]
+    }
+
+    names = []
+    for rb in rbs:
+        mmd_rigid = rb.mmd_rigid
+        # 仅处理受物理影响的刚体
+        if mmd_rigid.type not in ('1', '2'):
+            continue
+
+        size = mmd_rigid.size
+        dims = shape_dims.get(mmd_rigid.shape, [])
+
+        # 判断任意维度是否小于阈值
+        if any(size[i] < 1e-3 for i in dims):
+            delete_mesh_verts(rb)
+
+            # 将小于阈值的维度设置为 0.008
+            for i in dims:
+                if size[i] < 1e-3:
+                    mmd_rigid.size[i] = 0.008
+
+            names.append(rb.name.split("_", 1)[1])
+
+
 def organize_panel(pmx_root, props):
     # 名称修复优先执行
     fix_bone_name(pmx_root, props)
@@ -39,6 +112,9 @@ def organize_panel(pmx_root, props):
     reorder_rigid_body_panel(pmx_root, props)
     reorder_display_panel(pmx_root, props)
     translate_name(pmx_root, props)
+    # 兼容处理
+    fix_material_morphs(pmx_root, props)
+    fix_rigid_body_size(pmx_root, props)
 
 
 def extract_text(text, pattern):
@@ -167,16 +243,18 @@ def do_translate_morph_name(morph_name):
 
 
 def fix_bone_name(pmx_root, props):
-    fix_bone_name_flag = props.fix_bone_name_flag
-    if fix_bone_name_flag is False:
+    if not props.compatibility_flag:
+        return
+    if not props.fix_bone_name_flag:
         return
 
     fix_bone_issues(pmx_root)
 
 
 def fix_morph_name(pmx_root, props):
-    fix_morph_name_flag = props.fix_morph_name_flag
-    if fix_morph_name_flag is False:
+    if not props.compatibility_flag:
+        return
+    if not props.fix_morph_name_flag:
         return
 
     fix_morph_issues(pmx_root)
@@ -419,10 +497,6 @@ def get_ancestors(pose_bone, include_self=False):
         ancestors.insert(0, current_bone)
 
     return ancestors
-
-
-def is_not_dummy_bone(name):
-    return not name.startswith("_dummy_") and not name.startswith("_shadow_")
 
 
 def get_vgs(obj):

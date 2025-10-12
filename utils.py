@@ -860,6 +860,10 @@ def get_mesh_objs(ancestor):
     return mesh_objs
 
 
+def is_not_dummy_bone(name):
+    return not name.startswith("_dummy_") and not name.startswith("_shadow_")
+
+
 def safe_set(obj, attr, value):
     """安全设置属性，如果不存在就跳过"""
     try:
