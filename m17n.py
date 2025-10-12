@@ -424,6 +424,9 @@ translation_dict = {
         ("*", "表情名称修复"): "Fix Morph Names",
         ("*", "面板翻译"): "Translation",
         ("*", "覆盖"): "Overwrite",
+        ("*", "兼容优化"): "Compatibility Optimization",
+        ("*", "表情兼容处理"): "Morph Compatibility Fix",
+        ("*", "刚体兼容处理"): "Rigid Body Compatibility Fix",
         # Organize Panel description
         ("*", "整理骨骼面板"): "Organize bone panel",
         ("*", "整理表情面板"): "Organize morph panel",
@@ -434,6 +437,9 @@ translation_dict = {
         ("*", "为面板中的项目（骨骼、表情、显示枠）设置有限且紧凑的英文名称，以增强在MMD本体英文模式中模型操作的能力"): "Set concise and limited English names for the items in the panel (bone, morph, display) to enhance the model's operability in the English mode of MikuMikuDance",
         ("*", "如果面板项目已经存在英文名称，则覆盖原有名称"): "If the panel items already have English names, overwrite the existing names",
         ("*", "整理面板"): "Organize Panel",
+        ("*", "兼容优化，解决MMD模型在MikuMikuDance与Blender之间的差异"):"Compatibility optimization to address differences between MMD models in MikuMikuDance and Blender",
+        ("*", "移除范围为“全材質”的材质表情，避免装配变形引发的性能问题"):"Remove material morphs that affect all materials to prevent performance issues during model setup",
+        ("*", "检测尺寸为0的受物理影响的刚体并设置默认值0.1，避免物理烘焙因尺寸为0出现异常"):"Detect physics-enabled rigid bodies with zero size and set a default value of 0.1 to prevent physics baking errors",
         # Preview Rendering panel / parameter / operator
         ("*", "渲染预览图"): "Preview Rendering",
         ("*", "类型"): "Type",

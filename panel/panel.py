@@ -862,9 +862,7 @@ class OrganizePanelPanel(bpy.types.Panel):
 
         col = layout.column()
         col.prop(props, "bone_panel_flag")
-        col.prop(props, "fix_bone_name_flag")
         col.prop(props, "morph_panel_flag")
-        col.prop(props, "fix_morph_name_flag")
         col.prop(props, "rigid_body_panel_flag")
         col.prop(props, "display_panel_flag")
         col.prop(props, "translation_flag")
@@ -875,6 +873,18 @@ class OrganizePanelPanel(bpy.types.Panel):
         overwrite_flag_row.prop(props, "overwrite_flag")
         if props.translation_flag is False:
             overwrite_flag_row.enabled = False
+
+        col.prop(props, "compatibility_flag")
+        compatibility_flag_row = col.row()
+        compatibility_flag_row.separator()
+        compatibility_flag_row.separator()
+        compatibility_flag_col = compatibility_flag_row.column()
+        compatibility_flag_col.prop(props, "fix_bone_name_flag")
+        compatibility_flag_col.prop(props, "fix_morph_name_flag")
+        compatibility_flag_col.prop(props, "fix_all_materials_flag")
+        compatibility_flag_col.prop(props, "fix_rigid_body_size_flag")
+        if props.compatibility_flag is False:
+            compatibility_flag_col.enabled = False
 
         show_batch_props(col, False, True, batch, FillSuffixOrganizePanelOperator)
 
