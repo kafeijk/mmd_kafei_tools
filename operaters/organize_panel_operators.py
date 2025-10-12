@@ -243,16 +243,18 @@ def do_translate_morph_name(morph_name):
 
 
 def fix_bone_name(pmx_root, props):
-    fix_bone_name_flag = props.fix_bone_name_flag
-    if fix_bone_name_flag is False:
+    if not props.compatibility_flag:
+        return
+    if not props.fix_bone_name_flag:
         return
 
     fix_bone_issues(pmx_root)
 
 
 def fix_morph_name(pmx_root, props):
-    fix_morph_name_flag = props.fix_morph_name_flag
-    if fix_morph_name_flag is False:
+    if not props.compatibility_flag:
+        return
+    if not props.fix_morph_name_flag:
         return
 
     fix_morph_issues(pmx_root)
