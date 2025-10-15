@@ -1,19 +1,12 @@
 # The following section references and adapts functions from the mmd_tools addon
 
 import bpy
-from .utils import get_addon_version, find_pmx_armature
+from .utils import get_mmd_tools_version, find_pmx_armature
 
 from .tools.opencc import OpenCC
 
 cc_s2t = OpenCC("s2t")
 cc_t2jp = OpenCC("t2jp")
-
-
-def get_mmd_tools_version():
-    v = get_addon_version("mmd_tools")
-    if v > (-1, -1, -1):
-        return v
-    return get_addon_version("MMD Tools")
 
 
 def get_mmd_armature_id():
