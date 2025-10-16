@@ -325,60 +325,65 @@ def is_render(root, file, suffix, ext, conflict_strategy):
         return True
 
 
-def import_pmx(filepath):
-    """导入pmx文件"""
-    attempt = 0
-    while attempt < MAX_RETRIES:
+def import_pmx(filepath: str) -> bool:
+    """导入PMX文件，失败时自动重试"""
+    params = {
+        'filepath': filepath,
+        'scale': 0.08,
+        # 移除未使用的顶点和重复的或无效的面
+        'clean_model': True,
+        # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
+    }
+
+    for attempt in range(MAX_RETRIES):
         try:
-            bpy.ops.mmd_tools.import_model('EXEC_DEFAULT',
-                                           filepath=filepath,
-                                           scale=0.08,
-                                           # 移除未使用的顶点和重复的或无效的面
-                                           clean_model=True
-                                           # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
-                                           )
-            msg = bpy.app.translations.pgettext_iface("Import successful, file: {}, retry count: {}").format(
-                filepath, attempt)
-            print(msg)
+            bpy.ops.mmd_tools.import_model('EXEC_DEFAULT', **params)
+            print(bpy.app.translations.pgettext_iface(
+                f"Import successful, file: {filepath}, retry count: {attempt}"
+            ))
             return True
         except Exception as e:
-            msg = bpy.app.translations.pgettext_iface(
-                "Import failed, retrying soon, file: {}, {}"
-            ).format(filepath, e)
-            print(msg)
-            attempt += 1
+            print(bpy.app.translations.pgettext_iface(
+                f"Import failed, retrying soon, file: {filepath}, error: {e}"
+            ))
             clean_scene()
-            time.sleep(1)  # 等待一秒后重试
+            time.sleep(1)
+
+    # 所有重试均失败
+    raise Exception(bpy.app.translations.pgettext_iface(
+        f"Continuous import error, please check. File path: {filepath}"
+    ))
+
+
+def export_pmx(filepath: str) -> bool:
+    """导出PMX文件，失败时自动重试"""
+    v = get_mmd_tools_version()
+    params = {
+        'filepath': filepath,
+        'scale': 12.5,
+    }
+    if v < (4, 5, 2):
+        params['copy_textures'] = False
     else:
-        raise Exception(
-            bpy.app.translations.pgettext_iface("Continuous import error, please check. File path: {}").format(
-                filepath))
+        params['copy_textures_mode'] = 'NONE'
 
-
-def export_pmx(filepath):
-    """导出pmx文件"""
-    attempt = 0
-    while attempt < MAX_RETRIES:
+    for attempt in range(MAX_RETRIES):
         try:
-            bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT',
-                                         filepath=filepath,
-                                         scale=12.5,
-                                         copy_textures=False
-                                         # 其余参数默认。即使ExportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
-                                         )
-            msg = bpy.app.translations.pgettext_iface("Export successful, file: {}, retry count: {}").format(
-                filepath, attempt)
-            print(msg)
+            bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT', **params)
+            print(bpy.app.translations.pgettext_iface(
+                f"Export successful, file: {filepath}, retry count: {attempt}"
+            ))
             return True
         except Exception as e:
-            msg = bpy.app.translations.pgettext_iface("Export failed, retrying soon, file: {}, {}").format(filepath, e)
-            print(msg)
-            attempt += 1
-            time.sleep(1)  # 等待一秒后重试
-    else:
-        raise Exception(
-            bpy.app.translations.pgettext_iface("Continuous export error, please check. File path: {}").format(
-                filepath))
+            print(bpy.app.translations.pgettext_iface(
+                f"Export failed, retrying soon, file: {filepath}, error: {e}"
+            ))
+            time.sleep(1)
+
+    # 全部重试失败后抛出异常
+    raise Exception(bpy.app.translations.pgettext_iface(
+        f"Continuous export error, please check. File path: {filepath}"
+    ))
 
 
 def clean_scene():
@@ -870,3 +875,10 @@ def safe_set(obj, attr, value):
         setattr(obj, attr, value)
     except Exception as e:
         print(f"{e}")
+
+
+def get_mmd_tools_version():
+    v = get_addon_version("mmd_tools")
+    if v > (-1, -1, -1):
+        return v
+    return get_addon_version("MMD Tools")
