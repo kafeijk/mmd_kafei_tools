@@ -53,7 +53,7 @@ class WorldSettingsOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_world_settings
         world_name = props.world_name
-        set_env(self, world_name)
+        set_env(self, world_name, 1)
 
 
 def get_folder(blender_install_dir, folder_name):
@@ -63,7 +63,7 @@ def get_folder(blender_install_dir, folder_name):
                 return os.path.join(root, dir_name)
 
 
-def set_env(operator, world_name):
+def set_env(operator, world_name, strength):
     # 确保新的世界使用节点
     if world_name == "DEFAULT":
         world_name = "World"
@@ -131,7 +131,7 @@ def set_env(operator, world_name):
         world_nodes.links.new(env_tex_node.outputs['Color'], background_node.inputs['Color'])
         world_nodes.links.new(background_node.outputs['Background'], world_output_node.inputs['Surface'])
         # 设置背景强度
-        background_node.inputs['Strength'].default_value = 1
+        background_node.inputs['Strength'].default_value = strength
         # 设置世界环境
         bpy.context.scene.world = world
 
@@ -609,6 +609,8 @@ class LoadRenderPresetOperator(bpy.types.Operator):
             set_eevee()
         else:
             set_eevee_next()
+            safe_set(scene.eevee, "use_raytracing", False)  # 取消光追，只需要光照即可，避免颜色对模型的影响
+
         # 胶片透明
         bpy.context.scene.render.film_transparent = True
         # 取消辉光
@@ -636,6 +638,9 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         # 其他项
         # 显示叠加层
         bpy.context.space_data.overlay.show_overlays = False
+        # 查看变换
+        if bpy.context.scene.display_settings.display_device == 'sRGB':
+            bpy.context.scene.view_settings.view_transform = 'Filmic'
         # 着色方式 渲染
         bpy.context.space_data.shading.type = 'RENDERED'
         # 关闭透视模式 https://blender.stackexchange.com/questions/159525/how-to-toggle-xray-in-viewport-with-python
@@ -646,7 +651,13 @@ class LoadRenderPresetOperator(bpy.types.Operator):
             shading.show_xray_wireframe = False
 
         # 设置并切换到自定义世界环境
-        set_env(self, "SUNSET")
+        set_env(self, "SUNSET", 1.5)
+        if blender_version >= (4, 2, 0):
+            world = bpy.context.scene.world
+            world_nodes = world.node_tree
+            for node in world_nodes.nodes:
+                if node.bl_idname == "ShaderNodeMapping":
+                    node.inputs[2].default_value[2] = math.radians(30)
 
         # 隐藏场景中所有灯光
         lights = [obj for obj in bpy.context.scene.objects if obj.type == 'LIGHT']
