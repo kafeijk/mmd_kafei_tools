@@ -72,6 +72,8 @@ def fix_rigid_body_size(pmx_root, props):
         return
 
     rb_parent = find_rigid_body_parent(pmx_root)
+    if not rb_parent:
+        return
     rbs = [obj for obj in rb_parent.children if obj.type == 'MESH']
 
     shape_dims = {
