@@ -31,7 +31,8 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
             ("ORTHOGRAPHIC", "正交", "正交")
 
         ],
-        default="PERSPECTIVE"
+        default="PERSPECTIVE",
+        update = lambda self, context: self.update_rotation_x(context)
 
     )
     scale: bpy.props.FloatProperty(
@@ -45,7 +46,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         name="旋转 X",
         description="欧拉旋转",
         subtype="ANGLE",
-        default=math.radians(85)
+        default=math.radians(80)
     )
     rotation_euler_y: bpy.props.FloatProperty(
         name="Y",
@@ -95,6 +96,13 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         default=True,
     )
     batch: bpy.props.PointerProperty(type=BatchProperty)
+
+    def update_rotation_x(self, context):
+        if self.type == "PERSPECTIVE":
+            self.rotation_euler_x = math.radians(80)
+        if self.type == "ORTHOGRAPHIC":
+            self.rotation_euler_x = math.radians(90)
+
 
 
     @staticmethod
