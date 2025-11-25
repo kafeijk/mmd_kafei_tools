@@ -651,7 +651,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
             shading.show_xray_wireframe = False
 
         # 设置并切换到自定义世界环境
-        set_env(self, "SUNSET", 1.5)
+        set_env(self, "SUNSET", 2)
         if blender_version >= (4, 2, 0):
             world = bpy.context.scene.world
             world_nodes = world.node_tree
