@@ -1,4 +1,5 @@
 import mathutils
+import bmesh
 
 from ..utils import *
 
@@ -130,40 +131,25 @@ def convert_materials(pmx_armature, force_center):
     pmx_objects = find_pmx_objects(pmx_armature)
     if not pmx_objects:
         return
+    obj = pmx_objects[0]
 
-    # 材质名称与MMDShaderDev的alpha值的映射
-    material_alpha_map = {}
-    for obj in pmx_objects:
-        if not obj.material_slots:  # 材质槽为空
+    if not obj.material_slots:
+        return
+    # 材质名称与alpha值的映射
+    mat_alpha_map = {}
+    for slot in obj.material_slots:
+        material = slot.material
+        if not material:
             continue
-        for slot in obj.material_slots:
-            material = slot.material
-            if not material:  # 有材质槽但无材质
-                continue
-            material_alpha_map[material.name] = 1  # 默认1
+        alpha = material.mmd_material.alpha
+        mat_alpha_map[material.name] = alpha
 
-        for material_name, alpha in material_alpha_map.items():
-            material = bpy.data.materials.get(material_name)
-            node_tree = material.node_tree
-            if not node_tree:  # 有材质但无节点树
-                continue
-
-            nodes = node_tree.nodes
-            if not nodes:  # 有节点树但无节点
-                continue
-            # 预先存储原始alpha值以供后续修改
-            for node in nodes:
-                if node.type == 'GROUP' and node.node_tree.name == "MMDShaderDev":
-                    mmd_shader_dev = node
-                    for input_node in mmd_shader_dev.inputs:
-                        if "Alpha" == input_node.name:
-                            material_alpha_map[material.name] = input_node.default_value
-        # 选中并转换为blender材质
-        select_and_activate(obj)
-        bpy.ops.mmd_tools.convert_materials()
+    deselect_all_objects()
+    select_and_activate(obj)
+    bpy.ops.mmd_tools.convert_materials()
 
     # 将当前材质的不透明度恢复为材质转换前的不透明度
-    for material_name, alpha in material_alpha_map.items():
+    for material_name, alpha in mat_alpha_map.items():
         material = bpy.data.materials.get(material_name)
         node_tree = material.node_tree
         nodes = node_tree.nodes
@@ -182,25 +168,71 @@ def convert_materials(pmx_armature, force_center):
                         material.node_tree.links.remove(link)
                 alpha_node.default_value = alpha
 
-    # 如果强制居中，则按材质分开，删除不透明度为0的物体
-    if force_center:
-        # 按材质分开
-        if len(pmx_objects[0].material_slots) > 1:
-            deselect_all_objects()
-            select_and_activate(pmx_objects[0])
-            bpy.ops.mmd_tools.separate_by_materials()
-        # 重新获取场景中的物体
-        pmx_objects = find_pmx_objects(pmx_armature)
-        objs_to_remove = set()
-        for pmx_object in pmx_objects:
-            # 获取对象的材质列表
-            materials = pmx_object.data.materials
-            # 检查每个材质是否与指定名称匹配
-            for material in materials:
-                if material and material.name in material_alpha_map and material_alpha_map[material.name] == 0:
-                    objs_to_remove.add(pmx_object)
-        for obj_to_remove in objs_to_remove:
-            bpy.data.objects.remove(obj_to_remove, do_unlink=True)
+    if not force_center:
+        return
+
+    # 必须处于顶点选择模式，且无点线面被选择
+    deselect_all_objects()
+    select_and_activate(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_mode(type='VERT')
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
+    # 先删除alpha为0的材质所对应的面（仅面），再删除无法构成面的顶点。
+    # 避免通过“按材质分开”/“bmesh”的方式来删除，防止影响模型法向。
+    remove_alpha_zero_mesh(obj)
+    remove_unused_verts(obj)
+
+
+def remove_unused_verts(obj):
+    mesh = obj.data
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+
+    # 取消全部顶点选择
+    for v in bm.verts:
+        v.select = False
+
+    # 标记所有被使用的顶点
+    used_vertex = set()
+    for f in bm.faces:
+        for v in f.verts:
+            used_vertex.add(v.index)
+
+    # 选中所有未使用的顶点
+    unused_count = 0
+    for v in bm.verts:
+        if v.index not in used_vertex:
+            v.select = True
+            unused_count += 1
+
+    # 写回 mesh
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.delete(type='VERT')
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def remove_alpha_zero_mesh(obj):
+    deselect_all_objects()
+    select_and_activate(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    for index, slot in enumerate(obj.material_slots):
+        material = slot.material
+        if not material:
+            continue
+        alpha = material.mmd_material.alpha
+        if alpha != 0:
+            continue
+        obj.active_material_index = index
+        bpy.ops.object.material_slot_select()
+    bpy.ops.mesh.delete(type="ONLY_FACE")
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.material_slot_remove_unused()
 
 
 def camera_to_view_selected(props, camera=None):
