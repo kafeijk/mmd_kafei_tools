@@ -302,6 +302,7 @@ def camera_to_view_selected(props, camera=None):
 
     # 对准选中物体
     bpy.ops.view3d.camera_to_view_selected()
+    bpy.ops.view3d.camera_to_view_selected()    # 正交需多执行一次
     # 切换下视图（确保view_camera执行后肯定在相应视图）
     bpy.ops.view3d.view_axis(type='FRONT')
     # 视图 - 摄像机 对应快捷键0
