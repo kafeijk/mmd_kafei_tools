@@ -98,6 +98,8 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     batch: bpy.props.PointerProperty(type=BatchProperty)
 
     def update_rotation_x(self, context):
+        if self.rotation_euler_y != math.radians(0) or self.rotation_euler_z != math.radians(0):
+            return
         if self.type == "PERSPECTIVE":
             self.rotation_euler_x = math.radians(80)
         if self.type == "ORTHOGRAPHIC":
