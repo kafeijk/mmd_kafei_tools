@@ -455,10 +455,13 @@ translation_dict = {
         ("*", "加载渲染预设"): "Load Render Preset",
         ("Operator", "预览"): "Preview",
         ("Operator", "渲染"): "Render",
+        ("Operator", "批量渲染"): "Batch Render",
         # Preview Rendering description
+        ("*", "预览相机的类型"): "Type of the preview camera",
+        ("*", "模型主体与预览图边界之间的留白程度"): "Margin between the model and the preview image border",
         ("*", "欧拉旋转"): "Rotation in Eulers",
         ("*", "相机旋转值跟随活动相机视角"): "Camera rotation values follow the active camera's view",
-        ("*", "受隐藏部位的影响，某些角色渲染的结果可能不会居中。此选项可使角色强制居中，但会花费更多的时间"): "Due to hidden parts, the rendered result of some characters may not be centered. This option forces the character to be centered, but it may take more time",
+        ("*", "受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中"): "Due to hidden parts, some characters may not render centered. This option forces the character to be centered.",
         ("*", "尽可能使角色处于画面中心。\n（重要）该参数在角色处于初始状态时效果良好，如果出现意料外的情况请手动关闭\n开启时Y轴旋转失效，不适用于多角色共同被选择的情况"): "Attempt to keep the character at the center of the screen.\n(Important) This parameter works well when the character is in its initial state. If unexpected issues occur, please disable it manually.\nWhen enabled, Y-axis rotation will not function and it is not suitable for situations where multiple characters are selected together",
         ("*", "生成预览相机，仅预览用。实际渲染时相机参数取决于插件面板设置"): "Create a preview camera for preview purposes only. For actual rendering, the camera parameters follow the addon panel settings.",
         # Batch parameter

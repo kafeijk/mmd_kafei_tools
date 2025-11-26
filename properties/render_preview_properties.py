@@ -25,7 +25,7 @@ def update_rotation(scene, depsgraph):
 class RenderPreviewProperty(bpy.types.PropertyGroup):
     type: bpy.props.EnumProperty(
         name="类型",
-        description="类型",
+        description="预览相机的类型",
         items=[
             ("PERSPECTIVE", "透视", "透视"),
             ("ORTHOGRAPHIC", "正交", "正交")
@@ -37,7 +37,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     )
     scale: bpy.props.FloatProperty(
         name="边距",
-        description="边距",
+        description="模型主体与预览图边界之间的留白程度",
         default=1.0,
         min=1.0,
         max=2.0
