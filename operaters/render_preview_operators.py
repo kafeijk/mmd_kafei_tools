@@ -7,7 +7,7 @@ from ..utils import *
 class GenPreviewCameraOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.gen_preview_camera"
     bl_label = "预览"
-    bl_description = "生成预览相机，仅预览用。实际渲染时相机参数取决于插件面板设置"
+    bl_description = "根据当前设置的参数生成预览相机并切换到摄像机视角，重复点击时会更新预览相机参数"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
@@ -21,6 +21,7 @@ class GenPreviewCameraOperator(bpy.types.Operator):
     def check_props(self):
         objs = bpy.context.selected_objects
         if len(objs) == 0:
+            self.report(type={'ERROR'}, message=f'Select at least one object!')
             return False
         return True
 
@@ -28,7 +29,7 @@ class GenPreviewCameraOperator(bpy.types.Operator):
 class RenderPreviewOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.render_preview"
     bl_label = "渲染"
-    bl_description = "渲染预览图"
+    bl_description = "渲染预览图\n渲染逻辑相当于点击预览按钮并执行图像渲染\n勾选批量参数后，按钮将切换为批量渲染模式"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -122,8 +123,8 @@ class RenderPreviewOperator(bpy.types.Operator):
         else:
             objs = bpy.context.selected_objects
             if len(objs) == 0:
-                # 什么都不选择的话，以当前视角输出
-                pass
+                self.report(type={'ERROR'}, message=f'Select at least one object!')
+                return False
         return True
 
 
