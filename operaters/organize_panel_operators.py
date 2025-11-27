@@ -72,6 +72,8 @@ def fix_rigid_body_size(pmx_root, props):
         return
 
     rb_parent = find_rigid_body_parent(pmx_root)
+    if not rb_parent:
+        return
     rbs = [obj for obj in rb_parent.children if obj.type == 'MESH']
 
     shape_dims = {
@@ -791,6 +793,10 @@ def reorder_rigid_body_panel(pmx_root, props):
 
 def reorder_display_panel(pmx_root, props):
     """整理显示枠面板"""
+    display_panel_flag = props.display_panel_flag
+    if display_panel_flag is False:
+        return
+
     mmd_root = pmx_root.mmd_root
     armature = find_pmx_armature(pmx_root)
 

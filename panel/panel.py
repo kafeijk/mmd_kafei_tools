@@ -936,7 +936,10 @@ class RenderPreviewPanel(bpy.types.Panel):
         load_render_preset_row.operator(LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
         render_row = col.row(align=True)
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
-        render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
+        if batch.flag:
+            render_row.operator(RenderPreviewOperator.bl_idname, text="批量渲染")
+        else:
+            render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
 
 
 class AboutPanel(bpy.types.Panel):

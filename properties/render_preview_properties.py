@@ -25,18 +25,19 @@ def update_rotation(scene, depsgraph):
 class RenderPreviewProperty(bpy.types.PropertyGroup):
     type: bpy.props.EnumProperty(
         name="类型",
-        description="类型",
+        description="预览相机的类型",
         items=[
             ("PERSPECTIVE", "透视", "透视"),
             ("ORTHOGRAPHIC", "正交", "正交")
 
         ],
-        default="PERSPECTIVE"
+        default="PERSPECTIVE",
+        update = lambda self, context: self.update_rotation_x(context)
 
     )
     scale: bpy.props.FloatProperty(
         name="边距",
-        description="边距",
+        description="模型主体与预览图边界之间的留白程度",
         default=1.0,
         min=1.0,
         max=2.0
@@ -45,7 +46,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         name="旋转 X",
         description="欧拉旋转",
         subtype="ANGLE",
-        default=math.radians(85)
+        default=math.radians(80)
     )
     rotation_euler_y: bpy.props.FloatProperty(
         name="Y",
@@ -66,8 +67,8 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     )
     force_center: bpy.props.BoolProperty(
         name="强制居中",
-        description="受隐藏部位的影响，某些角色渲染的结果可能不会居中。此选项可使角色强制居中，但会花费更多的时间",
-        default=False
+        description="受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中",
+        default=True
     )
     # 如何在其它视角对齐角色？
     # 方案1
@@ -92,9 +93,18 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     align: bpy.props.BoolProperty(
         name="对齐角色",
         description="尽可能使角色处于画面中心。\n（重要）该参数在角色处于初始状态时效果良好，如果出现意料外的情况请手动关闭\n开启时Y轴旋转失效，不适用于多角色共同被选择的情况",
-        default=False,
+        default=True,
     )
     batch: bpy.props.PointerProperty(type=BatchProperty)
+
+    def update_rotation_x(self, context):
+        if self.rotation_euler_y != math.radians(0) or self.rotation_euler_z != math.radians(0):
+            return
+        if self.type == "PERSPECTIVE":
+            self.rotation_euler_x = math.radians(80)
+        if self.type == "ORTHOGRAPHIC":
+            self.rotation_euler_x = math.radians(90)
+
 
 
     @staticmethod
