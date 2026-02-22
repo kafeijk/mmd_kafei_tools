@@ -172,7 +172,10 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
 
             # 新建默认材质
             mat = bpy.data.materials.new(name=obj.name)
-            mat.use_nodes = True
+
+            blender_version = bpy.app.version
+            if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+                mat.use_nodes = True
 
             if mat.name != obj.name:
                 mat.name = obj.name  # 不清楚为什么要设置两次...

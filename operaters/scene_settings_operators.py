@@ -64,13 +64,14 @@ def get_folder(blender_install_dir, folder_name):
 
 
 def set_env(operator, world_name, strength):
-    # 确保新的世界使用节点
+    blender_version = bpy.app.version
     if world_name == "DEFAULT":
         world_name = "World"
         world = bpy.data.worlds.new(world_name)
         if world.name != world_name:
             world.name = world_name
-        world.use_nodes = True
+        if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+            world.use_nodes = True
         world_nodes = world.node_tree
         for node in world_nodes.nodes:
             if node.bl_idname == "ShaderNodeBackground":
@@ -84,7 +85,8 @@ def set_env(operator, world_name, strength):
         world = bpy.data.worlds.new(world_name)
         if world.name != world_name:
             world.name = world_name
-        world.use_nodes = True
+        if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+            world.use_nodes = True
         world_nodes = world.node_tree
         world_nodes.nodes.clear()
         # 创建 Texture Coordinate 节点
