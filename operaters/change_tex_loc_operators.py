@@ -1,3 +1,4 @@
+import os.path
 import shutil
 
 from ..utils import *
@@ -37,18 +38,78 @@ class ChangeTexLocOperator(bpy.types.Operator):
 
 
 def do_change_tex_loc(pmx_root, props, filepath):
-    new_folder = props.new_folder
-    new_folder = new_folder.strip()
-    remove_empty = props.remove_empty
-    # 修改纹理和球体纹理路径（sph）
-    change_texture_filepaths(pmx_root, filepath, new_folder)
-    # 修改卡通纹理路径（toon）
-    change_toon_texture_filepaths(pmx_root,filepath, new_folder)
-    # 移动pmx目录下所有图像文件到指定目录中
-    move_tex(filepath, new_folder)
-    # 循环内删除空文件夹，不含递归，将删除空文件夹的操作范围限定在pmx目录中
-    if remove_empty:
-        delete_empty_folders(os.path.dirname(filepath))
+    change_texture_paths(pmx_root, filepath, props)
+    move_textures(filepath, props)
+    delete_empty_folders(os.path.dirname(filepath), props)
+
+
+def change_texture_paths(pmx_root, pmx_file, props):
+    """修改纹理路径、球体纹理路径（sph）、卡通纹理路径（toon）"""
+    new_folder = props.new_folder.strip()
+    tex_folder = os.path.join(os.path.dirname(pmx_file), new_folder)
+
+    # mmd_tools v4.5.6新增相对路径参数 https://github.com/MMD-Blender/blender_mmd_tools/releases/tag/v4.5.6
+    use_rel_path = get_mmd_tools_version() >= (4, 5, 6)
+
+    armature = find_pmx_armature(pmx_root)
+    objs = find_pmx_objects(armature)
+
+    for obj in objs:
+        for slot in obj.material_slots:
+            material = slot.material
+            if not material:
+                continue
+
+            mmd_material = material.mmd_material
+
+
+            # ======================
+            # 先处理 base + sph texture，防止处理toon texture时continue退出循环
+            # ======================
+
+            node_tree = material.node_tree
+            if not node_tree:
+                continue
+
+            for node in node_tree.nodes:
+                if node.type != 'TEX_IMAGE':
+                    continue
+                if node.name not in ('mmd_base_tex', 'mmd_sphere_tex'):
+                    continue
+                image = node.image
+                if not image:
+                    continue
+
+                filename = os.path.basename(image.filepath)
+                image.filepath = os.path.join(tex_folder, filename)
+
+                if not use_rel_path:
+                    continue
+
+                rel_path = os.path.join(new_folder, filename)
+                if node.name == 'mmd_base_tex':
+                    mmd_material.texture_rel_path = rel_path
+                else:
+                    mmd_material.sphere_texture_rel_path = rel_path
+
+            # ======================
+            # toon texture
+            # ======================
+
+            toon = mmd_material.toon_texture
+            if toon is None or toon.strip() == "":
+                continue
+
+            filename = os.path.basename(toon)
+            mmd_material.toon_texture = os.path.join(tex_folder, filename)
+            if not use_rel_path:
+                continue
+
+            mmd_material.toon_texture_rel_path = os.path.join(
+                new_folder,
+                filename
+            )
+
 
 
 def change_texture_filepaths(pmx_root, pmx_file, new_folder):
@@ -58,7 +119,6 @@ def change_texture_filepaths(pmx_root, pmx_file, new_folder):
     armature = find_pmx_armature(pmx_root)
     objs = find_pmx_objects(armature)
 
-    images = []
     for obj in objs:
         for slot in obj.material_slots:
             material = slot.material
@@ -80,61 +140,85 @@ def change_texture_filepaths(pmx_root, pmx_file, new_folder):
                     continue
                 # 获取纹理图像的路径
                 image = node.image
-                if image:
-                    images.append(image)
+                if not image:
+                    continue
+                directory, filename = os.path.split(image.filepath)
+                new_filepath = os.path.join(tex_folder, filename)
+                image.filepath = new_filepath
 
-    for img in images:
-        directory, filename = os.path.split(img.filepath)
-        new_filepath = os.path.join(tex_folder, filename)
-        img.filepath = new_filepath
+                mmd_tools_version = get_mmd_tools_version()
+                if mmd_tools_version >= (4, 5, 6):
+                    if node.name == 'mmd_base_tex':
+                        material.mmd_material.texture_rel_path = os.path.join(new_folder, filename)
+                    else:
+                        material.mmd_material.sphere_texture_rel_path = os.path.join(new_folder, filename)
 
 
-def change_toon_texture_filepaths(pmx_root,pmx_file, new_folder):
-    pmx_path = os.path.dirname(pmx_file)
-    tex_folder = os.path.join(pmx_path, new_folder)
+def change_toon_texture_filepaths(pmx_root, pmx_file, new_folder):
+    tex_folder = os.path.join(os.path.dirname(pmx_file), new_folder)
+    mmd_tools_version = get_mmd_tools_version() >= (4, 5, 6)
 
     armature = find_pmx_armature(pmx_root)
     objs = find_pmx_objects(armature)
+
     for obj in objs:
         for slot in obj.material_slots:
             material = slot.material
             if not material:
                 continue
 
-            toon_texture = material.mmd_material.toon_texture
-            if toon_texture is not None and toon_texture.strip() != '':
-                directory, filename = os.path.split(material.mmd_material.toon_texture)
-                new_filepath = os.path.join(tex_folder, filename)
-                material.mmd_material.toon_texture = new_filepath
+            mmd_material = material.mmd_material
+            toon_texture = mmd_material.toon_texture
+
+            if not toon_texture or not toon_texture.strip():
+                continue
+
+            filename = os.path.basename(toon_texture)
+            new_filepath = os.path.join(tex_folder, filename)
+            mmd_material.toon_texture = new_filepath
+
+            if mmd_tools_version:
+                mmd_material.toon_texture_rel_path = os.path.join(new_folder, filename)
 
 
-def move_tex(pmx_file, new_folder):
-    # pmx文件所在目录
+def move_textures(pmx_file, props):
+    """移动pmx目录下所有图像文件到指定目录中"""
+    new_folder = props.new_folder.strip()
+
     pmx_path = os.path.dirname(pmx_file)
-    # 创建存储图片的文件夹
     tex_folder = os.path.join(pmx_path, new_folder)
-    if not os.path.exists(tex_folder):
-        os.makedirs(tex_folder)
+    os.makedirs(tex_folder, exist_ok=True)
 
-    # 图片文件的扩展名列表
     image_extensions = set(IMG_TYPE_EXT_MAP.values())
 
-    # 递归遍历文件夹中的所有文件
     for root, dirs, files in os.walk(pmx_path):
+        # 不扫描目标文件夹（避免自己移动自己）
+        if os.path.abspath(root) == os.path.abspath(tex_folder):
+            continue
+
         for file in files:
-            # 检查文件扩展名是否是图片格式，不区分大小写
-            if os.path.splitext(file)[1].lower() in image_extensions:
-                # 获取图片的绝对路径
-                src_path = os.path.join(root, file)
-                # 目标路径
-                dest_path = os.path.join(tex_folder, file)
-                # 如果不存在，则移动过去，如果存在，则让用户自己处理（文件可能是只读的；文件虽然同名但内容不同），稳妥一些
-                if not os.path.exists(dest_path):
-                    shutil.move(src_path, dest_path)
+
+            ext = os.path.splitext(file)[1].lower()
+            if ext not in image_extensions:
+                continue
+
+            src_path = os.path.join(root, file)
+            dest_path = os.path.join(tex_folder, file)
+
+            # 已存在直接跳过（更安全）
+            if os.path.exists(dest_path):
+                continue
+
+            shutil.move(src_path, dest_path)
 
 
-def delete_empty_folders(folder_path):
-    # 遍历文件夹中的所有文件和子文件夹
+def delete_empty_folders(folder_path, props):
+    """删除空文件夹，范围限定在pmx目录中"""
+
+    remove_empty = props.remove_empty
+    if not remove_empty:
+        return
+
     for root, dirs, files in os.walk(folder_path, topdown=False):
         for file in files:
             # 如果存在Thumbs.db文件（缩略图缓存），删除它
@@ -144,7 +228,6 @@ def delete_empty_folders(folder_path):
 
         for d in dirs:
             dir_path = os.path.join(root, d)
-            # 检查文件夹是否为空
-            if not os.listdir(dir_path):
-                # 删除空文件夹
-                os.rmdir(dir_path)
+            if os.listdir(dir_path):
+                continue
+            os.rmdir(dir_path)
