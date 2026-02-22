@@ -696,7 +696,7 @@ def reorder_rigid_body_panel(pmx_root, props):
     然后将他们整体移动到该类型首次出现的位置。
     其他情况下：
      - 物理刚体按名称排序？各个模型刚体名称不规范，不适用
-     - 物理刚体按不冲突群组排序，组内不变？即使刚体处于同一层（参数一致），所属冲突组也有可能不同，不适用
+     - 物理刚体按群组分组，组内不变？即使刚体位于同一物体（如裙子），这些刚体对应的群组也有可能不同，分组后反而更乱，不适用
     综上所述，不作改动
     """
     rigid_body_panel_flag = props.rigid_body_panel_flag
@@ -785,7 +785,13 @@ def reorder_rigid_body_panel(pmx_root, props):
     def set_index(obj, index):
         m = RIGID_BODY_PREFIX_REGEXP.match(obj.name)
         name = m.group('name') if m else obj.name
-        obj.name = '%s_%s' % (int2base(index, 36, 3), name)
+        mmd_tools_version = get_mmd_tools_version()
+
+        # mmd_tools v4.5.4 对象索引前缀改为十进制 # https://github.com/MMD-Blender/blender_mmd_tools/releases/tag/v4.5.4
+        if mmd_tools_version >= (4, 5, 4):
+            obj.name = f"{index:03d}_{name}"
+        else:
+            obj.name =  f"{int2base(index, 36, 3)}_{name}"
 
     for index, rigid_body in enumerate(final_order_list):
         set_index(rigid_body, index)
