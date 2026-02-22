@@ -1,4 +1,4 @@
-from .render_preview_operators import camera_to_view_selected
+from .render_preview_operators import do_camera_to_view_selected
 from ..utils import *
 
 
@@ -716,7 +716,7 @@ class CameraSettingsOperator(bpy.types.Operator):
             empty = set_empty(props, active_object)
 
         # 创建跟随相机
-        camera = create_follow_camera(props, preview_props)
+        camera = create_follow_camera(props)
 
         # 拷贝骨架并精简骨骼
         if target_type == "ARMATURE":
@@ -973,7 +973,7 @@ def copy_and_prune_armature(armature, bone_name):
     return armature_copied
 
 
-def create_follow_camera(props, preview_props):
+def create_follow_camera(props):
     # 生成相机及所在集合
     camera_name = bpy.app.translations.pgettext_iface("跟随相机")
     camera_data = bpy.data.cameras.new(name=camera_name)
@@ -997,13 +997,10 @@ def create_follow_camera(props, preview_props):
 
     # 设置相机初始位置
     bpy.context.scene.frame_set(0)
-    preview_props.scale = 1
-    preview_props.rotation_euler_x = props.rotation_euler_x
-    preview_props.rotation_euler_y = math.radians(0)
-    preview_props.rotation_euler_z = math.radians(0)
-    preview_props.align = True
-    preview_props.type = 'PERSPECTIVE'
-    camera_to_view_selected(preview_props, camera)
+
+    do_camera_to_view_selected('PERSPECTIVE', True,
+                               props.rotation_euler_x, math.radians(0), math.radians(0),
+                               1, camera=camera)
     camera.keyframe_insert(data_path="location", frame=0)
     return camera
 
