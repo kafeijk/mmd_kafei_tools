@@ -199,7 +199,13 @@ def set_eevee_next():
     # 恢复 Eevee 默认设置
     reset(bpy.context.scene.eevee)
 
-    safe_set(scene.render, "engine", "BLENDER_EEVEE_NEXT")
+    # 5.x与4.x的Eevee在设置方式上类似，但名称标识不同
+    # https://developer.blender.org/docs/release_notes/5.0/python_api/#render
+    blender_version = bpy.app.version
+    if blender_version >= (5, 0, 0):
+        safe_set(scene.render, "engine", "BLENDER_EEVEE")
+    else:
+        safe_set(scene.render, "engine", "BLENDER_EEVEE_NEXT")
 
     # 时序重投影。该参数默认值即为True，但参数use_bloom（辉光）会影响到该值的设定，所以这里显示设置
     safe_set(scene.eevee, "use_taa_reprojection", True)
@@ -607,14 +613,14 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         blender_version = bpy.app.version
         if blender_version < (4, 2, 0):
             set_eevee()
+            # 取消辉光
+            safe_set(bpy.context.scene.eevee, "use_bloom", False)
         else:
             set_eevee_next()
             safe_set(scene.eevee, "use_raytracing", False)  # 取消光追，只需要光照即可，避免颜色对模型的影响
 
         # 胶片透明
         bpy.context.scene.render.film_transparent = True
-        # 取消辉光
-        safe_set(bpy.context.scene.eevee, "use_bloom", False)
 
         # 输出属性
         # 分辨率
