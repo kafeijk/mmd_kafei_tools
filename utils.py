@@ -883,3 +883,38 @@ def get_mmd_tools_version():
     if v > (-1, -1, -1):
         return v
     return get_addon_version("MMD Tools")
+
+
+def select_pose_bone(pb, status):
+    """
+    选中/取消选中姿态模式下骨骼
+
+    Pose bones now have a select property that stores their selection state.
+    (bpy.data.objects["Armature"].pose.bones[0].select)
+    Selection is synced with edit bones when going in and out of Edit Mode.
+    https://developer.blender.org/docs/release_notes/5.0/python_api/#animation-rigging
+
+    """
+    blender_version = bpy.app.version
+
+    if blender_version < (5, 0, 0):
+        pb.bone.select = status
+    else:
+        pb.select = status
+
+
+def is_pose_bone_selected(pb):
+    """
+    获取姿态模式下骨骼的选中状态
+
+    Pose bones now have a select property that stores their selection state.
+    (bpy.data.objects["Armature"].pose.bones[0].select)
+    Selection is synced with edit bones when going in and out of Edit Mode.
+    https://developer.blender.org/docs/release_notes/5.0/python_api/#animation-rigging
+
+    """
+    blender_version = bpy.app.version
+    if blender_version < (5, 0, 0):
+        return pb.bone.select
+    else:
+        return pb.select
