@@ -901,8 +901,8 @@ def bake_camera_animation(props, camera, armature=None, empty=None):
         if abs(delta_z) > threshold_z:
             savepoint_z = lo_z
     # 根据 最大不同帧间隔 设置关键帧
-    action = camera.animation_data.action if camera.animation_data else None
-    fcurves = [fc for fc in action.fcurves if fc.data_path == "location"]
+    fcurves = get_action_fcurves(camera)
+    fcurves = [fc for fc in fcurves if fc.data_path == "location"]
 
     # fc.array_index X/Y/Z 三个通道索引
     # kp.co.x 帧号
@@ -1010,17 +1010,14 @@ def create_follow_camera(props, preview_props):
 
 def get_armature_keyframe_range(armature):
     """ 获取指定 Armature 对象的关键帧范围 """
-    if armature.animation_data is None:
-        return None, None
-
-    action = armature.animation_data.action
-    if action is None:
+    fcurves = get_action_fcurves(armature)
+    if fcurves is None:
         return None, None
 
     # 用于存储所有关键帧帧号
     keyframe_numbers = []
 
-    for fcurve in action.fcurves:
+    for fcurve in fcurves:
         for keyframe_point in fcurve.keyframe_points:
             frame_number = keyframe_point.co.x  # co.x 帧号
             keyframe_numbers.append(frame_number)
