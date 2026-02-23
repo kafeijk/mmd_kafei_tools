@@ -192,7 +192,7 @@ def check_props(operator, option):
             selected_pbs = []
             pbs = armature.pose.bones
             for pb in pbs:
-                if pb.bone.select:
+                if is_pose_bone_selected(pb):
                     selected_pbs.append(pb)
             if not selected_pbs:
                 operator.report(type={'ERROR'}, message=f'No bones selected!')
@@ -505,7 +505,7 @@ def mirror_pose():
     pbs = armature.pose.bones
     selected_pbs = []
     for pb in pbs:
-        if pb.bone.select:
+        if is_pose_bone_selected(pb):
             selected_pbs.append(pb)
 
     # 没有骨骼被选择则直接返回
@@ -589,9 +589,9 @@ def select_physical_bone():
     bpy.ops.object.mode_set(mode='POSE')
     for bone in armature.pose.bones:
         if bone.name in bl_names:
-            bone.bone.select = True
+            select_pose_bone(bone, True)
         else:
-            bone.bone.select = False
+            select_pose_bone(bone, False)
 
     if original_mode == "EDIT":
         bpy.ops.object.mode_set(mode='EDIT')
@@ -610,9 +610,9 @@ def select_bake_bone():
     bpy.ops.object.mode_set(mode='POSE')
     for bone in armature.pose.bones:
         if bone.mmd_bone.name_j in PMX_BAKE_BONES:
-            bone.bone.select = True
+            select_pose_bone(bone, True)
         else:
-            bone.bone.select = False
+            select_pose_bone(bone, False)
 
     if original_mode == "EDIT":
         bpy.ops.object.mode_set(mode='EDIT')
@@ -626,7 +626,7 @@ def get_end_bones(selected_pbs, pb_set):
         else:
             selected_child_flag = False
             for child in pb.children:
-                if child.bone.select:
+                if is_pose_bone_selected(child):
                     selected_child_flag = True
                     break
             if not selected_child_flag:
@@ -692,7 +692,7 @@ def select_bone_by_input(option):
     invalid_bone_set = set()
     for pb in pbs:
         # Blender逻辑中，关联查找不考虑被选中的隐藏骨骼，而查找父级子级时考虑，这里统一考虑
-        if pb.bone.select and is_valid_bone(bone_info, pb):
+        if is_pose_bone_selected(pb) and is_valid_bone(bone_info, pb):
             selected_pbs.append(pb)
         else:
             invalid_bone_set.add(pb)
@@ -750,9 +750,9 @@ def select_bone_by_input(option):
         unselect_bone(armature, unselected_set)
     else:
         for pb in selected_set:
-            pb.bone.select = True
+            select_pose_bone(pb, True)
         if active_pb in selected_pbs:
-            active_pb.bone.select = True
+            select_pose_bone(active_pb, True)
 
     # 返回初始模式
     bpy.ops.object.mode_set(mode=original_mode)
@@ -762,7 +762,7 @@ def unselect_bone(armature, pb_set):
     """取消选择骨骼"""
     bpy.ops.object.mode_set(mode="POSE")
     for pb in pb_set:
-        pb.bone.select = False
+        select_pose_bone(pb, False)
     bpy.ops.object.mode_set(mode="EDIT")
     for pb in pb_set:
         eb = armature.data.edit_bones.get(pb.name)

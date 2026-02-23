@@ -7,6 +7,7 @@ import zipfile
 import bpy
 import addon_utils
 from mathutils import Vector
+import bpy_extras.anim_utils as anim_utils
 
 from .constants import *
 
@@ -883,3 +884,68 @@ def get_mmd_tools_version():
     if v > (-1, -1, -1):
         return v
     return get_addon_version("MMD Tools")
+
+
+def select_pose_bone(pb, status):
+    """
+    选中/取消选中姿态模式下骨骼
+
+    Pose bones now have a select property that stores their selection state.
+    (bpy.data.objects["Armature"].pose.bones[0].select)
+    Selection is synced with edit bones when going in and out of Edit Mode.
+    https://developer.blender.org/docs/release_notes/5.0/python_api/#animation-rigging
+
+    """
+    blender_version = bpy.app.version
+
+    if blender_version < (5, 0, 0):
+        pb.bone.select = status
+    else:
+        pb.select = status
+
+
+def is_pose_bone_selected(pb):
+    """
+    获取姿态模式下骨骼的选中状态
+
+    Pose bones now have a select property that stores their selection state.
+    (bpy.data.objects["Armature"].pose.bones[0].select)
+    Selection is synced with edit bones when going in and out of Edit Mode.
+    https://developer.blender.org/docs/release_notes/5.0/python_api/#animation-rigging
+
+    """
+    blender_version = bpy.app.version
+    if blender_version < (5, 0, 0):
+        return pb.bone.select
+    else:
+        return pb.select
+
+
+def get_action_fcurves(obj):
+    """
+    获取Action下的fcurves
+
+    自Blender 4.4起，Action下新增Slot。
+    原先一个自行车有不同部位，如链条，车，车轮，每个部位都有自己的动作，不好管理这些动作。
+    现在可以创建一个共用的自行车运动Action，使用Slot来存储链条，车，车轮的动作，可以更好的管理这些动作
+
+    https://developer.blender.org/docs/release_notes/4.4/animation_rigging/
+    https://developer.blender.org/docs/release_notes/5.0/python_api/#animation-rigging
+    """
+    animation_data = obj.animation_data
+    if animation_data is None:
+        return None
+
+    action = animation_data.action
+    if action is None:
+        return None
+
+    blender_version = bpy.app.version
+    if blender_version < (5, 0, 0):
+        return action.fcurves
+    else:
+        action_slot = animation_data.action_slot
+        if action_slot is None:
+            return None
+        channelbag = anim_utils.action_get_channelbag_for_slot(action, animation_data.action_slot)
+        return channelbag.fcurves

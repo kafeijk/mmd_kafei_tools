@@ -237,8 +237,16 @@ def remove_alpha_zero_mesh(obj):
 
 
 def camera_to_view_selected(props, camera=None):
+    do_camera_to_view_selected(props.type, props.align,
+                               props.rotation_euler_x, props.rotation_euler_y, props.rotation_euler_z,
+                               props.scale, camera)
+
+
+def do_camera_to_view_selected(camera_type, align,
+                               rotation_euler_x, rotation_euler_y, rotation_euler_z,
+                               scale, camera=None):
     if not camera:
-        camera = gen_preview_camera(props)
+        camera = gen_preview_camera(camera_type)
 
     # 备份当前选中和激活的对象
     active_object = bpy.context.active_object
@@ -255,7 +263,6 @@ def camera_to_view_selected(props, camera=None):
     for child in children:
         select_and_activate(child)
 
-    align = props.align
     # 随便选择一个ancestor
     ancestor = next(iter(ancestors))
     if align:
@@ -269,17 +276,16 @@ def camera_to_view_selected(props, camera=None):
     # 修改相机参数
     camera.rotation_mode = 'XYZ'
 
-    camera.rotation_euler[0] = props.rotation_euler_x
+    camera.rotation_euler[0] = rotation_euler_x
     if align:
         camera.rotation_euler[1] = math.radians(0)
     else:
-        camera.rotation_euler[1] = props.rotation_euler_y
-    camera.rotation_euler[2] = props.rotation_euler_z
+        camera.rotation_euler[1] = rotation_euler_y
+    camera.rotation_euler[2] = rotation_euler_z
 
     if abs(camera.data.passepartout_alpha - 0.5) < 0.0001:
         camera.data.passepartout_alpha = 1
 
-    camera_type = props.type
     if camera_type == "PERSPECTIVE":
         camera.data.type = 'PERSP'
     elif camera_type == "ORTHOGRAPHIC":
@@ -305,7 +311,7 @@ def camera_to_view_selected(props, camera=None):
     bpy.ops.view3d.camera_to_view_selected()
     if camera_type == "ORTHOGRAPHIC":
         for i in range(10):
-            bpy.ops.view3d.camera_to_view_selected()    # 正交需多执行n次
+            bpy.ops.view3d.camera_to_view_selected()  # 正交需多执行n次
     # 切换下视图（确保view_camera执行后肯定在相应视图）
     bpy.ops.view3d.view_axis(type='FRONT')
     # 视图 - 摄像机 对应快捷键0
@@ -327,9 +333,9 @@ def camera_to_view_selected(props, camera=None):
     # 调整边距
     if camera_type == "PERSPECTIVE":
         # 这里实际上修改的是视野，而非“焦距”
-        camera.data.angle = camera.data.angle * props.scale
+        camera.data.angle = camera.data.angle * scale
     elif camera_type == "ORTHOGRAPHIC":
-        camera.data.ortho_scale = camera.data.ortho_scale * props.scale
+        camera.data.ortho_scale = camera.data.ortho_scale * scale
     else:
         pass
 
@@ -337,7 +343,7 @@ def camera_to_view_selected(props, camera=None):
     restore_selection(objs, active_object)
 
 
-def gen_preview_camera(props):
+def gen_preview_camera(camera_type):
     # 在“预览相机”集合中生成一个相机
     # 检查是否已有名为“预览相机”的相机对象
     # 即使场景中存在其它相机，也不把这个相机进行返回，因为不清楚这个相机的用途
@@ -347,7 +353,6 @@ def gen_preview_camera(props):
         if camera.type == 'CAMERA' and custom_property_name in camera.keys():
 
             # 恢复相机参数默认值
-            camera_type = props.type
             if camera_type == "PERSPECTIVE":
                 camera.data.lens_unit = 'MILLIMETERS'
                 camera.data.lens = 50

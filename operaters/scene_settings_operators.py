@@ -1,4 +1,4 @@
-from .render_preview_operators import camera_to_view_selected
+from .render_preview_operators import do_camera_to_view_selected
 from ..utils import *
 
 
@@ -64,13 +64,14 @@ def get_folder(blender_install_dir, folder_name):
 
 
 def set_env(operator, world_name, strength):
-    # 确保新的世界使用节点
+    blender_version = bpy.app.version
     if world_name == "DEFAULT":
         world_name = "World"
         world = bpy.data.worlds.new(world_name)
         if world.name != world_name:
             world.name = world_name
-        world.use_nodes = True
+        if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+            world.use_nodes = True
         world_nodes = world.node_tree
         for node in world_nodes.nodes:
             if node.bl_idname == "ShaderNodeBackground":
@@ -84,7 +85,8 @@ def set_env(operator, world_name, strength):
         world = bpy.data.worlds.new(world_name)
         if world.name != world_name:
             world.name = world_name
-        world.use_nodes = True
+        if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+            world.use_nodes = True
         world_nodes = world.node_tree
         world_nodes.nodes.clear()
         # 创建 Texture Coordinate 节点
@@ -199,7 +201,13 @@ def set_eevee_next():
     # 恢复 Eevee 默认设置
     reset(bpy.context.scene.eevee)
 
-    safe_set(scene.render, "engine", "BLENDER_EEVEE_NEXT")
+    # 5.x与4.x的Eevee在设置方式上类似，但名称标识不同
+    # https://developer.blender.org/docs/release_notes/5.0/python_api/#render
+    blender_version = bpy.app.version
+    if blender_version >= (5, 0, 0):
+        safe_set(scene.render, "engine", "BLENDER_EEVEE")
+    else:
+        safe_set(scene.render, "engine", "BLENDER_EEVEE_NEXT")
 
     # 时序重投影。该参数默认值即为True，但参数use_bloom（辉光）会影响到该值的设定，所以这里显示设置
     safe_set(scene.eevee, "use_taa_reprojection", True)
@@ -607,14 +615,14 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         blender_version = bpy.app.version
         if blender_version < (4, 2, 0):
             set_eevee()
+            # 取消辉光
+            safe_set(bpy.context.scene.eevee, "use_bloom", False)
         else:
             set_eevee_next()
             safe_set(scene.eevee, "use_raytracing", False)  # 取消光追，只需要光照即可，避免颜色对模型的影响
 
         # 胶片透明
         bpy.context.scene.render.film_transparent = True
-        # 取消辉光
-        safe_set(bpy.context.scene.eevee, "use_bloom", False)
 
         # 输出属性
         # 分辨率
@@ -708,7 +716,7 @@ class CameraSettingsOperator(bpy.types.Operator):
             empty = set_empty(props, active_object)
 
         # 创建跟随相机
-        camera = create_follow_camera(props, preview_props)
+        camera = create_follow_camera(props)
 
         # 拷贝骨架并精简骨骼
         if target_type == "ARMATURE":
@@ -893,8 +901,8 @@ def bake_camera_animation(props, camera, armature=None, empty=None):
         if abs(delta_z) > threshold_z:
             savepoint_z = lo_z
     # 根据 最大不同帧间隔 设置关键帧
-    action = camera.animation_data.action if camera.animation_data else None
-    fcurves = [fc for fc in action.fcurves if fc.data_path == "location"]
+    fcurves = get_action_fcurves(camera)
+    fcurves = [fc for fc in fcurves if fc.data_path == "location"]
 
     # fc.array_index X/Y/Z 三个通道索引
     # kp.co.x 帧号
@@ -965,7 +973,7 @@ def copy_and_prune_armature(armature, bone_name):
     return armature_copied
 
 
-def create_follow_camera(props, preview_props):
+def create_follow_camera(props):
     # 生成相机及所在集合
     camera_name = bpy.app.translations.pgettext_iface("跟随相机")
     camera_data = bpy.data.cameras.new(name=camera_name)
@@ -989,30 +997,24 @@ def create_follow_camera(props, preview_props):
 
     # 设置相机初始位置
     bpy.context.scene.frame_set(0)
-    preview_props.scale = 1
-    preview_props.rotation_euler_x = props.rotation_euler_x
-    preview_props.rotation_euler_y = math.radians(0)
-    preview_props.rotation_euler_z = math.radians(0)
-    preview_props.align = True
-    preview_props.type = 'PERSPECTIVE'
-    camera_to_view_selected(preview_props, camera)
+
+    do_camera_to_view_selected('PERSPECTIVE', True,
+                               props.rotation_euler_x, math.radians(0), math.radians(0),
+                               1, camera=camera)
     camera.keyframe_insert(data_path="location", frame=0)
     return camera
 
 
 def get_armature_keyframe_range(armature):
     """ 获取指定 Armature 对象的关键帧范围 """
-    if armature.animation_data is None:
-        return None, None
-
-    action = armature.animation_data.action
-    if action is None:
+    fcurves = get_action_fcurves(armature)
+    if fcurves is None:
         return None, None
 
     # 用于存储所有关键帧帧号
     keyframe_numbers = []
 
-    for fcurve in action.fcurves:
+    for fcurve in fcurves:
         for keyframe_point in fcurve.keyframe_points:
             frame_number = keyframe_point.co.x  # co.x 帧号
             keyframe_numbers.append(frame_number)
