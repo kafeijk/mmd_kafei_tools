@@ -62,7 +62,7 @@ class SmallFeatureOperator(bpy.types.Operator):
 
         option = props.option
         if option == 'SCENE_ROOT':
-            self.gen_scene_root()
+            self.gen_scene_root(context)
         elif option == "REMOVE_MISSING_DATA":
             self.remove_missing_external_data()
         elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
@@ -133,33 +133,69 @@ class SmallFeatureOperator(bpy.types.Operator):
                 self.report(type={'WARNING'},
                             message="Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑")
 
-    def gen_scene_root(self):
+    def gen_scene_root(self, context):
         """创建一个空物体，以实现对整个场景的统一控制"""
         if len(bpy.data.objects) == 0:
             return
 
-        has_root = True
-        root = find_ancestor(bpy.data.objects[0])
+        # 获取集合类型实例所依赖的源对象
+        sources = set()
         for obj in bpy.data.objects:
+            if is_collection_instance(obj):
+                collection = obj.instance_collection
+                for child in collection.objects:
+                    sources.add(child)
+
+        has_root = True
+        root = next(obj for obj in bpy.data.objects if obj not in sources)
+        root = find_ancestor(root)
+
+        for obj in bpy.data.objects:
+            if obj in sources:
+                continue
             if root == find_ancestor(obj):
                 continue
             has_root = False
             break
 
         if has_root:
+            show_object(root)
             deselect_all_objects()
             select_and_activate(root)
             return
 
         root = bpy.data.objects.new("root", None)
+        root.location = context.scene.cursor.location.copy()
         bpy.context.collection.objects.link(root)
-        # 遍历场景中的物体
-        for obj in bpy.data.objects:
-            # 检查物体是否没有parent
-            if obj.parent is None and obj != root:
-                # 将其parent设置为root（保持变换）
-                obj.parent = root
-                obj.matrix_parent_inverse = root.matrix_world.inverted()
+
+        context.view_layer.update()
+
+        # 收集目标
+        # 其中不论是本地实例化对象（集合类型），还是外部实例化对象（集合类型），均受root影响
+        # 实例化所引用的源对象不受root影响，否则root影响源对象，源对象影响实例化对象，如果实例化对象本身有位移旋转，结果无法控制。
+        # 如果先生成场景控制器，再生成集合类型实例，再生成场景控制器...这种绕过校验的生成行为，结果无法控制，不受支持。
+        targets = [
+            obj for obj in bpy.data.objects
+            if obj.parent is None and obj != root and obj not in sources
+        ]
+
+        # 保存所有 world matrix
+        world_mats = {
+            obj: obj.matrix_world.copy()
+            for obj in targets
+        }
+
+        # 统一设父级
+        for obj in targets:
+            obj.parent = root
+
+        # 刷新depsgraph，否则恢复world无法生效
+        context.view_layer.update()
+
+        # 统一恢复 world
+        for obj in targets:
+            obj.matrix_world = world_mats[obj]
+
         # 选中root空物体
         deselect_all_objects()
         select_and_activate(root)
@@ -172,6 +208,16 @@ class SmallFeatureOperator(bpy.types.Operator):
                 self.report(type={'ERROR'}, message=f'Select at least one object!')
                 return False
         return True
+
+
+def is_collection_instance(obj):
+    """校验物体是否属于实例化集合"""
+    return (
+            obj
+            and obj.type == 'EMPTY'
+            and obj.instance_type == 'COLLECTION'
+            and obj.instance_collection is not None
+    )
 
 
 def is_valid_material(material):

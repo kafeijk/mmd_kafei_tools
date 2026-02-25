@@ -222,7 +222,7 @@ translation_dict = {
         ("*", "修改贴图色彩空间"): "Adjust Texture Color Space",
         ("*", "网格对象分组"): "Group Mesh Objects",
         # Small Features description
-        ("*", "创建一个空物体，以实现对整个场景的统一控制"): "Create an empty object to manage the entire scene",
+        ("*", "在游标位置创建一个空物体，并通过将其设置为其他对象的父级，实现对整个场景的统一控制\n若场景控制器已存在（不仅限于空物体类型），则不再重复创建，并自动选中该场景控制器\n集合类型实例所使用的源集合内对象不在设置范围内"): "Create an empty object at the cursor position and set it as the parent of other objects to enable unified control over the entire scene.\nIf the scene controller already exists(not limited to the empty object), it will not be created again, and the existing scene controller will be selected automatically.\nObjects inside the source collections used by instance collections are not included in this setup.",
         ("*", "移除丢失的外部数据，以解决无法打包文件，找不到资源路径的问题"):"Remove missing external data to fix 'Unable to pack file, source path not found' error",
         ("*", "将原理化BSDF节点的次表面值归零"): "Reset the subsurface value of Principled BSDF nodes to zero",
         ("*", "贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开。若启用关键词搜索，则源色彩空间参数将被忽略"): "Texture name keywords for searching textures. Case insensitive, can be separated by commas. If keyword search is enabled, the source color space parameters will be ignored",
