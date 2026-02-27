@@ -228,6 +228,13 @@ class TransferPresetOperator(bpy.types.Operator):
             if source_root == target_root:
                 self.report(type={'ERROR'}, message=f'Source and target are identical!')
                 return False
+            for r in [source_root,target_root]:
+                pmx_armature = find_pmx_armature(r)
+                if pmx_armature is None:
+                    self.report(type={'ERROR'},
+                                message=bpy.app.translations.pgettext_iface("Armature not found in {}!").format(
+                                    r.name))
+                    return False
         elif direction == 'ABC2ABC':
             abc_filepath = props.abc_filepath
             if not abc_filepath:

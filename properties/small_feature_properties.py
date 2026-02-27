@@ -6,7 +6,7 @@ class SmallFeatureProperty(bpy.types.PropertyGroup):
         name="用途",
         description="用途",
         items=[
-            ("SCENE_ROOT", "创建场景控制器", "创建一个空物体，以实现对整个场景的统一控制"),
+            ("SCENE_ROOT", "创建场景控制器", "在游标位置创建一个空物体，并通过将其设置为其他对象的父级，实现对整个场景的统一控制\n若场景控制器已存在（不仅限于空物体类型），则不再重复创建，并自动选中该场景控制器\n集合类型实例所使用的源集合内对象不在设置范围内"),
             ("REMOVE_MISSING_DATA", "移除丢失外部数据", "移除丢失的外部数据，以解决无法打包文件，找不到资源路径的问题"),
             ("SUBSURFACE_EV", "修复Eevee显示泛蓝", "修复Eevee显示泛蓝"),
             ("SUBSURFACE_CY", "修复Cycles显示模糊", "将原理化BSDF节点的次表面值归零"),

@@ -6,7 +6,7 @@ bl_info = {
     "name": "mmd_kafei_tools",
     "description": "MMD实用工具",
     "author": "来杯咖啡再说",
-    "version": (1, 9, 0),
+    "version": (1, 9, 1),
     "blender": (3, 0, 0),  # 低于此版本的blender，插件不会显示在插件列表中
     "location": "View3D > Sidebar > KafeiTools Panel",
     "category": "Object",
@@ -24,7 +24,6 @@ def register():
 def unregister():
     auto_load.unregister()
     bpy.app.translations.unregister(__name__)
-
 
 
 if __name__ == "__main__":
