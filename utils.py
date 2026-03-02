@@ -218,6 +218,9 @@ def get_collection(collection_name):
         collection = bpy.data.collections[collection_name]
     else:
         collection = bpy.data.collections.new(collection_name)
+
+    # 新建和原有集合都可能未被link
+    if collection.name not in bpy.context.scene.collection.children:
         bpy.context.scene.collection.children.link(collection)
 
     layer_collection = find_layer_collection_by_name(bpy.context.view_layer.layer_collection, collection_name)
@@ -949,3 +952,18 @@ def get_action_fcurves(obj):
             return None
         channelbag = anim_utils.action_get_channelbag_for_slot(action, animation_data.action_slot)
         return channelbag.fcurves
+
+
+def translate(key: str) -> str:
+    """翻译快捷方法"""
+    return bpy.app.translations.pgettext_iface(key)
+
+
+def unlink(collection):
+    # 内层取消关联
+    for parent_collection in bpy.data.collections:
+        if collection.name in parent_collection.children.keys():
+            parent_collection.children.unlink(collection)
+    # 外层取消关联
+    if collection.name in bpy.context.scene.collection.children:
+        bpy.context.scene.collection.children.unlink(collection)
