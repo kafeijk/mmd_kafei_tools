@@ -398,146 +398,180 @@ def get_obj_by_attr_value(attr_name, value):
 class LightSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.light_settings"
     bl_label = "设置"
-    bl_description = "设置三点打光"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+    bl_description = "设置三点照明"
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         self.gen_light(context)
         return {'FINISHED'}
 
-    def gen_light(self, context):
+    # ------------------------------------------------------------------ #
+    #  内部工具方法
+    # ------------------------------------------------------------------ #
+    def _get_or_create_light(self, old_name: str, attr_value: str, energy: float, color_hex: str,
+                             new_name: str, preset_flag: bool) -> bpy.types.Object:
+        """
+        查找已有灯光（兼容旧名和新名），不存在则新建。
+        preset_flag=True 时强制应用颜色预设。
+        Tri-Lighting 名称取自 https://docs.blender.org/manual/nb/3.6/addons/lighting/trilighting.html
+        """
+        obj = get_obj_by_attr_value("Tri-Lighting", attr_value)
+        if not obj:
+            obj = get_obj_by_attr_value("Tri-Lighting", old_name)  # 兼容旧属性写法
+
+        if not obj:
+            light_data = bpy.data.lights.new(f"{attr_value}Data", type='AREA')
+            light_data.size = 1
+            light_data.energy = energy
+            light_data.volume_factor = 0
+            light_data.color = hex_to_rgb(color_hex)
+            obj = bpy.data.objects.new(new_name, light_data)
+            obj["Tri-Lighting"] = attr_value
+
+        # 兼容旧属性
+        if obj.name == old_name:
+            obj["Tri-Lighting"] = attr_value
+        # 兼容旧命名
+        obj.name = new_name
+
+        if preset_flag:
+            obj.data.color = hex_to_rgb(color_hex)
+
+        return obj
+
+    # ------------------------------------------------------------------ #
+    #  位置 / 旋转计算
+    # ------------------------------------------------------------------ #
+    def _apply_transforms(self, lights: list, props) -> None:
+        key_light, fill_light, back_light = lights
+
+        key_y = math.radians(30)
+        fill_y = math.radians(60)
+        z_angle = math.radians(15)
+
+        key_factor = 1 if props.key_position == "RIGHT" else -1
+        fill_factor = -key_factor
+
+        d_key = props.key_distance
+        d_fill = props.fill_distance
+        d_back = props.back_distance
+        back_z = props.back_angle
+
+        # 主光
+        key_light.rotation_euler = (math.radians(75), 0, key_y * key_factor)
+        key_light.location = (
+            d_key * math.sin(key_y) * key_factor,
+            -d_key * math.cos(key_y),
+            d_key * math.tan(z_angle),
+        )
+
+        # 辅光
+        fill_light.rotation_euler = (math.radians(75), 0, fill_y * fill_factor)
+        fill_light.location = (
+            d_fill * math.sin(fill_y) * fill_factor,
+            -d_fill * math.cos(fill_y),
+            d_fill * math.tan(z_angle),
+        )
+
+        # 背光
+        back_light.rotation_euler = (back_z, 0, 0)
+        back_light.location = (
+            0,
+            -d_back * math.sin(back_z),
+            d_back * math.cos(back_z),
+        )
+
+    # ------------------------------------------------------------------ #
+    #  主流程
+    # ------------------------------------------------------------------ #
+    def gen_light(self, context) -> None:
         scene = context.scene
         props = scene.mmd_kafei_tools_light_settings
+        active_obj = context.active_object
 
-        if self.check_props(props) is False:
+        if not self.check_props(props):
             return
-        active_object = bpy.context.active_object
 
-        light_coll = get_collection("3 Points Lighting")
-
-        preset = props.preset
-        preset_flag = props.preset_flag
-        colors = {
-            # 主光 - 辅光 - 背光
-            # 规则：辅光亮度/饱和度偏低，背光亮度/饱和度偏高
+        new_light_names = ["主光", "辅光", "背光"]
+        # 灯光预设配置
+        light_presets = {
             "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),
             "RED_BLUE": ("#FF5959", "#BCC4FF", "#5979FF"),
             "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
         }
+        # 灯光定义：(旧名, 属性值, 能量, 位置索引)
+        light_defs = [
+            ("MainLight", "KeyLight", 150, 0),
+            ("FillLight", "FillLight", 150 * 0.2, 1),
+            ("BackLight", "BackLight", 250, 2),
+        ]
 
-        main_light_color, fill_light_color, back_light_color = colors.get(preset, colors["DEFAULT"])
+        # ---------- 集合 ----------
+        new_coll_name = translate("灯光")
+        light_coll = get_collection(new_coll_name)
 
-        # 创建灯光
-        # 主光
-        main_light = get_obj_by_attr_value("Tri-Lighting", "MainLight")
-        if not main_light:
-            main_light = bpy.data.objects.new("MainLight", bpy.data.lights.new("MainLightData", type='AREA'))
-            main_light.data.size = 1
-            main_light.data.energy = 150
-            main_light.data.volume_factor = 0
-            main_light["Tri-Lighting"] = "MainLight"
-            main_light.data.color = hex_to_rgb(main_light_color)
-        if preset_flag:
-            main_light.data.color = hex_to_rgb(main_light_color)
+        # ---------- 灯光颜色 ----------
+        colors = light_presets.get(props.preset, light_presets["DEFAULT"])
 
-        # 辅光
-        fill_light = get_obj_by_attr_value("Tri-Lighting", "FillLight")
-        if not fill_light:
-            fill_light = bpy.data.objects.new("FillLight", bpy.data.lights.new("FillLightData", type='AREA'))
-            fill_light.data.size = 1
-            fill_light.data.energy = 150 * 0.2
-            fill_light.data.volume_factor = 0
-            fill_light["Tri-Lighting"] = "FillLight"
-            fill_light.data.color = hex_to_rgb(fill_light_color)
-        if preset_flag:
-            fill_light.data.color = hex_to_rgb(fill_light_color)
+        # ---------- 创建/获取三盏灯 ----------
+        lights = [
+            self._get_or_create_light(
+                old_name=old,
+                attr_value=attr,
+                energy=energy,
+                color_hex=colors[i],
+                new_name=translate(new_light_names[i]),
+                preset_flag=props.preset_flag,
+            )
+            for i, (old, attr, energy, _) in enumerate(light_defs)
+        ]
 
-        # 背光
-        back_light = get_obj_by_attr_value("Tri-Lighting", "BackLight")
-        if not back_light:
-            back_light = bpy.data.objects.new("BackLight", bpy.data.lights.new("BackLightData", type='AREA'))
-            back_light.data.size = 1
-            back_light.data.energy = 250
-            back_light.data.volume_factor = 0
-            back_light["Tri-Lighting"] = "BackLight"
-            back_light.data.color = hex_to_rgb(back_light_color)
-        if preset_flag:
-            back_light.data.color = hex_to_rgb(back_light_color)
+        # ---------- 位置旋转 ----------
+        self._apply_transforms(lights, props)
 
-        # 主光、辅光、背光与原点的水平直线距离
-        main_distance = props.main_distance
-        fill_distance = props.fill_distance
-        back_distance = props.back_distance
-        # 主光、辅光与Y轴形成的角度
-        main_position = props.main_position
-        main_y_angle_rad = math.radians(30)
-        fill_y_angle_rad = math.radians(60)
-        if main_position == "RIGHT":
-            main_factor = 1
-            fill_factor = -1
-        else:
-            main_factor = -1
-            fill_factor = 1
-
-        # 主光、辅光、背光与Z轴形成的角度
-        main_z_angle = 15
-        fill_z_angle = 15
-        main_z_angle_rad = math.radians(main_z_angle)
-        fill_z_angle_rad = math.radians(fill_z_angle)
-        back_z_angle_rad = props.back_angle
-
-        # 主光位置旋转设置
-        main_light.rotation_euler[0] = math.radians(90 - main_z_angle)
-        main_light.rotation_euler[2] = main_y_angle_rad * main_factor
-        main_light.location.x = main_distance * math.sin(main_y_angle_rad) * main_factor
-        main_light.location.y = -main_distance * math.cos(main_y_angle_rad)
-        main_light.location.z = main_distance * math.tan(main_z_angle_rad)
-
-        # 辅光位置旋转设置
-        fill_light.rotation_euler[0] = math.radians(90 - fill_z_angle)
-        fill_light.rotation_euler[2] = fill_y_angle_rad * fill_factor
-        fill_light.location.x = fill_distance * math.sin(fill_y_angle_rad) * fill_factor
-        fill_light.location.y = -fill_distance * math.cos(fill_y_angle_rad)
-        fill_light.location.z = fill_distance * math.tan(fill_z_angle_rad)
-
-        # 背光位置旋转设置
-        back_light.rotation_euler[0] = back_z_angle_rad
-        back_light.location.y = - back_distance * math.sin(back_z_angle_rad)
-        back_light.location.z = back_distance * math.cos(back_z_angle_rad)
-
-        # 创建空物体
+        # ---------- 灯光控制器 ----------
+        new_root_name = translate("灯光控制器")
         light_root = get_obj_by_attr_value("Tri-Lighting", "LightRoot")
         if not light_root:
-            light_root = bpy.data.objects.new("LightRoot", None)
+            light_root = bpy.data.objects.new(new_root_name, None)
             light_root["Tri-Lighting"] = "LightRoot"
+        # 兼容旧命名
+        light_root.name = new_root_name
 
-        # 链接
-        for obj in [main_light, fill_light, back_light, light_root]:
-            try:
-                light_coll.objects.link(obj)
-            except RuntimeError:
-                pass
+        # ---------- 链接到集合 ----------
+        for obj in (*lights, light_root):
+            # 从原集合中移除
+            uc_set = set()
+            if obj.users_collection:
+                for uc in obj.users_collection:
+                    uc.objects.unlink(obj)
+                    uc_set.add(uc)
+                for uc in uc_set:
+                    if uc == light_coll:
+                        continue
+                    if uc.objects:
+                        continue
+                    unlink(uc)
 
-        # 设置 light_root 的位置
+            # 链接到新集合
+            if obj.name in light_coll.objects:
+                continue
+            light_coll.objects.link(obj)
+
+        # ---------- 约束设置 ----------
         target_type = props.target_type
-        bone_name = props.bone_name
-        vg_name = props.vg_name
         if target_type == "ARMATURE":
-            if active_object.type == "ARMATURE":
-                armature = active_object
-            else:
-                ancestor = find_ancestor(active_object)
-                armature = find_armature(ancestor)
-            set_cons(light_root, armature, subtarget=bone_name)
+            armature = (active_obj if active_obj.type == "ARMATURE"
+                        else find_armature(find_ancestor(active_obj)))
+            set_cons(light_root, armature, subtarget=props.bone_name)
         elif target_type == "MESH":
-            set_cons(light_root, active_object, subtarget=vg_name)
+            set_cons(light_root, active_obj, subtarget=props.vg_name)
 
-        set_cons(main_light, light_root)
-        set_cons(fill_light, light_root)
-        set_cons(back_light, light_root)
+        for light in lights:
+            set_cons(light, light_root)
 
         deselect_all_objects()
-        select_and_activate(active_object)
+        select_and_activate(active_obj)
 
     def check_props(self, props):
         active_object = bpy.context.active_object

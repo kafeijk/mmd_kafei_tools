@@ -42,6 +42,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             self.remove_vgs(objs, props)
         elif content_type == 'REMOVE_SHAPE_KEY':
             self.remove_shape_keys(objs, props)
+        elif content_type == 'CLEAR_SHAPE_KEY':
+            self.clear_shape_keys(objs, props)
 
         # 恢复选择状态
         restore_selection(selected_objects, active_object)
@@ -254,23 +256,46 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 obj.shape_key_remove(shape_key)
             obj.shape_key_remove(sk)
 
+    def clear_shape_keys(self, objs, props):
+        """
+        Blender逻辑 -> 重置所有形态键权重为0，或最接近限制的值.
+        当前逻辑 -> 重置所有形态键权重为0
+        """
+        for obj in objs:
+            mesh = obj.data
+            if not mesh.shape_keys:
+                continue
+
+            key_blocks = mesh.shape_keys.key_blocks
+
+            for kb in key_blocks[1:]:  # 跳过 Basis 形态键（索引0），它是基础形状，不应被重置
+                kb.slider_max = 1.0  # 先放开上限
+                kb.slider_min = 0.0  # 再设下限，此时 0.0 < 1.0，合法
+                kb.value = 0.0
+
 
 def get_obj_by_type(objs, content_type):
     # https://docs.blender.org/api/current/bpy_types_enum_items/object_type_items.html#rna-enum-object-type-items
-    if content_type == 'REMOVE_MATERIAL':
-        return [obj for obj in objs if obj.type in ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'VOLUME', 'GPENCIL']]
-    elif content_type == 'REMOVE_MODIFIER':
-        return [obj for obj in objs if obj.type in ['MESH', 'CURVE', 'SURFACE', 'FONT', 'VOLUME', 'LATTICE', 'GPENCIL']]
-    elif content_type == 'REMOVE_CONSTRAINT':
+    mesh_only = {'MESH'}
+    type_map = {
+        'REMOVE_MATERIAL': {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'VOLUME', 'GPENCIL'},
+        'REMOVE_MODIFIER': {'MESH', 'CURVE', 'SURFACE', 'FONT', 'VOLUME', 'LATTICE', 'GPENCIL'},
+        'REMOVE_VERTEX_GROUP': mesh_only,
+        'REMOVE_SHAPE_KEY': mesh_only,
+        'CLEAR_SHAPE_KEY': mesh_only,
+        'ADD_UV_MAP': mesh_only,
+        'REMOVE_UV_MAP': mesh_only,
+        'ADD_COLOR_ATTRIBUTE': mesh_only,
+        'REMOVE_COLOR_ATTRIBUTE': mesh_only,
+    }
+
+    if content_type == 'REMOVE_CONSTRAINT':
         return objs
-    elif content_type == 'REMOVE_VERTEX_GROUP':
-        return [obj for obj in objs if obj.type in ['MESH']]
-    elif content_type == 'REMOVE_SHAPE_KEY':
-        return [obj for obj in objs if obj.type in ['MESH']]
-    elif content_type in ['ADD_UV_MAP', 'REMOVE_UV_MAP']:
-        return [obj for obj in objs if obj.type in ['MESH']]
-    elif content_type in ['ADD_COLOR_ATTRIBUTE', 'REMOVE_COLOR_ATTRIBUTE']:
-        return [obj for obj in objs if obj.type in ['MESH']]
+
+    allowed = type_map.get(content_type)
+    if allowed is None:
+        return []
+    return [obj for obj in objs if obj.type in allowed]
 
 
 def modify_mmd_material(material):

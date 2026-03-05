@@ -218,6 +218,9 @@ def get_collection(collection_name):
         collection = bpy.data.collections[collection_name]
     else:
         collection = bpy.data.collections.new(collection_name)
+
+    # 新建和原有集合都可能未被link
+    if collection.name not in bpy.context.scene.collection.children:
         bpy.context.scene.collection.children.link(collection)
 
     layer_collection = find_layer_collection_by_name(bpy.context.view_layer.layer_collection, collection_name)
@@ -233,13 +236,13 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
         flag = False
 
         for file in files:
-            if file.endswith('.pmx') or file.endswith('.pmd'):
+            if file.lower().endswith(('.pmx', '.pmd')):
                 flag = True
                 pmx_count += 1
         if flag:
             curr_list = []  # 当前目录下符合条件的文件
             model_files = [f for f in files
-                           if (f.endswith('.pmx') or f.endswith('.pmd'))
+                           if f.lower().endswith(('.pmx', '.pmd'))
                            and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
 
             # 如果满足条件的model_files有多个，取最新的还是取全部
@@ -288,12 +291,12 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
     for root, dirs, files in os.walk(directory):
         flag = False
         for file in files:
-            if file.endswith('.pmx') or file.endswith('.pmd'):
+            if file.lower().endswith(('.pmx', '.pmd')):
                 flag = True
                 pmx_count += 1
         if flag:
             model_files = [f for f in files
-                           if (f.endswith('.pmx') or f.endswith('.pmd'))
+                           if f.lower().endswith(('.pmx', '.pmd'))
                            and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
 
             # 如果满足条件的model_files有多个，取最新的还是取全部
@@ -501,7 +504,7 @@ def batch_process(func, props, f_flag=False):
     for index, filepath in enumerate(file_list):
         get_collection(TMP_COLLECTION_NAME)
         file_base_name = os.path.basename(filepath)
-        ext = os.path.splitext(filepath)[1]
+        ext = os.path.splitext(filepath)[1].lower()
         if ".pmd" == ext:
             ext = ".pmx"  # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
 
@@ -949,3 +952,18 @@ def get_action_fcurves(obj):
             return None
         channelbag = anim_utils.action_get_channelbag_for_slot(action, animation_data.action_slot)
         return channelbag.fcurves
+
+
+def translate(key: str) -> str:
+    """翻译快捷方法"""
+    return bpy.app.translations.pgettext_iface(key)
+
+
+def unlink(collection):
+    # 内层取消关联
+    for parent_collection in bpy.data.collections:
+        if collection.name in parent_collection.children.keys():
+            parent_collection.children.unlink(collection)
+    # 外层取消关联
+    if collection.name in bpy.context.scene.collection.children:
+        bpy.context.scene.collection.children.unlink(collection)

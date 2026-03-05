@@ -124,7 +124,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         default=True
     )
 
-    main_distance: bpy.props.FloatProperty(
+    key_distance: bpy.props.FloatProperty(
         name="主光距离",
         description="主光到目标的水平距离",
         subtype='DISTANCE',
@@ -148,7 +148,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         min=0.0
     )
 
-    main_position: bpy.props.EnumProperty(
+    key_position: bpy.props.EnumProperty(
         name="主光位置",
         description="主光位置",
         items=[

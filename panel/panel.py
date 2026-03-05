@@ -243,9 +243,9 @@ class LightSettingsPanel(bpy.types.Panel):
 
         col.prop(props, "preset")
         col.prop(props, "preset_flag")
-        col.prop(props, "main_distance")
+        col.prop(props, "key_distance")
         col.prop(props, "fill_distance")
-        col.prop(props, "main_position")
+        col.prop(props, "key_position")
         col.prop(props, "back_distance")
         col.prop(props, "back_angle")
 
