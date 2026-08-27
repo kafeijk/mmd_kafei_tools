@@ -224,10 +224,18 @@ def delete_empty_folders(folder_path, props):
             # 如果存在Thumbs.db文件（缩略图缓存），删除它
             if file.lower() == "thumbs.db":
                 thumbs_db_path = os.path.join(root, file)
-                os.remove(thumbs_db_path)
+                try:
+                    os.remove(thumbs_db_path)
+                except PermissionError:
+                    os.chmod(thumbs_db_path, stat.S_IWRITE)
+                    os.remove(thumbs_db_path)
 
         for d in dirs:
             dir_path = os.path.join(root, d)
             if os.listdir(dir_path):
                 continue
-            os.rmdir(dir_path)
+            try:
+                os.rmdir(dir_path)
+            except PermissionError:
+                os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+                os.rmdir(dir_path)
