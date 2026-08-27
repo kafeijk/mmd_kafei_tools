@@ -93,7 +93,8 @@ def restore_selection(selected_objects, active_object):
             pass
     if active_object:
         try:  # 防止 StructRNA of type Object has been removed
-            select_and_activate(active_object)
+            # 可能会出现激活但没选中的情况
+            bpy.context.view_layer.objects.active = active_object
         except:
             pass
 
