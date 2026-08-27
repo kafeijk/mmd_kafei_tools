@@ -1,5 +1,6 @@
 import importlib.util
 import math
+import stat
 import sys
 import time
 import zipfile
@@ -363,15 +364,10 @@ def import_pmx(filepath: str) -> bool:
 
 def export_pmx(filepath: str) -> bool:
     """导出PMX文件，失败时自动重试"""
-    v = get_mmd_tools_version()
     params = {
         'filepath': filepath,
         'scale': 12.5,
     }
-    if v < (4, 5, 2):
-        params['copy_textures'] = False
-    else:
-        params['copy_textures_mode'] = 'NONE'
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -381,6 +377,17 @@ def export_pmx(filepath: str) -> bool:
             ))
             return True
         except Exception as e:
+            error_msg = str(e)
+
+            if "PermissionError" in error_msg:
+                try:
+                    os.chmod(filepath, stat.S_IWRITE)
+                except Exception as chmod_error:
+                    print(bpy.app.translations.pgettext_iface(
+                        f"Failed to change file permissions, "
+                        f"file: {filepath}, error: {chmod_error}"
+                    ))
+
             print(bpy.app.translations.pgettext_iface(
                 f"Export failed, retrying soon, file: {filepath}, error: {e}"
             ))
