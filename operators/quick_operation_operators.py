@@ -95,7 +95,7 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.set_mat_name_by_obj_name"
     bl_label = "网格名称 → 材质名称"
     bl_description = "根据网格实际名称设置材质名称。支持一次选择多个网格对象并分别处理"
-    bl_options = {'REGISTER'}
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         self.rename()
@@ -140,7 +140,7 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.set_obj_name_by_mat_name"
     bl_label = "材质名称 → 网格名称"
     bl_description = "根据材质名称设置实际网格名称。支持一次选择多个网格对象并分别处理。"
-    bl_options = {'REGISTER'}
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         self.rename()
@@ -208,7 +208,7 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.detect_overlapping_faces"
     bl_label = "检测网格面重合度"
     bl_description = "检测网格面之间的重合度"
-    bl_options = {'REGISTER'}
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         self.detect_overlapping_faces()
@@ -310,7 +310,7 @@ class CleanSceneOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.clean_scene"
     bl_label = "清空场景"
     bl_description = "清除场景中的所有对象和集合，递归清理未使用的数据块并刷新场景，然后新建默认集合"
-    bl_options = {'REGISTER'}
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         self.clean_scene()
