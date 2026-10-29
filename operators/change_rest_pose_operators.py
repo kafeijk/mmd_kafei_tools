@@ -72,10 +72,15 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
         bpy.ops.pose.scale_clear()
         bpy.ops.pose.select_all(action='DESELECT')
 
+        # 如果没有 rigidbody_parent，则关节无意义，此时关节的存在必然会导致MMD闪退
+        # 刚体/Joint 部分整体跳过；其余流程照常
+        if rigidbody_parent is None:
+            return
         # 设置刚体约束
         set_rigidbody_cons(rigidbody_parent, armature)
-        # 设置Joint控制器（约束、驱动）
-        self.set_joint_controller(props, root, armature, joint_parent, rigidbody_parent)
+        if joint_parent is not None:
+            # 设置Joint控制器（约束、驱动）
+            self.set_joint_controller(props, root, armature, joint_parent, rigidbody_parent)
 
     def set_joint_controller(self, props, root, armature, joint_parent, rigidbody_parent):
         h_joint_strategy = props.h_joint_strategy
@@ -254,20 +259,24 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
 
         # 回到物体模式
         deselect_all_objects()
-        if objs[0]:
+        if objs:
             show_object(objs[0])
             select_and_activate(objs[0])
 
-        # 应用纵Joint约束
-        apply_cons(joint_parent)
-
+        # 如果没有 rigidbody_parent，则关节无意义，此时关节的存在必然会导致MMD闪退
+        # 刚体/Joint 部分整体跳过；其余流程照常
+        if rigidbody_parent is None:
+            return
+        if joint_parent is not None:
+            # 应用纵Joint约束
+            apply_cons(joint_parent)
         # 应用刚体约束
         apply_cons(rigidbody_parent)
         # 重设刚体约束
         set_rigidbody_cons(rigidbody_parent, armature, enabled=False)
-
-        # 应用（移除）横Joint驱动器
-        apply_driver(joint_parent)
+        if joint_parent is not None:
+            # 应用（移除）横Joint驱动器
+            apply_driver(joint_parent)
 
     def check_props(self, props):
         active_object = bpy.context.active_object

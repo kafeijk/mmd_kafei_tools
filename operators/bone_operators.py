@@ -558,15 +558,25 @@ def remove_invalid_rigidbody_joint():
     obj = bpy.context.active_object
     root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(root)
+    rigidbody_parent = find_rigid_body_parent(root)
+    joint_parent = find_joint_parent(root)
+    # Joint 集合为空时，用空序列占位，后续无需再判空
+    joints = joint_parent.children if joint_parent is not None else ()
+
+    # 如果没有 rigidbody_parent，则关节无意义，此时关节的存在必然会导致MMD闪退
+    if rigidbody_parent is None:
+        for joint in reversed(joints):
+            bpy.data.objects.remove(joint, do_unlink=True)
+        return
+    # 没有 joint_parent 时，刚体仍可能有效
+
     deselect_all_objects()
     show_object(armature)
     select_and_activate(armature)
     bpy.ops.object.mode_set(mode='POSE')  # 如果不进入POSE模式，armature.pose.bones无法获取到EDIT模式下对骨骼的修改
-    rigidbody_parent = find_rigid_body_parent(root)
-    joint_parent = find_joint_parent(root)
 
     # （预先）删除无效关节
-    for joint in reversed(joint_parent.children):
+    for joint in reversed(joints):
         rigidbody1 = joint.rigid_body_constraint.object1
         rigidbody2 = joint.rigid_body_constraint.object2
         if any(r not in rigidbody_parent.children for r in [rigidbody1, rigidbody2]):
@@ -582,7 +592,8 @@ def remove_invalid_rigidbody_joint():
         if bl_name not in armature.pose.bones:
             bpy.data.objects.remove(rigidbody, do_unlink=True)
 
-    for joint in reversed(joint_parent.children):
+    # 删除没有关联刚体的关节
+    for joint in reversed(joints):
         rigidbody1 = joint.rigid_body_constraint.object1
         rigidbody2 = joint.rigid_body_constraint.object2
         if not rigidbody1 or not rigidbody2:
