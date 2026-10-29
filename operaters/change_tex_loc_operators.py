@@ -1,5 +1,6 @@
 import os.path
 import shutil
+import stat
 
 from ..utils import *
 
@@ -227,8 +228,13 @@ def delete_empty_folders(folder_path, props):
                 try:
                     os.remove(thumbs_db_path)
                 except PermissionError:
-                    os.chmod(thumbs_db_path, stat.S_IWRITE)
-                    os.remove(thumbs_db_path)
+                    try:
+                        os.chmod(thumbs_db_path, stat.S_IWRITE)
+                        os.remove(thumbs_db_path)
+                    except OSError as e:
+                        print(bpy.app.translations.pgettext_iface(
+                            f"Failed to delete file, file: {thumbs_db_path}, error: {e}"
+                        ))
 
         for d in dirs:
             dir_path = os.path.join(root, d)
@@ -237,5 +243,10 @@ def delete_empty_folders(folder_path, props):
             try:
                 os.rmdir(dir_path)
             except PermissionError:
-                os.chmod(dir_path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
-                os.rmdir(dir_path)
+                try:
+                    os.chmod(dir_path, stat.S_IWRITE)
+                    os.rmdir(dir_path)
+                except OSError as e:
+                    print(bpy.app.translations.pgettext_iface(
+                        f"Failed to delete folder, folder: {dir_path}, error: {e}"
+                    ))
