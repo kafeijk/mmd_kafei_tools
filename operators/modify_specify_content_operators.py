@@ -429,8 +429,12 @@ class ArrangeObjectOperator(bpy.types.Operator):
         big_objs = []
         normal_objs = []
 
-        # 获取选中物体的祖先节点
-        ancestors = {find_ancestor(obj) for obj in selected_objects}
+        # 获取选中物体的祖先节点（按选中顺序去重，保证 DEFAULT 排列顺序稳定）
+        ancestors = []
+        for obj in selected_objects:
+            ancestor = find_ancestor(obj)
+            if ancestor not in ancestors:
+                ancestors.append(ancestor)
 
         # 分离大小物体
         for ancestor in ancestors:
