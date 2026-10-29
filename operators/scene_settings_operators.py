@@ -7,7 +7,7 @@ from mathutils import Vector
 
 from ..constants import BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, PRECISION
 
-from .render_preview_operators import do_camera_to_view_selected
+from .render_preview_operators import do_camera_to_view_selected, switch_to_camera_view
 from ..utils import (
     copy_obj,
     deselect_all_objects,
@@ -21,6 +21,7 @@ from ..utils import (
     set_visibility,
     translate,
     unlink,
+    view3d_context,
 )
 
 
@@ -701,19 +702,21 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         bpy.context.scene.render.image_settings.color_management = 'FOLLOW_SCENE'
 
         # 其他项
-        # 显示叠加层
-        bpy.context.space_data.overlay.show_overlays = False
         # 查看变换
         if bpy.context.scene.display_settings.display_device == 'sRGB':
             bpy.context.scene.view_settings.view_transform = 'Filmic'
-        # 着色方式 渲染
-        bpy.context.space_data.shading.type = 'RENDERED'
-        # 关闭透视模式 https://blender.stackexchange.com/questions/159525/how-to-toggle-xray-in-viewport-with-python
-        views3d = [a for a in bpy.context.screen.areas if a.type == 'VIEW_3D']
-        for a in views3d:
-            shading = a.spaces.active.shading
-            shading.show_xray = False
-            shading.show_xray_wireframe = False
+        # 视口设置（叠加层/着色方式/X 光）
+        with bpy.context.temp_override(**view3d_context()):
+            # 显示叠加层
+            bpy.context.space_data.overlay.show_overlays = False
+            # 着色方式 渲染
+            bpy.context.space_data.shading.type = 'RENDERED'
+            # 关闭透视模式 https://blender.stackexchange.com/questions/159525/how-to-toggle-xray-in-viewport-with-python
+            views3d = [area for area in bpy.context.screen.areas if area.type == 'VIEW_3D']
+            for area in views3d:
+                shading = area.spaces.active.shading
+                shading.show_xray = False
+                shading.show_xray_wireframe = False
 
         # 设置并切换到自定义世界环境
         set_env(self, "SUNSET", 2)
@@ -810,12 +813,9 @@ class CameraSettingsOperator(bpy.types.Operator):
         deselect_all_objects()
         select_and_activate(camera.parent)
         bpy.context.scene.camera = camera
-        # 切换下视图（确保view_camera执行后肯定在相应视图）
-        bpy.ops.view3d.view_axis(type='FRONT')
-        # 视图 - 摄像机 对应快捷键0
-        bpy.ops.view3d.view_camera()
-        # 摄像机边界框 对应快捷键home
-        bpy.ops.view3d.view_center_camera()
+        # 切换到相机视图
+        with bpy.context.temp_override(**view3d_context()):
+            switch_to_camera_view()
 
     def check_props(self, props):
         active_object = bpy.context.active_object

@@ -141,6 +141,22 @@ def set_visibility(obj, visibility):
     obj.hide_render = visibility[3]
 
 
+def view3d_context():
+    """返回 bpy.context.temp_override 所需的 area/region。
+    优先使用当前 area（UI 下行为不变）；后台运行时当前上下文没有 area/region，
+    这里从 screen 中取 VIEW_3D 的 WINDOW 区域；找不到 3D 视图时为 None。
+
+    areas   https://docs.blender.org/manual/en/latest/interface/window_system/areas.html
+    regions https://docs.blender.org/manual/en/latest/interface/window_system/regions.html
+    """
+    area = bpy.context.area if bpy.context.area and bpy.context.area.type == 'VIEW_3D' else None
+    if area is None and bpy.context.screen:
+        area = next((a for a in bpy.context.screen.areas if a.type == 'VIEW_3D'), None)
+    # https://docs.blender.org/api/current/bpy_types_enum_items/region_type_items.html#rna-enum-region-type-items
+    region = next((r for r in area.regions if r.type == 'WINDOW'), None) if area else None
+    return {"area": area, "region": region}
+
+
 def get_physical_bone(root):
     """获取受物理影响的骨骼"""
     rigidbody_parent = find_rigid_body_parent(root)

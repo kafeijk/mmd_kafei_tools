@@ -23,6 +23,7 @@ from ..utils import (
     restore_selection,
     select_and_activate,
     show_object,
+    view3d_context,
 )
 
 
@@ -264,6 +265,16 @@ def camera_to_view_selected(props, camera=None):
                                props.scale, camera)
 
 
+def switch_to_camera_view():
+    """切换视图到前视图 + 相机视角"""
+    # 切换下视图（确保view_camera执行后肯定在相应视图）
+    bpy.ops.view3d.view_axis(type='FRONT')
+    # 视图 - 摄像机 对应快捷键0
+    bpy.ops.view3d.view_camera()
+    # 摄像机边界框 对应快捷键home
+    bpy.ops.view3d.view_center_camera()
+
+
 def do_camera_to_view_selected(camera_type, align,
                                rotation_euler_x, rotation_euler_y, rotation_euler_z,
                                scale, camera=None):
@@ -330,16 +341,12 @@ def do_camera_to_view_selected(camera_type, align,
         camera.constraints.move(len(camera.constraints) - 1, 0)
 
     # 对准选中物体
-    bpy.ops.view3d.camera_to_view_selected()
-    if camera_type == "ORTHOGRAPHIC":
-        for i in range(10):
-            bpy.ops.view3d.camera_to_view_selected()  # 正交需多执行n次
-    # 切换下视图（确保view_camera执行后肯定在相应视图）
-    bpy.ops.view3d.view_axis(type='FRONT')
-    # 视图 - 摄像机 对应快捷键0
-    bpy.ops.view3d.view_camera()
-    # 摄像机边界框 对应快捷键home
-    bpy.ops.view3d.view_center_camera()
+    with bpy.context.temp_override(**view3d_context()):
+        bpy.ops.view3d.camera_to_view_selected()
+        if camera_type == "ORTHOGRAPHIC":
+            for _ in range(10):
+                bpy.ops.view3d.camera_to_view_selected()  # 正交需多执行n次
+        switch_to_camera_view()
 
     if align:
         # 这里要选中后才能应用
@@ -402,16 +409,22 @@ def gen_preview_camera(camera_type):
 
 
 def render(view_show):
-    shading_type = bpy.context.space_data.shading.type
-    if shading_type == 'RENDERED':
-        if view_show:
-            bpy.ops.render.render("INVOKE_DEFAULT")
+    """
+    渲染预览图。
+    视口上下文由 view3d_context 提供（后台也能取到 space_data）；
+    后台模式没有 OpenGL 上下文，只能走完整渲染，且直接写文件而不是显示渲染结果。
+    """
+    with bpy.context.temp_override(**view3d_context()):
+        # 没有可用的 3D 视图时 space_data 为 None，按 RENDERED 处理，即走完整渲染
+        space_data = bpy.context.space_data
+        shading_type = space_data.shading.type if space_data else 'RENDERED'
+        show = view_show and not bpy.app.background
+        use_opengl = shading_type != 'RENDERED' and not bpy.app.background
+        # 视图 - 视图渲染图像
+        if use_opengl:
+            bpy.ops.render.opengl("INVOKE_DEFAULT" if show else "EXEC_DEFAULT", write_still=not show)
+        else:  # 渲染 - 渲染图像
+            bpy.ops.render.render("INVOKE_DEFAULT" if show else "EXEC_DEFAULT", write_still=not show)
+        # 渲染 - 查看渲染结果
+        if show:
             bpy.ops.render.view_show()
-        else:
-            bpy.ops.render.render(write_still=True)
-    else:
-        if view_show:
-            bpy.ops.render.opengl("INVOKE_DEFAULT")
-            bpy.ops.render.view_show()
-        else:
-            bpy.ops.render.opengl(write_still=True)
