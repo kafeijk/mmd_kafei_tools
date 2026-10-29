@@ -362,6 +362,20 @@ def import_pmx(filepath: str) -> bool:
     ))
 
 
+def force_writable(path):
+    """清除只读属性，失败时打印提示"""
+    try:
+        # 只清除只读属性：Windows 上等同于 S_IREAD|S_IEXEC，
+        # 但在 POSIX 上不会把权限整体改成 0o700
+        os.chmod(path, stat.S_IWRITE)
+        return True
+    except OSError as e:
+        print(bpy.app.translations.pgettext_iface(
+            f"Failed to change permissions, path: {path}, error: {e}"
+        ))
+        return False
+
+
 def export_pmx(filepath: str) -> bool:
     """导出PMX文件，失败时自动重试"""
     params = {
@@ -377,16 +391,8 @@ def export_pmx(filepath: str) -> bool:
             ))
             return True
         except Exception as e:
-            error_msg = str(e)
-
-            if "PermissionError" in error_msg:
-                try:
-                    os.chmod(filepath, stat.S_IWRITE)
-                except Exception as chmod_error:
-                    print(bpy.app.translations.pgettext_iface(
-                        f"Failed to change file permissions, "
-                        f"file: {filepath}, error: {chmod_error}"
-                    ))
+            if os.path.exists(filepath) and not os.access(filepath, os.W_OK):
+                force_writable(filepath)
 
             print(bpy.app.translations.pgettext_iface(
                 f"Export failed, retrying soon, file: {filepath}, error: {e}"

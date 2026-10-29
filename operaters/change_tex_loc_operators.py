@@ -1,6 +1,5 @@
 import os.path
 import shutil
-import stat
 
 from ..utils import *
 
@@ -63,7 +62,6 @@ def change_texture_paths(pmx_root, pmx_file, props):
 
             mmd_material = material.mmd_material
 
-
             # ======================
             # 先处理 base + sph texture，防止处理toon texture时continue退出循环
             # ======================
@@ -110,7 +108,6 @@ def change_texture_paths(pmx_root, pmx_file, props):
                 new_folder,
                 filename
             )
-
 
 
 def change_texture_filepaths(pmx_root, pmx_file, new_folder):
@@ -228,8 +225,8 @@ def delete_empty_folders(folder_path, props):
                 try:
                     os.remove(thumbs_db_path)
                 except PermissionError:
+                    force_writable(thumbs_db_path)
                     try:
-                        os.chmod(thumbs_db_path, stat.S_IWRITE)
                         os.remove(thumbs_db_path)
                     except OSError as e:
                         print(bpy.app.translations.pgettext_iface(
@@ -249,10 +246,11 @@ def delete_empty_folders(folder_path, props):
             try:
                 os.rmdir(dir_path)
             except PermissionError:
+                force_writable(dir_path)
                 try:
-                    os.chmod(dir_path, stat.S_IWRITE)
                     os.rmdir(dir_path)
                 except OSError as e:
                     print(bpy.app.translations.pgettext_iface(
                         f"Failed to delete folder, folder: {dir_path}, error: {e}"
                     ))
+
