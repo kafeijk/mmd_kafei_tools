@@ -1,4 +1,13 @@
-from ..utils import *
+import bpy
+
+from ..utils import (
+    batch_process,
+    check_batch_props,
+    deselect_all_objects,
+    find_pmx_armature,
+    find_pmx_objects,
+    select_and_activate,
+)
 
 
 class RemoveUvMapOperator(bpy.types.Operator):

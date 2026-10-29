@@ -1,5 +1,5 @@
 import bpy
-from ..utils import *
+from ..utils import find_pmx_armature, find_pmx_root
 
 
 def auto_fill(self, context):

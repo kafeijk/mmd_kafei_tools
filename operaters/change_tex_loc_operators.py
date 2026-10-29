@@ -1,7 +1,17 @@
 import os.path
 import shutil
+import bpy
 
-from ..utils import *
+from ..constants import IMG_TYPE_EXT_MAP, INVALID_CHARS
+
+from ..utils import (
+    batch_process,
+    check_batch_props,
+    find_pmx_armature,
+    find_pmx_objects,
+    force_writable,
+    get_mmd_tools_version,
+)
 
 
 class ChangeTexLocOperator(bpy.types.Operator):

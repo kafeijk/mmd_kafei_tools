@@ -1,8 +1,42 @@
+import re
+
 import bmesh
-from collections import defaultdict
-from ..tools.jaconv.jaconv import *
-from ..utils import *
-from ..mmd_utils import *
+import bpy
+
+from collections import OrderedDict, defaultdict
+
+from ..constants import (
+    BONE_PANEL_ORDERS,
+    RIGID_BODY_PREFIX_REGEXP,
+    get_common_frame_names,
+    get_common_items,
+    morph_affixation_map,
+    morph_name_map,
+    morph_prefix_map,
+    morph_suffix_map,
+)
+
+from ..tools.jaconv.jaconv import enlargesmallkana, h2z, kata2hira, z2h
+from ..utils import (
+    ItemOp,
+    batch_process,
+    check_batch_props,
+    copy_obj,
+    create_tmp_obj,
+    deselect_all_objects,
+    do_add_item,
+    find_pmx_armature,
+    find_pmx_objects,
+    find_rigid_body_parent,
+    get_mmd_tools_version,
+    int2base,
+    is_not_dummy_bone,
+    record_visibility,
+    select_and_activate,
+    set_visibility,
+    show_object,
+)
+from ..mmd_utils import fix_bone_issues, fix_morph_issues, get_mmd_armature_id, unsafe_change_bone_id
 
 
 class OrganizePanelOperator(bpy.types.Operator):

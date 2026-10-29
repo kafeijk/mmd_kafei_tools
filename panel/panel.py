@@ -44,8 +44,9 @@ from ..operaters.quick_operation_operators import SetMatNameByObjNameOperator
 from ..operaters.quick_operation_operators import SetObjNameByMatNameOperator
 from ..operaters.quick_operation_operators import DetectOverlappingFacesOperator
 from ..operaters.quick_operation_operators import CleanSceneOperator
-from ..utils import *
+from ..utils import find_pmx_root_with_child, is_mmd_tools_enabled
 import addon_utils
+import bpy
 
 
 class TransferPresetPanel(bpy.types.Panel):

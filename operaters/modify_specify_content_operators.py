@@ -1,4 +1,19 @@
-from ..utils import *
+import math
+import bpy
+
+from ..constants import PMX_NAME_PATTERN
+
+from ..utils import (
+    alphanum_key,
+    deselect_all_objects,
+    find_ancestor,
+    find_pmx_root_with_child,
+    get_collection,
+    get_mesh_objs,
+    is_mmd_tools_enabled,
+    restore_selection,
+    select_and_activate,
+)
 
 
 class ModifySpecifyContentOperator(bpy.types.Operator):

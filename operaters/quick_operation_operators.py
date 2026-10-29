@@ -1,8 +1,18 @@
 import bmesh
-from ..utils import *
-from ..mmd_utils import *
+import bpy
 
+from ..constants import PMX_NAME_PATTERN
 
+from ..utils import (
+    deselect_all_objects,
+    find_pmx_armature,
+    find_pmx_objects,
+    find_pmx_root_with_child,
+    get_collection,
+    is_mmd_tools_enabled,
+    select_and_activate,
+    show_object,
+)
 class MergeVerticesOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.merge_vertices"
     bl_label = "合并顶点"

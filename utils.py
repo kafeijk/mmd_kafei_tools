@@ -1,5 +1,7 @@
 import importlib.util
 import math
+import os
+import re
 import stat
 import sys
 import time
@@ -10,7 +12,15 @@ import addon_utils
 from mathutils import Vector
 import bpy_extras.anim_utils as anim_utils
 
-from .constants import *
+from .constants import (
+    ABC_NAME_PATTERN,
+    CONVERT_NAME_TO_L_REGEXP,
+    CONVERT_NAME_TO_R_REGEXP,
+    INVALID_CHARS,
+    MAX_RETRIES,
+    TMP_COLLECTION_NAME,
+    TXT_INFO_PATTERN,
+)
 
 
 def find_pmx_root():

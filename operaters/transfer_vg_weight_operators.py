@@ -1,5 +1,6 @@
+import bpy
 
-from ..utils import *
+from ..utils import deselect_all_objects, restore_selection, select_and_activate
 
 
 class TransferVgWeightOperator(bpy.types.Operator):

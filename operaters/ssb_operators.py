@@ -1,11 +1,49 @@
-from enum import auto, Enum
+import math
+import re
+import time
 
+import bpy
 import numpy as np
 
-from ..utils import *
-from ..mmd_utils import *
+from enum import auto, Enum
 
-# 日文名称到Blender名称的映射
+from mathutils import Vector
+
+from ..constants import (
+    KAFEI_TMP_BONE_NAME,
+    SSB_BASE_NAMES,
+    SSB_HIDE_LIST,
+    SSB_NAMES,
+    SSB_ORDER_BOTTOM_LIST,
+    SSB_ORDER_MAP,
+    SSB_ORDER_TOP_LIST,
+)
+
+from ..utils import (
+    FnBone,
+    add_item_after,
+    add_item_before,
+    batch_process,
+    check_batch_props,
+    convertNameToLR,
+    copy_obj,
+    create_frame,
+    create_tmp_obj,
+    deselect_all_objects,
+    do_add_item,
+    find_bone_item,
+    find_pmx_armature,
+    find_pmx_objects,
+    find_pmx_root_with_child,
+    find_rigid_body_parent,
+    get_target_bone,
+    select_and_activate,
+    show_object,
+    to_pmx_axis,
+)
+from ..mmd_utils import get_mmd_armature_id
+
+
 jp_bl_map = {}
 # Blender名称到日文名称的映射
 bl_jp_map = {}

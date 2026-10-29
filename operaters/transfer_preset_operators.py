@@ -1,6 +1,33 @@
-import bmesh
+import math
+import os
+import re
+import time
 
-from ..utils import *
+import bmesh
+import bpy
+
+from mathutils import Vector
+
+from ..constants import PMX_NAME_PATTERN, PRECISION
+
+from ..utils import (
+    case_insensitive_replace,
+    deselect_all_objects,
+    find_abc_objects,
+    find_ancestor,
+    find_pmx_armature,
+    find_pmx_objects,
+    find_pmx_root_with_child,
+    get_islands,
+    get_mesh_objs,
+    move_to_target_collection_recursive,
+    restore_selection,
+    select_and_activate,
+    set_visibility,
+    show_object,
+    sort_abc_objects,
+    sort_pmx_objects,
+)
 
 
 class TransferPresetOperator(bpy.types.Operator):

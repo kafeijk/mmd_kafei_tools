@@ -1,6 +1,12 @@
+import os
+import re
+
 from collections import defaultdict
 
-from ..utils import *
+import bpy
+
+from ..utils import deselect_all_objects, find_ancestor, get_mesh_objs, select_and_activate, show_object
+
 
 if bpy.app.version < (4, 0, 0):
     SUBSURFACE = 'Subsurface'

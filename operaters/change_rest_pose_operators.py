@@ -1,8 +1,22 @@
-import mathutils
+import math
+
+import bpy
 
 from ..tools.ApplyModifierForObjectWithShapeKeys import applyModifierForObjectWithShapeKeys
-from ..utils import *
-from ..mmd_utils import *
+from ..utils import (
+    deselect_all_objects,
+    find_ancestor,
+    find_joint_parent,
+    find_pmx_armature,
+    find_pmx_objects,
+    find_pmx_root_with_child,
+    find_rigid_body_parent,
+    get_physical_bone,
+    select_and_activate,
+    show_object,
+)
+from ..mmd_utils import get_mmd_armature_id
+
 
 bpy.types.Object.original_location = bpy.props.FloatVectorProperty(
     get=lambda obj: obj.get('original_location', None)
