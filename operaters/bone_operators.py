@@ -15,6 +15,7 @@ from ..utils import (
     find_rigid_body_parent,
     get_physical_bone,
     is_pose_bone_selected,
+    matmul,
     select_and_activate,
     select_pose_bone,
     show_object,
@@ -347,9 +348,6 @@ def get_prefix(bl_name):
         prefix = part_name + "_" + number1 + "_"
         return prefix
     return None
-
-
-matmul = (lambda a, b: a * b) if bpy.app.version < (2, 80, 0) else (lambda a, b: a.__matmul__(b))
 
 
 class BoneConverter:

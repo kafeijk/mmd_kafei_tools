@@ -889,11 +889,6 @@ def show_objects(display_list):
     return visibility_map
 
 
-def modifiers_by_name(obj, name):
-    """ 通过名称获取修改器 """
-    return [x for x in obj.modifiers if x.name == name]
-
-
 def modifiers_by_type(obj, typename):
     """ 通过类型获取修改器 """
     return [x for x in obj.modifiers if x.type == typename]

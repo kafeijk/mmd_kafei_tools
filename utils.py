@@ -1,11 +1,8 @@
-import importlib.util
 import math
 import os
 import re
 import stat
-import sys
 import time
-import zipfile
 
 import bpy
 import addon_utils
@@ -468,14 +465,6 @@ def find_children(obj, obj_type=None):
     return children
 
 
-def is_plugin_enabled(plugin_name):
-    """校验插件是否开启"""
-    for addon in bpy.context.preferences.addons:
-        if addon.module == plugin_name:
-            return True
-    return False
-
-
 def is_mmd_tools_enabled():
     """
     校验mmd_tools是否开启，addon.module分别为：
@@ -487,31 +476,6 @@ def is_mmd_tools_enabled():
         if addon.module.endswith("mmd_tools"):
             return True
     return False
-
-
-def install_library(name):
-    """安装第三方库"""
-    if is_module_installed(name):
-        return
-
-    # 获取 Blender 的 scripts/modules 目录
-    blender_modules_path = os.path.join(bpy.utils.resource_path('LOCAL'), "scripts", "modules")
-    if not os.path.exists(blender_modules_path):
-        raise RuntimeError(
-            bpy.app.translations.pgettext_iface("Specified directory not found: {}").format(blender_modules_path))
-
-    file = os.path.join(os.path.dirname(__file__), "tools", name + ".zip")
-    if not os.path.exists(file):
-        raise FileNotFoundError(bpy.app.translations.pgettext_iface("File not found: {}").format(file))
-
-    # 解压 ZIP 文件
-    with zipfile.ZipFile(file, 'r') as zip_ref:
-        zip_ref.extractall(blender_modules_path)
-
-    # 立即导入新模块
-    sys.path.append(blender_modules_path)  # 确保 Python 可以找到新模块
-    imported_module = importlib.import_module(name)
-    importlib.reload(imported_module)
 
 
 def batch_process(func, props, f_flag=False):
@@ -615,30 +579,6 @@ def convertNameToLR(name, use_underscore=False):
     return name
 
 
-def set_tail(armature, parent_name, child_name):
-    parent = armature.data.edit_bones.get(parent_name, None)
-    if not parent:
-        return
-    child = armature.data.edit_bones.get(child_name, None)
-    if not child:
-        return
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-
-def move_after_target_vg(obj, target_index):
-    """将活动顶点组移动到指定索引的顶点组的后面"""
-    delta = obj.vertex_groups.active_index - (min(target_index, len(obj.vertex_groups) - 1))
-    if delta > 0:
-        direction = 'UP'
-        delta_fix = abs(delta) - 1
-    else:
-        direction = 'DOWN'
-        delta_fix = abs(delta)
-    for i in range(delta_fix):
-        bpy.ops.object.vertex_group_move(direction=direction)
-
-
 def get_target_bone(armature, edit_bone):
     # a connected child bone is preferred
     for child in edit_bone.children:
@@ -651,12 +591,6 @@ def get_target_bone(armature, edit_bone):
         ):
             return child
     return None
-
-
-def set_target_bone(bone, root_bone):
-    """设置骨骼末端指向，参数均为edit_bone"""
-
-    root_bone.bone.use_connect = True
 
 
 def create_frame(mmd_root, name):
@@ -827,11 +761,6 @@ def int2base(x, base, width=0):
     return digits
 
 
-def is_module_installed(module_name):
-    module_spec = importlib.util.find_spec(module_name)
-    return module_spec is not None
-
-
 def get_addon_version(name):
     for addon in addon_utils.modules():
         if addon.bl_info.get('name') == name:
@@ -865,11 +794,6 @@ def try_int(s):
 def alphanum_key(s):
     """ 将字符串转换成由字符串和数字块组成的列表 "z23a" -> ["z", 23, "a"]"""
     return [try_int(c) for c in re.split('([0-9]+)', s)]
-
-
-def natural_sort(l):
-    """按照人类期望的方式对给定的列表进行排序"""
-    l.sort(key=alphanum_key)
 
 
 def get_mesh_objs(ancestor):

@@ -126,11 +126,6 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
 
         return h_joints
 
-    def get_ancestor_linked(self, pb):
-        parent = pb.parent
-        while parent and parent.children == 1:
-            parent = parent.parent
-        return parent
 
     def do_set_joint_driver(self, joint, rigidbody_parent):
         rigidbody1 = joint.rigid_body_constraint.object1

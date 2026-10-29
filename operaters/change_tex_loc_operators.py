@@ -120,75 +120,6 @@ def change_texture_paths(pmx_root, pmx_file, props):
             )
 
 
-def change_texture_filepaths(pmx_root, pmx_file, new_folder):
-    pmx_path = os.path.dirname(pmx_file)
-    tex_folder = os.path.join(pmx_path, new_folder)
-
-    armature = find_pmx_armature(pmx_root)
-    objs = find_pmx_objects(armature)
-
-    for obj in objs:
-        for slot in obj.material_slots:
-            material = slot.material
-            if not material:  # 有材质槽但无材质
-                continue
-
-            node_tree = material.node_tree
-            if not node_tree:  # 有材质但无节点树
-                continue
-
-            nodes = node_tree.nodes
-            if not nodes:  # 有节点树但无节点
-                continue
-
-            for node in nodes:
-                if node.type != 'TEX_IMAGE':
-                    continue
-                if node.name not in ['mmd_base_tex', 'mmd_sphere_tex']:
-                    continue
-                # 获取纹理图像的路径
-                image = node.image
-                if not image:
-                    continue
-                directory, filename = os.path.split(image.filepath)
-                new_filepath = os.path.join(tex_folder, filename)
-                image.filepath = new_filepath
-
-                mmd_tools_version = get_mmd_tools_version()
-                if mmd_tools_version >= (4, 5, 6):
-                    if node.name == 'mmd_base_tex':
-                        material.mmd_material.texture_rel_path = os.path.join(new_folder, filename)
-                    else:
-                        material.mmd_material.sphere_texture_rel_path = os.path.join(new_folder, filename)
-
-
-def change_toon_texture_filepaths(pmx_root, pmx_file, new_folder):
-    tex_folder = os.path.join(os.path.dirname(pmx_file), new_folder)
-    mmd_tools_version = get_mmd_tools_version() >= (4, 5, 6)
-
-    armature = find_pmx_armature(pmx_root)
-    objs = find_pmx_objects(armature)
-
-    for obj in objs:
-        for slot in obj.material_slots:
-            material = slot.material
-            if not material:
-                continue
-
-            mmd_material = material.mmd_material
-            toon_texture = mmd_material.toon_texture
-
-            if not toon_texture or not toon_texture.strip():
-                continue
-
-            filename = os.path.basename(toon_texture)
-            new_filepath = os.path.join(tex_folder, filename)
-            mmd_material.toon_texture = new_filepath
-
-            if mmd_tools_version:
-                mmd_material.toon_texture_rel_path = os.path.join(new_folder, filename)
-
-
 def move_textures(pmx_file, props):
     """移动pmx目录下所有图像文件到指定目录中"""
     new_folder = props.new_folder.strip()
@@ -263,4 +194,3 @@ def delete_empty_folders(folder_path, props):
                     print(bpy.app.translations.pgettext_iface(
                         f"Failed to delete folder, folder: {dir_path}, error: {e}"
                     ))
-
