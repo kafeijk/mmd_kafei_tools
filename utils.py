@@ -255,6 +255,9 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
             model_files = [f for f in files
                            if f.lower().endswith(('.pmx', '.pmd'))
                            and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
+            # 当前目录的模型全部小于阈值时直接跳过
+            if not model_files:
+                continue
 
             # 如果满足条件的model_files有多个，取最新的还是取全部
             if search_strategy == 'LATEST':
@@ -309,6 +312,9 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
             model_files = [f for f in files
                            if f.lower().endswith(('.pmx', '.pmd'))
                            and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
+            # 当前目录的模型全部小于阈值时直接跳过
+            if not model_files:
+                continue
 
             # 如果满足条件的model_files有多个，取最新的还是取全部
             if search_strategy == 'LATEST':
