@@ -99,13 +99,13 @@ def restore_selection(selected_objects, active_object):
     for obj in selected_objects:
         try:  # 防止 StructRNA of type Object has been removed
             select_and_activate(obj)
-        except:
-            pass
+        except ReferenceError:  # 物体已被删除，跳过
+            continue
     if active_object:
         try:  # 防止 StructRNA of type Object has been removed
             # 可能会出现激活但没选中的情况
             bpy.context.view_layer.objects.active = active_object
-        except:
+        except ReferenceError:  # 物体已被删除，跳过
             pass
 
 

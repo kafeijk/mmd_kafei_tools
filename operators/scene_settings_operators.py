@@ -57,7 +57,7 @@ class RenderSettingsOperator(bpy.types.Operator):
         # 着色方式 渲染
         try:
             bpy.context.space_data.shading.type = 'RENDERED'
-        except:
+        except (AttributeError, TypeError):
             pass
 
 
@@ -168,7 +168,8 @@ def reset(struct):
             continue
         try:
             val = getattr(struct, prop.identifier)
-        except:
+        except (AttributeError, ReferenceError):
+            # 属性不可读或数据块已失效
             continue
 
         if isinstance(val, bpy.types.bpy_struct):
