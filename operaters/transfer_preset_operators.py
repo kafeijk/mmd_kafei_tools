@@ -8,7 +8,7 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import PMX_NAME_PATTERN, PRECISION
+from ..constants import PMX_IMPORT_SCALE, PMX_NAME_PATTERN, PRECISION
 
 from ..utils import (
     case_insensitive_replace,
@@ -488,9 +488,9 @@ def get_face_area(operator, mapping, props):
     target_face_vert_location = []
     for vert in bm.verts:
         key = (
-            truncate(vert.co.x * 0.08, ),
-            truncate(vert.co.y * 0.08),
-            truncate(vert.co.z * 0.08))
+            truncate(vert.co.x * PMX_IMPORT_SCALE, ),
+            truncate(vert.co.y * PMX_IMPORT_SCALE),
+            truncate(vert.co.z * PMX_IMPORT_SCALE))
         if key in source_face_vert_location:
             v_count = source_face_vert_location[key]
             if v_count > 1:
@@ -602,9 +602,9 @@ def gen_key(vert, object_type):
             truncate(vert.co.z))
     elif object_type == "ABC":
         return (
-            truncate(vert.co.x * 0.08),
-            truncate(vert.co.y * 0.08),
-            truncate(vert.co.z * 0.08))
+            truncate(vert.co.x * PMX_IMPORT_SCALE),
+            truncate(vert.co.y * PMX_IMPORT_SCALE),
+            truncate(vert.co.z * PMX_IMPORT_SCALE))
 
 
 def link_normal(mapping, props):
@@ -1163,9 +1163,9 @@ def link_multi_slot_materials(operator, mapping, props):
             key = None
             if direction[-3:] == 'ABC':
                 key = (
-                    truncate(target_poly.center.x * 0.08),
-                    truncate(target_poly.center.y * 0.08),
-                    truncate(target_poly.center.z * 0.08))
+                    truncate(target_poly.center.x * PMX_IMPORT_SCALE),
+                    truncate(target_poly.center.y * PMX_IMPORT_SCALE),
+                    truncate(target_poly.center.z * PMX_IMPORT_SCALE))
             elif direction[-3:] == 'PMX':
                 key = (
                     truncate(target_poly.center.x),

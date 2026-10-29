@@ -15,6 +15,8 @@ from .constants import (
     CONVERT_NAME_TO_R_REGEXP,
     INVALID_CHARS,
     MAX_RETRIES,
+    PMX_EXPORT_SCALE,
+    PMX_IMPORT_SCALE,
     TMP_COLLECTION_NAME,
     TXT_INFO_PATTERN,
 )
@@ -343,7 +345,7 @@ def import_pmx(filepath: str) -> bool:
     """导入PMX文件，失败时自动重试"""
     params = {
         'filepath': filepath,
-        'scale': 0.08,
+        'scale': PMX_IMPORT_SCALE,
         # 移除未使用的顶点和重复的或无效的面
         'clean_model': True,
         # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
@@ -387,7 +389,7 @@ def export_pmx(filepath: str) -> bool:
     """导出PMX文件，失败时自动重试"""
     params = {
         'filepath': filepath,
-        'scale': 12.5,
+        'scale': PMX_EXPORT_SCALE,
     }
 
     for attempt in range(MAX_RETRIES):

@@ -14,6 +14,7 @@ from ..constants import (
     morph_name_map,
     morph_prefix_map,
     morph_suffix_map,
+    UNKNOWN_ORDER,
 )
 
 from ..tools.jaconv.jaconv import enlargesmallkana, h2z, kata2hira, z2h
@@ -375,7 +376,7 @@ def reorder_bone_panel(pmx_root, props):
 
     # 根据预设骨骼的相对顺序对existed_names排序
     bone_order_dict = {value: index for index, value in enumerate(BONE_PANEL_ORDERS)}
-    preset_bones.sort(key=lambda x: bone_order_dict.get(x, 666888))
+    preset_bones.sort(key=lambda x: bone_order_dict.get(x, UNKNOWN_ORDER))
 
     # 遍历亲子关系，检测是否合法，如果不合法，则将亲及其parent移动到子骨前面
     for child, parent in child_parent_map.items():
@@ -404,7 +405,7 @@ def reorder_bone_panel(pmx_root, props):
                                 preset_name, additional_parent_children_map, jp_bl_map, bl_jp_map)
 
     # 不在预设中的骨骼，保持原始顺序
-    non_preset_bones.sort(key=lambda x: vgs_dict.get(jp_bl_map[x], 666888))
+    non_preset_bones.sort(key=lambda x: vgs_dict.get(jp_bl_map[x], UNKNOWN_ORDER))
 
     # 最终骨骼排序列表
     final_order_bones = preset_bones + non_preset_bones
@@ -484,7 +485,7 @@ def repair_relationship(armature, existed_names, not_existed_names, bone_order_d
     # 获取parent的所有子骨
     children = parent_children_map[parent_jp_name]
     # 将所有子骨按照预设顺序排序
-    children.sort(key=lambda x: bone_order_dict.get(x, 6666))
+    children.sort(key=lambda x: bone_order_dict.get(x, UNKNOWN_ORDER))
 
     is_valid = is_parent_valid_by_id(child_pb, parent_pb)
     # 合法则跳过
@@ -672,7 +673,7 @@ def sort_morphs(morphs, preset_list):
         remaining.append(morph)
         morphs.remove(morph)
     # 预设内元素排序
-    morphs.sort(key=lambda x: preset_dict.get(x[0], 666888))
+    morphs.sort(key=lambda x: preset_dict.get(x[0], UNKNOWN_ORDER))
     # 预设外元素排序
     remaining.sort(key=lambda x: x[0].replace('左', '史'))
     # 添加预设外元素
@@ -698,7 +699,7 @@ def sort_other_morphs(morphs, preset_list):
         remaining1.append(morph)
         morphs.remove(morph)
     # 预设内元素排序
-    morphs.sort(key=lambda x: preset_dict.get(x[0], 666888))
+    morphs.sort(key=lambda x: preset_dict.get(x[0], UNKNOWN_ORDER))
 
     # 元素分类
     remaining2 = []
@@ -803,7 +804,7 @@ def reorder_rigid_body_panel(pmx_root, props):
         any_physical = rigid_body_any_physical_map[number]
         if any_physical:
             continue
-        rigid_bodies.sort(key=lambda x: (bone_order_dict.get(x.mmd_rigid.bone, 666888), get_original_name(x.name)))
+        rigid_bodies.sort(key=lambda x: (bone_order_dict.get(x.mmd_rigid.bone, UNKNOWN_ORDER), get_original_name(x.name)))
 
         last_removed_index = -1
         for i in range(len(final_order_list) - 1, -1, -1):

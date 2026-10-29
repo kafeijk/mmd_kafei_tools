@@ -24,6 +24,11 @@ MAX_RETRIES = 5
 TMP_COLLECTION_NAME = "KAFEI临时集合"
 # 默认精度
 PRECISION = 0.0001
+# PMX(MMD) 与 Blender 的单位换算倍数：导入按 0.08 缩放，导出按 1/0.08 缩放
+PMX_IMPORT_SCALE = 0.08
+PMX_EXPORT_SCALE = 1 / PMX_IMPORT_SCALE
+# 不在预设排序表中的元素统一排到最后
+UNKNOWN_ORDER = float("inf")
 # 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
 IMG_TYPE_EXT_MAP = {
     "BMP": ".bmp",

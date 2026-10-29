@@ -5,7 +5,7 @@ import bpy
 
 from mathutils import Euler, Quaternion, Vector
 
-from ..constants import PMX_BAKE_BONES
+from ..constants import PMX_BAKE_BONES, PMX_EXPORT_SCALE, PMX_IMPORT_SCALE
 
 from ..utils import (
     deselect_all_objects,
@@ -434,7 +434,7 @@ def minRotationDiff(prev_q, curr_q):
 
 
 def getBoneConverter(bone):
-    converter = BoneConverter(bone, 0.08)
+    converter = BoneConverter(bone, PMX_IMPORT_SCALE)
     mode = bone.rotation_mode
     compatible_quaternion = minRotationDiff
 
@@ -472,7 +472,7 @@ def calculate_mirror_pose(bone_a, bone_b):
     x, y, z = bone_a.location
     rw, rx, ry, rz = bone_a.rotation_quaternion
 
-    converter = BoneConverter(bone_a, 12.5, invert=True)
+    converter = BoneConverter(bone_a, PMX_EXPORT_SCALE, invert=True)
     # 将blender位置值转为vmd位置值
     location = converter.convert_location([x, y, z])
     # 将blender旋转值转为vmd旋转值
