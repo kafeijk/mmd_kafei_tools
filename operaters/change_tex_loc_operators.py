@@ -238,7 +238,13 @@ def delete_empty_folders(folder_path, props):
 
         for d in dirs:
             dir_path = os.path.join(root, d)
-            if os.listdir(dir_path):
+            try:
+                if os.listdir(dir_path):
+                    continue
+            except PermissionError as e:
+                print(bpy.app.translations.pgettext_iface(
+                    f"Failed to list folder, folder: {dir_path}, error: {e}"
+                ))
                 continue
             try:
                 os.rmdir(dir_path)
