@@ -977,7 +977,7 @@ class AboutPanel(bpy.types.Panel):
         row = col.row(align=True)
         row.label(
             text='Version: ' + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
-                                    addon.bl_info['name'] == 'mmd_kafei_tools'][0]))
+                                    addon.bl_info['name'] == 'MMD Kafei Tools'][0]))
 
         # 开发者选项开关
         icon = 'HIDE_ON' if not props.flag else 'HIDE_OFF'

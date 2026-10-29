@@ -6,7 +6,7 @@ from ...common.class_loader import auto_load
 
 # https://docs.blender.org/manual/en/3.0/advanced/scripting/addon_tutorial.html
 bl_info = {
-    "name": "mmd_kafei_tools",
+    "name": "MMD Kafei Tools",
     "description": "MMD实用工具",
     "author": "来杯咖啡再说",
     "version": (1, 9, 2),
