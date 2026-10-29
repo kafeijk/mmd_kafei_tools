@@ -20,6 +20,8 @@ TXT_INFO_PATTERN = re.compile(r'(.*)(_e(\.\d{3})?)$')
 INVALID_CHARS = '<>:"/\\|?*'
 # 最大重试次数
 MAX_RETRIES = 5
+# 批量处理时连续失败达到该数量即停止，并提示可能是模型或 mmd_tools 版本问题
+MAX_CONSECUTIVE_FAILURES = 3
 # 临时集合名称
 TMP_COLLECTION_NAME = "KAFEI临时集合"
 # 默认精度

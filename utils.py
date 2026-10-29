@@ -14,6 +14,7 @@ from .constants import (
     CONVERT_NAME_TO_L_REGEXP,
     CONVERT_NAME_TO_R_REGEXP,
     INVALID_CHARS,
+    MAX_CONSECUTIVE_FAILURES,
     MAX_RETRIES,
     PMX_EXPORT_SCALE,
     PMX_IMPORT_SCALE,
@@ -387,7 +388,7 @@ def import_pmx(filepath: str) -> bool:
             clean_scene()
             time.sleep(1)
 
-    # 所有重试均失败
+    # 所有重试均失败。或是MMD Tools版本问题，或是pmx模型文件问题，直接抛出异常。
     raise Exception(bpy.app.translations.pgettext_iface(
         f"Continuous import error, please check. File path: {filepath}"
     ))
@@ -513,6 +514,9 @@ def batch_process(func, props, f_flag=False):
     start_time = time.time()
     file_list = recursive_search(abs_path, suffix, threshold, search_strategy, conflict_strategy)
     file_count = len(file_list)
+    failed_files = []
+    consecutive_failures = 0
+    aborted = False
     for index, filepath in enumerate(file_list):
         get_collection(TMP_COLLECTION_NAME)
         file_base_name = os.path.basename(filepath)
@@ -527,29 +531,65 @@ def batch_process(func, props, f_flag=False):
             new_filepath = os.path.splitext(filepath)[0] + suffix + ext
 
         curr_time = time.time()
-        import_pmx(filepath)
-        pmx_root = bpy.context.active_object
-        if f_flag:
-            func(pmx_root, props, filepath)
+        try:
+            import_pmx(filepath)
+            pmx_root = bpy.context.active_object
+            if f_flag:
+                func(pmx_root, props, filepath)
+            else:
+                func(pmx_root, props)
+
+            deselect_all_objects()
+            select_and_activate(pmx_root)
+            export_pmx(new_filepath)
+        except Exception as e:
+            # 单个文件失败不影响后续文件，继续处理
+            failed_files.append(file_base_name)
+            consecutive_failures += 1
+            msg = bpy.app.translations.pgettext_iface(
+                "文件 \"{}\" 处理失败，进度 {}/{}：{}").format(
+                file_base_name, index + 1, file_count, str(e).replace("\n", " ")[:120]
+            )
+            print(msg)
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                aborted = True
+                break
         else:
-            func(pmx_root, props)
-
-        deselect_all_objects()
-        select_and_activate(pmx_root)
-        export_pmx(new_filepath)
-
-        current_time = time.time() - curr_time
-        total_time = time.time() - start_time
-        msg = bpy.app.translations.pgettext_iface(
-            "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
-        ).format(
-            file_base_name, index + 1, file_count,
-            f"{current_time:.2f}", f"{total_time:.2f}"
-        )
-        print(msg)
-        clean_scene()
+            consecutive_failures = 0
+            current_time = time.time() - curr_time
+            total_time = time.time() - start_time
+            msg = bpy.app.translations.pgettext_iface(
+                "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
+            ).format(
+                file_base_name, index + 1, file_count,
+                f"{current_time:.2f}", f"{total_time:.2f}"
+            )
+            print(msg)
+        finally:
+            clean_scene()
 
     total_time = time.time() - start_time
+    if failed_files:
+        if len(failed_files) >= file_count:
+            msg = bpy.app.translations.pgettext_iface(
+                "处理结束，用时 {} 秒。{} 个模型全部处理失败。"
+                "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"
+            ).format(f"{total_time:.2f}", file_count)
+        elif aborted:
+            msg = bpy.app.translations.pgettext_iface(
+                "处理结束，用时 {} 秒。已处理 {}/{}，失败 {} 个。连续 {} 个模型处理失败，已停止处理。"
+                "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"
+            ).format(f"{total_time:.2f}", index + 1, file_count, len(failed_files), MAX_CONSECUTIVE_FAILURES)
+        else:
+            msg = bpy.app.translations.pgettext_iface(
+                "处理结束，用时 {} 秒。失败 {}/{}。个别失败通常是模型文件本身的问题，请单独检查这些文件。"
+            ).format(f"{total_time:.2f}", len(failed_files), file_count)
+        print(msg)
+        # 逐个换行输出失败的模型文件
+        for name in failed_files:
+            print(name)
+        return
+
     msg = bpy.app.translations.pgettext_iface("Directory \"{}\" processing completed (total {} seconds)").format(
         abs_path, f"{total_time:.2f}",
     )
