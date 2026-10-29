@@ -5,7 +5,7 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import PRECISION
+from ..constants import BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, PRECISION
 
 from .render_preview_operators import do_camera_to_view_selected
 from ..utils import (
@@ -523,9 +523,9 @@ class LightSettingsOperator(bpy.types.Operator):
         }
         # 灯光定义：(旧名, 属性值, 能量, 位置索引)
         light_defs = [
-            ("MainLight", "KeyLight", 150, 0),
-            ("FillLight", "FillLight", 150 * 0.2, 1),
-            ("BackLight", "BackLight", 250, 2),
+            ("MainLight", "KeyLight", KEY_LIGHT_ENERGY, 0),
+            ("FillLight", "FillLight", FILL_LIGHT_ENERGY, 1),
+            ("BackLight", "BackLight", BACK_LIGHT_ENERGY, 2),
         ]
 
         # ---------- 集合 ----------

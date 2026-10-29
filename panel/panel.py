@@ -155,10 +155,10 @@ class RenderSettingsPanel(bpy.types.Panel):
         engine_row.prop(props, "engine")
         engine_row.operator(RenderSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
 
-        props2 = scene.mmd_kafei_tools_world_settings
+        world_props = scene.mmd_kafei_tools_world_settings
         world_col = col.column()
         world_row = world_col.row()
-        world_row.prop(props2, "world_name")
+        world_row.prop(world_props, "world_name")
         world_row.operator(WorldSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
 
         rd = scene.render
@@ -305,8 +305,8 @@ class SmallFeaturePanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_sf
-        props2 = scene.mmd_kafei_tools_modify_colorspace
-        props3 = scene.mmd_kafei_tools_group_object
+        colorspace_props = scene.mmd_kafei_tools_modify_colorspace
+        group_props = scene.mmd_kafei_tools_group_object
 
         layout = self.layout
         layout.use_property_split = True
@@ -318,25 +318,25 @@ class SmallFeaturePanel(bpy.types.Panel):
         option = props.option
         if option == "MODIFY_COLORSPACE":
             source_colorspace_col = col.column()
-            source_colorspace_col.prop(props2, "source_colorspace")
-            keywords = props2.keywords
+            source_colorspace_col.prop(colorspace_props, "source_colorspace")
+            keywords = colorspace_props.keywords
             if keywords:
                 source_colorspace_col.enabled = False
             else:
                 source_colorspace_col.enabled = True
 
-            col.prop(props2, "target_colorspace")
-            col.prop(props2, "keywords", icon="FILE_IMAGE")
+            col.prop(colorspace_props, "target_colorspace")
+            col.prop(colorspace_props, "keywords", icon="FILE_IMAGE")
             col.operator(ModifyColorspaceOperator.bl_idname, text=ModifyColorspaceOperator.bl_label)
         elif option == "GROUP_OBJECT":
-            col.prop(props3, "scope")
-            col.prop(props3, "search_type")
-            search_type = props3.search_type
+            col.prop(group_props, "scope")
+            col.prop(group_props, "search_type")
+            search_type = group_props.search_type
             if search_type == "NODE_NAME":
-                col.prop(props3, "node_keywords", icon="NODE")
+                col.prop(group_props, "node_keywords", icon="NODE")
             else:
-                col.prop(props3, "img_keywords", icon="FILE_IMAGE")
-            col.prop(props3, "recursive")
+                col.prop(group_props, "img_keywords", icon="FILE_IMAGE")
+            col.prop(group_props, "recursive")
             col.operator(GroupObjectOperator.bl_idname, text=GroupObjectOperator.bl_label)
 
         else:

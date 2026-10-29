@@ -446,7 +446,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
         normal_objs_sorted = []
         if order in {"FACE_ASC", "FACE_DESC"}:
             # 计算每个对象的总面数的元组列表[(obj1,face_count1),(obj2,face_count2),...]
-            obj_face_counts = [(obj, sum(len(mesh.data.polygons) for mesh in get_mesh_objs(obj))) for obj in
+            obj_face_counts = [(obj, sum(len(mesh_obj.data.polygons) for mesh_obj in get_mesh_objs(obj))) for obj in
                                normal_objs]
             reverse = order == "FACE_DESC"
             obj_face_counts.sort(key=lambda x: x[1], reverse=reverse)

@@ -602,8 +602,8 @@ def reorder_morph_panel(pmx_root, props):
         mmd_root.active_morph_type = morph_type
         # 获取表情当前索引
         morphs = getattr(mmd_root, morph_type)
-        morpy_name = morph[0]
-        index = next((i for i, m in enumerate(morphs) if m.name == morpy_name), None)
+        morph_name = morph[0]
+        index = next((i for i, m in enumerate(morphs) if m.name == morph_name), None)
         if index is None:
             continue
         # 激活表情

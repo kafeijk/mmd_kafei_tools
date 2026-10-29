@@ -51,7 +51,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
                 if selected_v_only and not vert.select:
                     continue
                 v_index = vert.index
-                groups = [vgs.group for vgs in vert.groups]  # vert.groups 返回顶点组id和对应权重（只读）
+                groups = [vg.group for vg in vert.groups]  # vert.groups 返回顶点组id和对应权重（只读）
                 if source_vg_index in groups:
                     weight_s = source_vg.weight(v_index)    # 顶点在源顶点组中的顶点权重
                     if target_vg_index in groups:

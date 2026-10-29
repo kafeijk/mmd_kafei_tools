@@ -749,16 +749,16 @@ def int2base(x, base, width=0):
     import string
     digs = string.digits + string.ascii_uppercase
     assert (2 <= base <= len(digs))
-    digits, negtive = '', False
+    digits, negative = '', False
     if x <= 0:
         if x == 0:
             return '0' * max(1, width)
-        x, negtive, width = -x, True, width - 1
+        x, negative, width = -x, True, width - 1
     while x:
         digits = digs[x % base] + digits
         x //= base
     digits = '0' * (width - len(digits)) + digits
-    if negtive:
+    if negative:
         digits = '-' + digits
     return digits
 

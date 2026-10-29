@@ -29,6 +29,10 @@ PMX_IMPORT_SCALE = 0.08
 PMX_EXPORT_SCALE = 1 / PMX_IMPORT_SCALE
 # 不在预设排序表中的元素统一排到最后
 UNKNOWN_ORDER = float("inf")
+# 三点照明默认能量：主光 150，辅光为主光的 20%，背光 250
+KEY_LIGHT_ENERGY = 150
+FILL_LIGHT_ENERGY = KEY_LIGHT_ENERGY * 0.2
+BACK_LIGHT_ENERGY = 250
 # 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
 IMG_TYPE_EXT_MAP = {
     "BMP": ".bmp",
