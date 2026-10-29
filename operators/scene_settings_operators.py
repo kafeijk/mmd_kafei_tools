@@ -915,7 +915,7 @@ def bake_camera_animation(props, camera, armature=None, empty=None):
         frame_start, frame_end = bpy.context.scene.frame_start, bpy.context.scene.frame_end
 
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    for frame in range(frame_start, frame_end):
+    for frame in range(frame_start, frame_end + 1):
         bpy.context.scene.frame_set(frame)
 
         if target_type == "ARMATURE":
