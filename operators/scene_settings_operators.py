@@ -488,7 +488,8 @@ class LightSettingsOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        self.gen_light(context)
+        if not self.gen_light(context):
+            return {'CANCELLED'}
         return {'FINISHED'}
 
     # ------------------------------------------------------------------ #
@@ -570,13 +571,13 @@ class LightSettingsOperator(bpy.types.Operator):
     # ------------------------------------------------------------------ #
     #  主流程
     # ------------------------------------------------------------------ #
-    def gen_light(self, context) -> None:
+    def gen_light(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_light_settings
         active_obj = context.active_object
 
         if not self.check_props(context, props):
-            return
+            return False
 
         new_light_names = ["主光", "辅光", "背光"]
         # 灯光预设配置
@@ -658,6 +659,8 @@ class LightSettingsOperator(bpy.types.Operator):
 
         deselect_all_objects()
         select_and_activate(active_obj)
+
+        return True
 
     def check_props(self, context, props):
         active_object = context.active_object
