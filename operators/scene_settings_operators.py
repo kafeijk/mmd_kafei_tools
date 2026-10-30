@@ -575,7 +575,7 @@ class LightSettingsOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_light_settings
         active_obj = context.active_object
 
-        if not self.check_props(props):
+        if not self.check_props(context, props):
             return
 
         new_light_names = ["主光", "辅光", "背光"]
@@ -659,8 +659,8 @@ class LightSettingsOperator(bpy.types.Operator):
         deselect_all_objects()
         select_and_activate(active_obj)
 
-    def check_props(self, props):
-        active_object = bpy.context.active_object
+    def check_props(self, context, props):
+        active_object = context.active_object
         target_type = props.target_type
         bone_name = props.bone_name
         vg_name = props.vg_name
