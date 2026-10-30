@@ -404,7 +404,7 @@ def set_cycles(context):
 class ResolutionSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.resolution_settings"
     bl_label = "设置视频分辨率"
-    bl_description = "设置视频分辨率"
+    bl_description = "按预设应用渲染分辨率"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):

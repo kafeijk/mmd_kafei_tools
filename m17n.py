@@ -215,6 +215,7 @@ translation_dict = {
         ("*", "生成相机跟随动画"): "Generate camera follow animation",
         ("Operator", "设置视频分辨率"): "Set Video Resolution",
         ("*", "设置视频分辨率"): "Set video resolution",
+        ("*", "按预设应用渲染分辨率"): "Apply the preset render resolution",
         ("*", "Unknown resolution preset: {}"): "未知的分辨率预设：{}",
         ("*", "交换分辨率 X 和 Y"): "Swap resolution X and Y",
 

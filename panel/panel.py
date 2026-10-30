@@ -178,7 +178,7 @@ class OutputSettingsPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_output_settings
-        rd = context.scene.render
+        rd = scene.render
 
         layout = self.layout
         layout.use_property_split = True
@@ -203,8 +203,9 @@ class OutputSettingsPanel(bpy.types.Panel):
         frame_col = props_col.column(heading="Frame Rate")
         bpy.types.RENDER_PT_format.draw_framerate(frame_col, rd)
 
-        # 输出文件格式
+        # 输出路径 + 输出文件格式
         props_col.separator()
+        props_col.prop(rd, "filepath", text="路径")
         image_settings = rd.image_settings
         props_col.template_image_settings(image_settings, color_management=False)
 
