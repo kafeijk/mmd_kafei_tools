@@ -43,11 +43,11 @@ class RenderSettingsOperator(bpy.types.Operator):
         if engine == "EEVEE":
             blender_version = bpy.app.version
             if blender_version < (4, 2, 0):
-                set_eevee()
+                set_eevee(context)
             else:
-                set_eevee_next()
+                set_eevee_next(context)
         elif engine == "CYCLES":
-            set_cycles()
+            set_cycles(context)
         else:
             pass
 
@@ -182,45 +182,45 @@ def reset(struct):
                 pass
 
 
-def set_eevee():
+def set_eevee(context):
+    scene = context.scene
     # 预设目的：快速渲染视频。非图像渲染，非渲染高质量视频
-    scene = bpy.context.scene
     # 恢复 Eevee 默认设置
-    reset(bpy.context.scene.eevee)
+    reset(scene.eevee)
 
     # 渲染引擎 - Eevee
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+    scene.render.engine = 'BLENDER_EEVEE'
 
     # 环境光遮蔽
-    bpy.context.scene.eevee.use_gtao = True
+    scene.eevee.use_gtao = True
     # 辉光
-    bpy.context.scene.eevee.use_bloom = True
+    scene.eevee.use_bloom = True
 
     # 屏幕空间反射
-    bpy.context.scene.eevee.use_ssr = True
+    scene.eevee.use_ssr = True
     # 折射
-    bpy.context.scene.eevee.use_ssr_refraction = True
+    scene.eevee.use_ssr_refraction = True
     # 半精度追踪
-    bpy.context.scene.eevee.use_ssr_halfres = False
+    scene.eevee.use_ssr_halfres = False
 
     # 运动模糊
-    bpy.context.scene.eevee.use_motion_blur = False
+    scene.eevee.use_motion_blur = False
 
     # 阴影
     # 矩形尺寸
-    bpy.context.scene.eevee.shadow_cube_size = '1024'
+    scene.eevee.shadow_cube_size = '1024'
     # 级联大小
-    bpy.context.scene.eevee.shadow_cascade_size = '1024'
+    scene.eevee.shadow_cascade_size = '1024'
     # 高位深
-    bpy.context.scene.eevee.use_shadow_high_bitdepth = True
+    scene.eevee.use_shadow_high_bitdepth = True
     # 柔和阴影
-    bpy.context.scene.eevee.use_soft_shadows = True
+    scene.eevee.use_soft_shadows = True
 
 
-def set_eevee_next():
-    scene = bpy.context.scene
+def set_eevee_next(context):
+    scene = context.scene
     # 恢复 Eevee 默认设置
-    reset(bpy.context.scene.eevee)
+    reset(scene.eevee)
 
     # 5.x与4.x的Eevee在设置方式上类似，但名称标识不同
     # https://developer.blender.org/docs/release_notes/5.0/python_api/#render
@@ -263,8 +263,8 @@ def set_eevee_next():
     safe_set(scene.eevee, "gi_irradiance_pool_size", '1024')
 
 
-def set_cycles():
-    scene = bpy.context.scene
+def set_cycles(context):
+    scene = context.scene
     cycles = scene.cycles
     render = scene.render
 
@@ -274,9 +274,9 @@ def set_cycles():
     # 渲染设备选自己的GPU。 不要选CPU；不要二者都选
 
     # 渲染引擎 - Cycles
-    bpy.context.scene.render.engine = 'CYCLES'
+    scene.render.engine = 'CYCLES'
     # 恢复 Cycles 默认设置
-    reset(bpy.context.scene.cycles)
+    reset(scene.cycles)
 
     # 设备 - GPU计算
     safe_set(cycles, "device", 'GPU')
@@ -669,11 +669,11 @@ class LoadRenderPresetOperator(bpy.types.Operator):
 
         blender_version = bpy.app.version
         if blender_version < (4, 2, 0):
-            set_eevee()
+            set_eevee(context)
             # 取消辉光
-            safe_set(bpy.context.scene.eevee, "use_bloom", False)
+            safe_set(scene.eevee, "use_bloom", False)
         else:
-            set_eevee_next()
+            set_eevee_next(context)
             safe_set(scene.eevee, "use_raytracing", False)  # 取消光追，只需要光照即可，避免颜色对模型的影响
 
         # 胶片透明
