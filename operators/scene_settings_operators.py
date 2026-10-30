@@ -84,13 +84,79 @@ class WorldSettingsOperator(bpy.types.Operator):
         set_env(self, world_name, 1)
 
 
+def has_link(links, from_socket, to_socket):
+    """判断节点连接是否存在"""
+    return any(link.from_socket == from_socket and link.to_socket == to_socket for link in links)
+
+
+def is_default_world(world):
+    """世界是否为"黑背景、无光照贡献"的目标结构"""
+    if world.node_tree is None:
+        return False
+    nodes = world.node_tree.nodes
+    background = next((n for n in nodes if n.bl_idname == "ShaderNodeBackground"), None)
+    output = next((n for n in nodes if n.bl_idname == "ShaderNodeOutputWorld"), None)
+    if background is None or output is None or len(nodes) != 2:
+        return False
+    if tuple(background.inputs['Color'].default_value) != (0.0, 0.0, 0.0, 1.0):
+        return False
+    if background.inputs['Strength'].default_value != 0:
+        return False
+    return has_link(world.node_tree.links, background.outputs['Background'], output.inputs['Surface'])
+
+
+def is_env_world(world, env_texture_path, strength):
+    """世界是否为指定天空球的目标结构"""
+    if world.node_tree is None:
+        return False
+    nodes = world.node_tree.nodes
+    node_types = ("ShaderNodeTexCoord", "ShaderNodeMapping", "ShaderNodeTexEnvironment",
+                  "ShaderNodeBackground", "ShaderNodeOutputWorld")
+    if len(nodes) != len(node_types):
+        return False
+    node_map = {n.bl_idname: n for n in nodes}
+    if any(node_type not in node_map for node_type in node_types):
+        return False
+    tex_coord = node_map["ShaderNodeTexCoord"]
+    mapping = node_map["ShaderNodeMapping"]
+    env_tex = node_map["ShaderNodeTexEnvironment"]
+    background = node_map["ShaderNodeBackground"]
+    output = node_map["ShaderNodeOutputWorld"]
+    expected_links = (
+        (tex_coord.outputs['Generated'], mapping.inputs['Vector']),
+        (mapping.outputs['Vector'], env_tex.inputs['Vector']),
+        (env_tex.outputs['Color'], background.inputs['Color']),
+        (background.outputs['Background'], output.inputs['Surface']),
+    )
+    links = world.node_tree.links
+    if not all(has_link(links, from_socket, to_socket) for from_socket, to_socket in expected_links):
+        return False
+    if background.inputs['Strength'].default_value != strength:
+        return False
+    if env_tex.image is None:
+        return not os.path.exists(env_texture_path)
+    return os.path.abspath(bpy.path.abspath(env_tex.image.filepath)) == os.path.abspath(env_texture_path)
+
+
+def find_matching_world(world_name, match_func):
+    """查找同名（含 .001 等后缀）且结构一致的世界"""
+    for world in bpy.data.worlds:
+        if world.name == world_name or world.name.startswith(f"{world_name}."):
+            if match_func(world):
+                return world
+    return None
+
+
 def set_env(operator, world_name, strength):
     blender_version = bpy.app.version
+    scene = bpy.context.scene
     if world_name == "DEFAULT":
-        world_name = "World"
-        world = bpy.data.worlds.new(world_name)
-        if world.name != world_name:
-            world.name = world_name
+        # 已有结构一致的同名世界时直接复用，否则新建
+        world = find_matching_world("World", is_default_world)
+        if world is not None:
+            scene.world = world
+            return
+        world = bpy.data.worlds.new("World")
         if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
             world.use_nodes = True
         world_nodes = world.node_tree
@@ -99,64 +165,68 @@ def set_env(operator, world_name, strength):
                 node.inputs[0].default_value = (0, 0, 0, 1)
                 node.inputs[1].default_value = 0
         # 设置世界环境
-        bpy.context.scene.world = world
+        scene.world = world
         return
+
+    # 环境纹理目录：LOCAL 资源路径 + 官方数据目录（resource_path 结果可能不存在，但不会返回None）
+    # https://docs.blender.org/api/current/bpy.utils.html#bpy.utils.resource_path
+    env_folder = os.path.join(bpy.utils.resource_path('LOCAL'), 'datafiles', 'studiolights', 'world')
+    # Blender 自带的 HDRI 文件名为全小写
+    env_file_name = f'{world_name.lower()}.exr'
+    env_texture_path = os.path.join(env_folder, env_file_name)
+    world_display_name = world_name.capitalize()
+
+    # 已有结构一致的同名世界时直接复用，否则新建
+    world = find_matching_world(world_display_name, lambda w: is_env_world(w, env_texture_path, strength))
+    if world is not None:
+        scene.world = world
+        return
+
+    world = bpy.data.worlds.new(world_display_name)
+    if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+        world.use_nodes = True
+    world_nodes = world.node_tree
+    world_nodes.nodes.clear()
+    # 创建 Texture Coordinate 节点
+    tex_coord_node = world_nodes.nodes.new(type='ShaderNodeTexCoord')
+    tex_coord_node.location = (-700, 0)
+    # 创建 Mapping 节点
+    mapping_node = world_nodes.nodes.new(type='ShaderNodeMapping')
+    mapping_node.location = (-500, 0)
+    # 创建天空球纹理节点
+    env_tex_node = world_nodes.nodes.new(type='ShaderNodeTexEnvironment')
+    env_tex_node.location = (-300, 0)
+    # 创建 Background 节点
+    background_node = world_nodes.nodes.new(type='ShaderNodeBackground')
+    background_node.location = (0, 0)
+    # 创建 World Output 节点
+    world_output_node = world_nodes.nodes.new(type='ShaderNodeOutputWorld')
+    world_output_node.location = (200, 0)
+
+    if not os.path.exists(env_texture_path):
+        operator.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface(
+            "HDRI Map not found. Add manually. Path: {}").format(env_texture_path))
     else:
-        # Blender 自带的 HDRI 文件名为全小写
-        env_file_name = f'{world_name.lower()}.exr'
-        world_name = world_name.capitalize()
-        world = bpy.data.worlds.new(world_name)
-        if world.name != world_name:
-            world.name = world_name
-        if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
-            world.use_nodes = True
-        world_nodes = world.node_tree
-        world_nodes.nodes.clear()
-        # 创建 Texture Coordinate 节点
-        tex_coord_node = world_nodes.nodes.new(type='ShaderNodeTexCoord')
-        tex_coord_node.location = (-700, 0)
-        # 创建 Mapping 节点
-        mapping_node = world_nodes.nodes.new(type='ShaderNodeMapping')
-        mapping_node.location = (-500, 0)
-        # 创建天空球纹理节点
-        env_tex_node = world_nodes.nodes.new(type='ShaderNodeTexEnvironment')
-        env_tex_node.location = (-300, 0)
-        # 创建 Background 节点
-        background_node = world_nodes.nodes.new(type='ShaderNodeBackground')
-        background_node.location = (0, 0)
-        # 创建 World Output 节点
-        world_output_node = world_nodes.nodes.new(type='ShaderNodeOutputWorld')
-        world_output_node.location = (200, 0)
-        # 环境纹理目录：LOCAL 资源路径 + 官方数据目录（resource_path 结果可能不存在，但不会返回None）
-        # https://docs.blender.org/api/current/bpy.utils.html#bpy.utils.resource_path
-        env_folder = os.path.join(bpy.utils.resource_path('LOCAL'), 'datafiles', 'studiolights', 'world')
-        env_texture_path = os.path.join(env_folder, env_file_name)
+        image = bpy.data.images.load(env_texture_path, check_existing=True)
+        env_tex_node.image = image
 
-        if not os.path.exists(env_texture_path):
-            operator.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface(
-                "HDRI Map not found. Add manually. Path: {}").format(env_texture_path))
+        if scene.display_settings.display_device == 'ACES':
+            image.colorspace_settings.name = 'Utility - Linear - sRGB'
         else:
-            image = bpy.data.images.load(env_texture_path, check_existing=True)
-            env_tex_node.image = image
-
-            if bpy.context.scene.display_settings.display_device == 'ACES':
-                image.colorspace_settings.name = 'Utility - Linear - sRGB'
+            if blender_version < (4, 0, 0):
+                safe_set(image.colorspace_settings, "name", "Linear")  # 2.x 3.x 默认
             else:
-                blender_version = bpy.app.version
-                if blender_version < (4, 0, 0):
-                    safe_set(image.colorspace_settings, "name", "Linear")  # 2.x 3.x 默认
-                else:
-                    safe_set(image.colorspace_settings, "name", "Linear Rec.709")  # 4.x 默认
+                safe_set(image.colorspace_settings, "name", "Linear Rec.709")  # 4.x 默认
 
-        # 依次按顺序相连接
-        world_nodes.links.new(tex_coord_node.outputs['Generated'], mapping_node.inputs['Vector'])
-        world_nodes.links.new(mapping_node.outputs['Vector'], env_tex_node.inputs['Vector'])
-        world_nodes.links.new(env_tex_node.outputs['Color'], background_node.inputs['Color'])
-        world_nodes.links.new(background_node.outputs['Background'], world_output_node.inputs['Surface'])
-        # 设置背景强度
-        background_node.inputs['Strength'].default_value = strength
-        # 设置世界环境
-        bpy.context.scene.world = world
+    # 依次按顺序相连接
+    world_nodes.links.new(tex_coord_node.outputs['Generated'], mapping_node.inputs['Vector'])
+    world_nodes.links.new(mapping_node.outputs['Vector'], env_tex_node.inputs['Vector'])
+    world_nodes.links.new(env_tex_node.outputs['Color'], background_node.inputs['Color'])
+    world_nodes.links.new(background_node.outputs['Background'], world_output_node.inputs['Surface'])
+    # 设置背景强度
+    background_node.inputs['Strength'].default_value = strength
+    # 设置世界环境
+    scene.world = world
 
 
 def reset(struct):
