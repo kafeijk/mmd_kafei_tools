@@ -685,7 +685,7 @@ class LightSettingsOperator(bpy.types.Operator):
             if not active_object:
                 self.report(type={'ERROR'}, message=f'Select mesh object!')
                 return False
-            if active_object.type not in ['MESH', 'LATTICE']:
+            if active_object.type != 'MESH':
                 self.report(type={'ERROR'}, message=f'Select mesh object!')
                 return False
             if vg_name not in active_object.vertex_groups:
