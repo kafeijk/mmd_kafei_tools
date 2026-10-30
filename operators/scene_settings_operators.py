@@ -31,6 +31,10 @@ from ..utils import (
 IS_EEVEE_NEXT = bpy.app.version >= (4, 2, 0)
 EEVEE_ENGINE = 'BLENDER_EEVEE_NEXT' if (4, 2, 0) <= bpy.app.version < (5, 0, 0) else 'BLENDER_EEVEE'
 
+# 版本阈值
+IS_4_0_OR_NEWER = bpy.app.version >= (4, 0, 0)
+IS_5_0_OR_NEWER = bpy.app.version >= (5, 0, 0)
+
 
 class RenderSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.render_settings"
@@ -152,7 +156,6 @@ def find_matching_world(world_name, match_func):
 
 def set_env(context, world_name, strength):
     """设置世界环境，返回需要提示的信息（None 表示无需提示）"""
-    blender_version = bpy.app.version
     scene = context.scene
     if world_name == "DEFAULT":
         # 已有结构一致的同名世界时直接复用，否则新建
@@ -161,7 +164,7 @@ def set_env(context, world_name, strength):
             scene.world = world
             return
         world = bpy.data.worlds.new("World")
-        if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+        if not IS_5_0_OR_NEWER:  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
             world.use_nodes = True
         world_nodes = world.node_tree
         for node in world_nodes.nodes:
@@ -187,7 +190,7 @@ def set_env(context, world_name, strength):
         return
 
     world = bpy.data.worlds.new(world_display_name)
-    if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+    if not IS_5_0_OR_NEWER:  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
         world.use_nodes = True
     world_nodes = world.node_tree
     world_nodes.nodes.clear()
@@ -218,7 +221,7 @@ def set_env(context, world_name, strength):
         if scene.display_settings.display_device == 'ACES':
             image.colorspace_settings.name = 'Utility - Linear - sRGB'
         else:
-            if blender_version < (4, 0, 0):
+            if not IS_4_0_OR_NEWER:
                 safe_set(image.colorspace_settings, "name", "Linear")  # 2.x 3.x 默认
             else:
                 safe_set(image.colorspace_settings, "name", "Linear Rec.709")  # 4.x 默认
