@@ -25,6 +25,13 @@ from ..utils import (
 )
 
 
+# EEVEE 的实现分支与引擎标识随版本变化，集中在此维护
+# 4.2 起为 EEVEE Next；5.0 起引擎标识又改回 BLENDER_EEVEE
+# https://developer.blender.org/docs/release_notes/5.0/python_api/#render
+IS_EEVEE_NEXT = bpy.app.version >= (4, 2, 0)
+EEVEE_ENGINE = 'BLENDER_EEVEE_NEXT' if (4, 2, 0) <= bpy.app.version < (5, 0, 0) else 'BLENDER_EEVEE'
+
+
 class RenderSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.render_settings"
     bl_label = "执行"
@@ -41,11 +48,10 @@ class RenderSettingsOperator(bpy.types.Operator):
         engine = props.engine
         # 设置渲染参数。
         if engine == "EEVEE":
-            blender_version = bpy.app.version
-            if blender_version < (4, 2, 0):
-                set_eevee(context)
-            else:
+            if IS_EEVEE_NEXT:
                 set_eevee_next(context)
+            else:
+                set_eevee(context)
         elif engine == "CYCLES":
             set_cycles(context)
         else:
@@ -189,7 +195,7 @@ def set_eevee(context):
     reset(scene.eevee)
 
     # 渲染引擎 - Eevee
-    scene.render.engine = 'BLENDER_EEVEE'
+    scene.render.engine = EEVEE_ENGINE
 
     # 环境光遮蔽
     scene.eevee.use_gtao = True
@@ -222,13 +228,8 @@ def set_eevee_next(context):
     # 恢复 Eevee 默认设置
     reset(scene.eevee)
 
-    # 5.x与4.x的Eevee在设置方式上类似，但名称标识不同
-    # https://developer.blender.org/docs/release_notes/5.0/python_api/#render
-    blender_version = bpy.app.version
-    if blender_version >= (5, 0, 0):
-        safe_set(scene.render, "engine", "BLENDER_EEVEE")
-    else:
-        safe_set(scene.render, "engine", "BLENDER_EEVEE_NEXT")
+    # 渲染引擎 - Eevee
+    safe_set(scene.render, "engine", EEVEE_ENGINE)
 
     # 时序重投影。该参数默认值即为True，但参数use_bloom（辉光）会影响到该值的设定，所以这里显示设置
     safe_set(scene.eevee, "use_taa_reprojection", True)
@@ -667,14 +668,13 @@ class LoadRenderPresetOperator(bpy.types.Operator):
     def main(self, context):
         scene = context.scene
 
-        blender_version = bpy.app.version
-        if blender_version < (4, 2, 0):
+        if IS_EEVEE_NEXT:
+            set_eevee_next(context)
+            safe_set(scene.eevee, "use_raytracing", False)  # 取消光追，只需要光照即可，避免颜色对模型的影响
+        else:
             set_eevee(context)
             # 取消辉光
             safe_set(scene.eevee, "use_bloom", False)
-        else:
-            set_eevee_next(context)
-            safe_set(scene.eevee, "use_raytracing", False)  # 取消光追，只需要光照即可，避免颜色对模型的影响
 
         # 胶片透明
         bpy.context.scene.render.film_transparent = True
@@ -717,7 +717,7 @@ class LoadRenderPresetOperator(bpy.types.Operator):
 
         # 设置并切换到自定义世界环境
         set_env(self, "SUNSET", 2)
-        if blender_version >= (4, 2, 0):
+        if IS_EEVEE_NEXT:
             world = bpy.context.scene.world
             world_nodes = world.node_tree
             for node in world_nodes.nodes:
