@@ -2,6 +2,8 @@ import math
 
 import bpy
 
+from ..constants import RESOLUTION_PRESETS
+
 
 class RenderSettingsProperty(bpy.types.PropertyGroup):
     engine: bpy.props.EnumProperty(
@@ -56,18 +58,8 @@ class OutputSettingsProperty(bpy.types.PropertyGroup):
         name="Resolution",
         description="Resolution",
         items=[
-            ("1080P", "1080p", "1920x1080"),
-            ("2K", "2K", "2560x1440"),
-            ("4K", "4K", "3840x2160"),
-            ("360P", "360p", "640x360"),
-            ("480P", "480p", "854x480"),
-            ("540P", "540p", "960x540"),
-            ("720P", "720p", "1280x720"),
-            ("8K", "8K", "7680x4320"),
-            ("720_4_3", "960×720(4:3)", "960×720(4:3)"),
-            ("1080_4_3", "1440×1080(4:3)", "1440×1080(4:3)"),
-            ("1440_4_3", "1920×1440(4:3)", "1920×1440(4:3)"),
-            ("2160_4_3", "2880 × 2160(4:3)", "2880 × 2160(4:3)")
+            (identifier, label, f"{width}x{height}")
+            for identifier, (label, width, height) in RESOLUTION_PRESETS.items()
         ],
         default="1080P"
     )

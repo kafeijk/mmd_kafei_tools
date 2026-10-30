@@ -5,7 +5,7 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, PRECISION
+from ..constants import BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, PRECISION, RESOLUTION_PRESETS
 
 from .render_preview_operators import do_camera_to_view_selected, switch_to_camera_view
 from ..utils import (
@@ -411,23 +411,13 @@ class ResolutionSettingsOperator(bpy.types.Operator):
         scene = context.scene
         output = scene.mmd_kafei_tools_output_settings
 
-        # 分辨率对应字典
-        res_dict = {
-            "360P": (640, 360),
-            "480P": (854, 480),
-            "540P": (960, 540),
-            "720P": (1280, 720),
-            "1080P": (1920, 1080),
-            "2K": (2560, 1440),
-            "4K": (3840, 2160),
-            "8K": (7680, 4320),
-            "720_4_3": (960, 720),
-            "1080_4_3": (1440, 1080),
-            "1440_4_3": (1920, 1440),
-            "2160_4_3": (2880, 2160)
-        }
+        preset = RESOLUTION_PRESETS.get(output.resolution)
+        if preset is None:
+            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface(
+                "Unknown resolution preset: {}").format(output.resolution))
+            return {'CANCELLED'}
 
-        width, height = res_dict.get(output.resolution, (1920, 1080))
+        _, width, height = preset
         scene.render.resolution_x = width
         scene.render.resolution_y = height
 
