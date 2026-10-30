@@ -219,7 +219,7 @@ def set_env(context, world_name, strength):
         env_tex_node.image = image
 
         if scene.display_settings.display_device == 'ACES':
-            image.colorspace_settings.name = 'Utility - Linear - sRGB'
+            safe_set(image.colorspace_settings, "name", 'Utility - Linear - sRGB')
         else:
             if not IS_4_0_OR_NEWER:
                 safe_set(image.colorspace_settings, "name", "Linear")  # 2.x 3.x 默认
