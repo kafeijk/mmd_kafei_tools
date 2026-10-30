@@ -6,7 +6,8 @@ import bpy
 from mathutils import Vector
 
 from ..constants import (BACK_LIGHT_ENERGY, FILL_LIGHT_ANGLE, FILL_LIGHT_ENERGY, KEY_LIGHT_ANGLE,
-                         KEY_LIGHT_ENERGY, LIGHT_HEIGHT_ANGLE, LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
+                         KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS, LIGHT_HEIGHT_ANGLE, LIGHT_ROTATION_X,
+                         LIGHT_SIZE, PRECISION)
 
 from ..properties.scene_settings_properties import apply_resolution_preset
 
@@ -445,6 +446,21 @@ class SwapResolutionOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class ResetLightSettingsOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.reset_light_settings"
+    bl_label = "刷新"
+    bl_description = "将灯光设置中可实时调整的参数恢复为默认值"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        props = context.scene.mmd_kafei_tools_light_settings
+        for name in ("key_position", "preset", "intensity",
+                     "key_distance", "fill_distance", "back_distance", "back_angle"):
+            rna_prop = props.bl_rna.properties[name]
+            setattr(props, name, rna_prop.default)
+        return {'FINISHED'}
+
+
 def set_cons(obj, target, subtarget=None):
     """设置子级约束"""
     # 移除原先约束
@@ -494,10 +510,9 @@ class LightSettingsOperator(bpy.types.Operator):
     #  内部工具方法
     # ------------------------------------------------------------------ #
     def _get_or_create_light(self, old_name: str, attr_value: str, energy: float, color_hex: str,
-                             new_name: str, preset_flag: bool) -> bpy.types.Object:
+                             new_name: str) -> bpy.types.Object:
         """
-        查找已有灯光（兼容旧名和新名），不存在则新建。
-        preset_flag=True 时强制应用颜色预设。
+        查找已有灯光（兼容旧名和新名），不存在则新建
         Tri-Lighting 名称取自 https://docs.blender.org/manual/nb/3.6/addons/lighting/trilighting.html
         """
         obj = get_obj_by_attr_value("Tri-Lighting", attr_value)
@@ -519,15 +534,15 @@ class LightSettingsOperator(bpy.types.Operator):
         # 兼容旧命名
         obj.name = new_name
 
-        if preset_flag:
-            obj.data.color = hex_to_rgb(color_hex)
+        obj.data.color = hex_to_rgb(color_hex)
 
         return obj
 
     # ------------------------------------------------------------------ #
     #  位置 / 旋转计算
     # ------------------------------------------------------------------ #
-    def _apply_transforms(self, lights: list, props) -> None:
+    @staticmethod
+    def _apply_transforms(lights: list, props) -> None:
         key_light, fill_light, back_light = lights
 
         rotation_x = math.radians(LIGHT_ROTATION_X)
@@ -579,12 +594,6 @@ class LightSettingsOperator(bpy.types.Operator):
             return False
 
         new_light_names = ["主光", "辅光", "背光"]
-        # 灯光预设配置
-        light_presets = {
-            "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),
-            "RED_BLUE": ("#FF5959", "#BCC4FF", "#5979FF"),
-            "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
-        }
         # 灯光定义：(旧名, 属性值, 能量, 位置索引)
         light_defs = [
             ("MainLight", "KeyLight", KEY_LIGHT_ENERGY, 0),
@@ -597,17 +606,16 @@ class LightSettingsOperator(bpy.types.Operator):
         light_coll = get_collection(new_coll_name)
 
         # ---------- 灯光颜色 ----------
-        colors = light_presets.get(props.preset, light_presets["DEFAULT"])
+        colors = LIGHT_COLOR_PRESETS.get(props.preset, LIGHT_COLOR_PRESETS["DEFAULT"])
 
         # ---------- 创建/获取三盏灯 ----------
         lights = [
             self._get_or_create_light(
                 old_name=old,
                 attr_value=attr,
-                energy=energy,
+                energy=energy * props.intensity / 100,
                 color_hex=colors[i],
                 new_name=translate(new_light_names[i]),
-                preset_flag=props.preset_flag,
             )
             for i, (old, attr, energy, _) in enumerate(light_defs)
         ]
@@ -701,6 +709,11 @@ class LightSettingsOperator(bpy.types.Operator):
                 return False
             return True
         return False
+
+
+def apply_light_transforms(lights, props):
+    """按灯光参数更新三盏灯的位置与旋转"""
+    LightSettingsOperator._apply_transforms(lights, props)
 
 
 def find_armature(obj):

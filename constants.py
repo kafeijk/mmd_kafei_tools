@@ -41,6 +41,12 @@ FILL_LIGHT_ANGLE = 60
 LIGHT_ROTATION_X = 75
 LIGHT_HEIGHT_ANGLE = 15
 LIGHT_SIZE = 1
+# 三点照明颜色预设：#RRGGBB（主光, 辅光, 背光）
+LIGHT_COLOR_PRESETS = {
+    "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),
+    "RED_BLUE": ("#FF5959", "#BCC4FF", "#5979FF"),
+    "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
+}
 # 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
 IMG_TYPE_EXT_MAP = {
     "BMP": ".bmp",

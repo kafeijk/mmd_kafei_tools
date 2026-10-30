@@ -2,7 +2,9 @@ import math
 
 import bpy
 
-from ..constants import RESOLUTION_PRESETS
+from ..constants import (BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS,
+                         RESOLUTION_PRESETS)
+from ..utils import hex_to_rgb
 
 
 class RenderSettingsProperty(bpy.types.PropertyGroup):
@@ -97,6 +99,52 @@ class OutputSettingsProperty(bpy.types.PropertyGroup):
         del bpy.types.Scene.mmd_kafei_tools_output_settings
 
 
+def get_existing_lights(scene):
+    """返回场景中已存在的三盏灯；任一缺失则返回 None"""
+    # 先按类型过滤，避免对大量非灯光对象做自定义属性查询；且只遍历一遍
+    found = {}
+    for obj in scene.objects:
+        if obj.type != 'LIGHT':
+            continue
+        attr = obj.get("Tri-Lighting")
+        if attr is not None and attr not in found:
+            found[attr] = obj
+
+    lights = [found.get(attr) for attr in ("KeyLight", "FillLight", "BackLight")]
+    if any(obj is None for obj in lights):
+        return None
+    return lights
+
+
+def update_light_transforms(self, context):
+    """位置/距离/角度变化时，若三盏灯齐全则实时更新三盏灯"""
+    lights = get_existing_lights(context.scene)
+    if lights is None:
+        return
+    from ..operators.scene_settings_operators import apply_light_transforms
+    apply_light_transforms(lights, self)
+
+
+def update_preset(self, context):
+    """颜色预设变化时，若三盏灯齐全则实时更新颜色"""
+    lights = get_existing_lights(context.scene)
+    if lights is None:
+        return
+    colors = LIGHT_COLOR_PRESETS.get(self.preset, LIGHT_COLOR_PRESETS["DEFAULT"])
+    for obj, color_hex in zip(lights, colors):
+        obj.data.color = hex_to_rgb(color_hex)
+
+
+def update_light_intensity(self, context):
+    """光强变化时，若三盏灯齐全则按默认能量的倍数同步"""
+    lights = get_existing_lights(context.scene)
+    if lights is None:
+        return
+    energies = (KEY_LIGHT_ENERGY, FILL_LIGHT_ENERGY, BACK_LIGHT_ENERGY)
+    for obj, energy in zip(lights, energies):
+        obj.data.energy = energy * self.intensity / 100
+
+
 class LightSettingsProperty(bpy.types.PropertyGroup):
     target_type: bpy.props.EnumProperty(
         name="目标类型",
@@ -131,13 +179,24 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
             ("BLUE_PURPLE", "蓝紫", "蓝紫")
 
         ],
-        default="DEFAULT"
+        default="DEFAULT",
+        update=update_preset
     )
 
-    preset_flag: bpy.props.BoolProperty(
-        name="颜色影响",
-        description="重新设置时是否修改灯光颜色",
-        default=True
+    intensity: bpy.props.IntProperty(
+        name="光强",
+        description="三盏灯的能量系数，100 为 100%，最大 200%",
+        subtype='PERCENTAGE',
+        default=100,
+        min=0,
+        max=200,
+        update=update_light_intensity
+    )
+
+    show_advanced: bpy.props.BoolProperty(
+        name="距离和旋转",
+        description="勾选后显示距离与旋转参数",
+        default=False
     )
 
     key_distance: bpy.props.FloatProperty(
@@ -145,7 +204,8 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         description="主光到目标的水平距离",
         subtype='DISTANCE',
         default=2,
-        min=0.0
+        min=0.0,
+        update=update_light_transforms
     )
 
     fill_distance: bpy.props.FloatProperty(
@@ -153,7 +213,8 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         description="辅光到目标的水平距离",
         subtype='DISTANCE',
         default=1.5,
-        min=0.0
+        min=0.0,
+        update=update_light_transforms
     )
 
     back_distance: bpy.props.FloatProperty(
@@ -161,7 +222,8 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         description="背光到目标的直线距离",
         subtype='DISTANCE',
         default=1,
-        min=0.0
+        min=0.0,
+        update=update_light_transforms
     )
 
     key_position: bpy.props.EnumProperty(
@@ -173,13 +235,15 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
 
         ],
         default="RIGHT",
+        update=update_light_transforms
     )
 
     back_angle: bpy.props.FloatProperty(
         name="背光角度",
         description="背光的旋转角度",
         subtype="ANGLE",
-        default=math.radians(-45)
+        default=math.radians(-45),
+        update=update_light_transforms
     )
 
     @staticmethod

@@ -36,6 +36,7 @@ from ..operators.scene_settings_operators import RenderSettingsOperator
 from ..operators.scene_settings_operators import WorldSettingsOperator
 from ..operators.scene_settings_operators import SwapResolutionOperator
 from ..operators.scene_settings_operators import LightSettingsOperator
+from ..operators.scene_settings_operators import ResetLightSettingsOperator
 from ..operators.scene_settings_operators import CameraSettingsOperator
 from ..operators.quick_operation_operators import MergeVerticesOperator
 from ..operators.quick_operation_operators import DummyOperator
@@ -239,15 +240,22 @@ class LightSettingsPanel(bpy.types.Panel):
         elif target_type == "MESH":
             col.prop(props, "vg_name", icon='GROUP_VERTEX')
 
-        col.prop(props, "preset")
-        col.prop(props, "preset_flag")
-        col.prop(props, "key_distance")
-        col.prop(props, "fill_distance")
         col.prop(props, "key_position")
-        col.prop(props, "back_distance")
-        col.prop(props, "back_angle")
+        col.prop(props, "preset")
+        col.prop(props, "intensity")
 
-        col.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
+        col.prop(props, "show_advanced")
+        if props.show_advanced:
+            col.prop(props, "key_distance")
+            col.prop(props, "fill_distance")
+            col.prop(props, "back_distance")
+            col.prop(props, "back_angle")
+
+        row = col.row(align=True)
+        row.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)
+        refresh_row = row.row(align=True)
+        refresh_row.ui_units_x = 1.2
+        refresh_row.operator(ResetLightSettingsOperator.bl_idname, text="", icon='FILE_REFRESH')
 
 
 class CameraSettingsPanel(bpy.types.Panel):
