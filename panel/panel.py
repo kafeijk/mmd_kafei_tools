@@ -198,18 +198,10 @@ class OutputSettingsPanel(bpy.types.Panel):
         button_col.operator(ResolutionSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
         button_col.operator(SwapResolutionOperator.bl_idname, text="⇅", emboss=True)
 
-        # 帧率
+        # 帧率（复用 Blender 自带的绘制逻辑，内部处理预设文案与自定义输入）
         props_col.separator()
         frame_col = props_col.column(heading="Frame Rate")
-        if bpy.types.RENDER_PT_format._preset_class is None:
-            bpy.types.RENDER_PT_format._preset_class = bpy.types.RENDER_MT_framerate_presets
-        args = rd.fps, rd.fps_base, bpy.types.RENDER_PT_format._preset_class.bl_label
-        fps_label_text, show_framerate = bpy.types.RENDER_PT_format._draw_framerate_label(*args)
-        frame_col.menu("RENDER_MT_framerate_presets", text=fps_label_text)
-        if show_framerate:
-            custom_fps_col = frame_col.column(align=True)
-            custom_fps_col.prop(rd, "fps")
-            custom_fps_col.prop(rd, "fps_base", text="Base")
+        bpy.types.RENDER_PT_format.draw_framerate(frame_col, rd)
 
         # 输出文件格式
         props_col.separator()
