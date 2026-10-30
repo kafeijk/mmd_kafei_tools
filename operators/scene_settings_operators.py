@@ -84,13 +84,6 @@ class WorldSettingsOperator(bpy.types.Operator):
         set_env(self, world_name, 1)
 
 
-def get_folder(blender_install_dir, folder_name):
-    for root, dirs, files in os.walk(blender_install_dir):
-        for dir_name in dirs:
-            if folder_name in dir_name:
-                return os.path.join(root, dir_name)
-
-
 def set_env(operator, world_name, strength):
     blender_version = bpy.app.version
     if world_name == "DEFAULT":
@@ -109,6 +102,8 @@ def set_env(operator, world_name, strength):
         bpy.context.scene.world = world
         return
     else:
+        # Blender 自带的 HDRI 文件名为全小写
+        env_file_name = f'{world_name.lower()}.exr'
         world_name = world_name.capitalize()
         world = bpy.data.worlds.new(world_name)
         if world.name != world_name:
@@ -132,12 +127,10 @@ def set_env(operator, world_name, strength):
         # 创建 World Output 节点
         world_output_node = world_nodes.nodes.new(type='ShaderNodeOutputWorld')
         world_output_node.location = (200, 0)
-        # 获取 Blender 安装目录
-        blender_binary_path = bpy.app.binary_path
-        blender_install_dir = os.path.dirname(blender_binary_path)
-        # 获取环境纹理路径（递归寻找，防止因blender安装版本/绿色版本文件目录结构差异带来的找不到文件的问题）
-        env_folder = get_folder(blender_install_dir, "world")
-        env_texture_path = os.path.join(env_folder, f'{world_name}.exr')
+        # 环境纹理目录：LOCAL 资源路径 + 官方数据目录（resource_path 结果可能不存在，但不会返回None）
+        # https://docs.blender.org/api/current/bpy.utils.html#bpy.utils.resource_path
+        env_folder = os.path.join(bpy.utils.resource_path('LOCAL'), 'datafiles', 'studiolights', 'world')
+        env_texture_path = os.path.join(env_folder, env_file_name)
 
         if not os.path.exists(env_texture_path):
             operator.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface(
