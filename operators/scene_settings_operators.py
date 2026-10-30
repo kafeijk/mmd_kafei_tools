@@ -418,8 +418,13 @@ class ResolutionSettingsOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
         _, width, height = preset
-        scene.render.resolution_x = width
-        scene.render.resolution_y = height
+        rd = scene.render
+        rd.resolution_x = width
+        rd.resolution_y = height
+        # 恢复分辨率相关默认值，避免缩放比例/像素比让实际输出与预设不符
+        rd.resolution_percentage = rd.bl_rna.properties["resolution_percentage"].default
+        rd.pixel_aspect_x = rd.bl_rna.properties["pixel_aspect_x"].default
+        rd.pixel_aspect_y = rd.bl_rna.properties["pixel_aspect_y"].default
 
         return {'FINISHED'}
 
