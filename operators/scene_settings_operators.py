@@ -39,7 +39,7 @@ class RenderSettingsOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_render_settings
         engine = props.engine
-        # 设置渲染参数。关于着色方式 - 渲染，初始加载可能会耗费时间，因此暂不添加
+        # 设置渲染参数。
         if engine == "EEVEE":
             blender_version = bpy.app.version
             if blender_version < (4, 2, 0):
@@ -51,11 +51,11 @@ class RenderSettingsOperator(bpy.types.Operator):
         else:
             pass
 
-        # 查看变换
+        # 色彩管理 - 查看变换
         if bpy.context.scene.display_settings.display_device == 'sRGB':
             bpy.context.scene.view_settings.view_transform = 'Filmic'
 
-        # 着色方式 渲染
+        # 着色方式 - 渲染
         try:
             bpy.context.space_data.shading.type = 'RENDERED'
         except (AttributeError, TypeError):
@@ -177,10 +177,7 @@ def reset(struct):
             reset(val)
         else:
             try:
-                default = prop.default
-                setattr(struct, prop.identifier, default)
-                if prop.identifier == "use_bloom":
-                    return
+                setattr(struct, prop.identifier, prop.default)
             except Exception:
                 pass
 
