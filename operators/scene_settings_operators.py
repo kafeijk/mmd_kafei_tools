@@ -54,8 +54,6 @@ class RenderSettingsOperator(bpy.types.Operator):
                 set_eevee(context)
         elif engine == "CYCLES":
             set_cycles(context)
-        else:
-            pass
 
         # 色彩管理 - 查看变换
         if bpy.context.scene.display_settings.display_device == 'sRGB':
