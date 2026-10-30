@@ -81,7 +81,9 @@ class WorldSettingsOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_world_settings
         world_name = props.world_name
-        set_env(self, world_name, 1)
+        warning = set_env(context, world_name, 1)
+        if warning is not None:
+            self.report(type={'WARNING'}, message=warning)
 
 
 def has_link(links, from_socket, to_socket):
@@ -148,9 +150,10 @@ def find_matching_world(world_name, match_func):
     return None
 
 
-def set_env(operator, world_name, strength):
+def set_env(context, world_name, strength):
+    """设置世界环境，返回需要提示的信息（None 表示无需提示）"""
     blender_version = bpy.app.version
-    scene = bpy.context.scene
+    scene = context.scene
     if world_name == "DEFAULT":
         # 已有结构一致的同名世界时直接复用，否则新建
         world = find_matching_world("World", is_default_world)
@@ -204,9 +207,10 @@ def set_env(operator, world_name, strength):
     world_output_node = world_nodes.nodes.new(type='ShaderNodeOutputWorld')
     world_output_node.location = (200, 0)
 
+    warning = None
     if not os.path.exists(env_texture_path):
-        operator.report(type={'WARNING'}, message=bpy.app.translations.pgettext_iface(
-            "HDRI Map not found. Add manually. Path: {}").format(env_texture_path))
+        warning = bpy.app.translations.pgettext_iface(
+            "HDRI Map not found. Add manually. Path: {}").format(env_texture_path)
     else:
         image = bpy.data.images.load(env_texture_path, check_existing=True)
         env_tex_node.image = image
@@ -228,6 +232,7 @@ def set_env(operator, world_name, strength):
     background_node.inputs['Strength'].default_value = strength
     # 设置世界环境
     scene.world = world
+    return warning
 
 
 def reset(struct):
@@ -777,9 +782,11 @@ class LoadRenderPresetOperator(bpy.types.Operator):
                 shading.show_xray_wireframe = False
 
         # 设置并切换到自定义世界环境
-        set_env(self, "SUNSET", 2)
+        warning = set_env(context, "SUNSET", 2)
+        if warning is not None:
+            self.report(type={'WARNING'}, message=warning)
         if IS_EEVEE_NEXT:
-            world = bpy.context.scene.world
+            world = scene.world
             world_nodes = world.node_tree
             for node in world_nodes.nodes:
                 if node.bl_idname == "ShaderNodeMapping":
