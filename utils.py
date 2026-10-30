@@ -158,6 +158,26 @@ def view3d_context():
     return {"area": area, "region": region}
 
 
+def center_view_camera():
+    """相机视角下重新对准相机；非相机视角或后台运行时忽略"""
+    if bpy.app.background:
+        return
+    view3d = view3d_context()
+    area = view3d["area"]
+    if area is None:
+        return
+    region_3d = getattr(area.spaces.active, "region_3d", None)
+    # https://docs.blender.org/api/current/bpy.types.RegionView3D.html#bpy.types.RegionView3D.view_perspective
+    if region_3d is None or region_3d.view_perspective != 'CAMERA':
+        return
+    with bpy.context.temp_override(**view3d):
+        try:
+            bpy.ops.view3d.view_center_camera()
+        except RuntimeError:
+            # 上下文不满足（如无活动视口）时忽略
+            pass
+
+
 def get_physical_bone(root):
     """获取受物理影响的骨骼"""
     rigidbody_parent = find_rigid_body_parent(root)

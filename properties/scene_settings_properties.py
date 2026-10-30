@@ -53,6 +53,29 @@ class WorldSettingsProperty(bpy.types.PropertyGroup):
         del bpy.types.Scene.mmd_kafei_tools_world_settings
 
 
+def apply_resolution_preset(scene, identifier):
+    """按预设设置渲染分辨率，并恢复缩放比例/像素比默认值"""
+    preset = RESOLUTION_PRESETS.get(identifier)
+    if preset is None:
+        return False
+    _, width, height = preset
+    rd = scene.render
+    rd.resolution_x = width
+    rd.resolution_y = height
+    rd.resolution_percentage = rd.bl_rna.properties["resolution_percentage"].default
+    rd.pixel_aspect_x = rd.bl_rna.properties["pixel_aspect_x"].default
+    rd.pixel_aspect_y = rd.bl_rna.properties["pixel_aspect_y"].default
+    return True
+
+
+def update_resolution(self, context):
+    """分辨率下拉变更后立即生效；相机视角下重新对准相机"""
+    if not apply_resolution_preset(context.scene, self.resolution):
+        return
+    from ..utils import center_view_camera
+    center_view_camera()
+
+
 class OutputSettingsProperty(bpy.types.PropertyGroup):
     resolution: bpy.props.EnumProperty(
         name="Resolution",
@@ -61,7 +84,8 @@ class OutputSettingsProperty(bpy.types.PropertyGroup):
             (identifier, label, f"{width}x{height}")
             for identifier, (label, width, height) in RESOLUTION_PRESETS.items()
         ],
-        default="1080P"
+        default="1080P",
+        update=update_resolution
     )
 
     @staticmethod

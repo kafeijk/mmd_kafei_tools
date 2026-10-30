@@ -34,7 +34,6 @@ from ..operators.fill_suffix_operators import FillSuffixOrganizePanelOperator
 from ..operators.fill_suffix_operators import FillSuffixRenderPreviewOperator
 from ..operators.scene_settings_operators import RenderSettingsOperator
 from ..operators.scene_settings_operators import WorldSettingsOperator
-from ..operators.scene_settings_operators import ResolutionSettingsOperator
 from ..operators.scene_settings_operators import SwapResolutionOperator
 from ..operators.scene_settings_operators import LightSettingsOperator
 from ..operators.scene_settings_operators import CameraSettingsOperator
@@ -186,28 +185,33 @@ class OutputSettingsPanel(bpy.types.Panel):
 
         col = layout.column()
 
-        row = col.row(align=True)
-        props_col = row.column(align=True)
-        button_col = row.column(align=True)
-        button_col.scale_x = 0.3
+        # 分辨率（下拉变更即生效）
+        col.prop(props, "resolution", text="Resolution")
 
-        # 分辨率
-        props_col.prop(props, "resolution", text="Resolution")
-        props_col.prop(rd, "resolution_x", text="X")
-        props_col.prop(rd, "resolution_y", text="Y")
-        button_col.operator(ResolutionSettingsOperator.bl_idname, text="", icon="TRIA_RIGHT")
-        button_col.operator(SwapResolutionOperator.bl_idname, text="⇅", emboss=True)
+        # X 与交换按钮同一行：按钮紧贴 X 右侧
+        row = col.row(align=True)
+        row.prop(rd, "resolution_x", text="X")
+        swap_row = row.row(align=True)
+        swap_row.ui_units_x = 1.2
+        swap_row.operator(SwapResolutionOperator.bl_idname, text="⇅", emboss=True)
+
+        # Y 与等宽留空同行：输入框与 X 等长，右侧留白与按钮对齐
+        row = col.row(align=True)
+        row.prop(rd, "resolution_y", text="Y")
+        spacer = row.row(align=True)
+        spacer.ui_units_x = 1.2
+        spacer.label(text="", icon='BLANK1')
 
         # 帧率（复用 Blender 自带的绘制逻辑，内部处理预设文案与自定义输入）
-        props_col.separator()
-        frame_col = props_col.column(heading="Frame Rate")
+        col.separator()
+        frame_col = col.column(heading="Frame Rate")
         bpy.types.RENDER_PT_format.draw_framerate(frame_col, rd)
 
         # 输出路径 + 输出文件格式
-        props_col.separator()
-        props_col.prop(rd, "filepath", text="路径")
+        col.separator()
+        col.prop(rd, "filepath", text="路径")
         image_settings = rd.image_settings
-        props_col.template_image_settings(image_settings, color_management=False)
+        col.template_image_settings(image_settings, color_management=False)
 
 
 class LightSettingsPanel(bpy.types.Panel):
