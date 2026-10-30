@@ -190,34 +190,34 @@ def set_eevee(context):
     scene = context.scene
     # 预设目的：快速渲染视频。非图像渲染，非渲染高质量视频
     # 渲染引擎 - Eevee
-    scene.render.engine = EEVEE_ENGINE
+    safe_set(scene.render, "engine", EEVEE_ENGINE)
     # 恢复 Eevee 默认设置
     reset(scene.eevee)
 
     # 环境光遮蔽
-    scene.eevee.use_gtao = True
+    safe_set(scene.eevee, "use_gtao", True)
     # 辉光
-    scene.eevee.use_bloom = True
+    safe_set(scene.eevee, "use_bloom", True)
 
     # 屏幕空间反射
-    scene.eevee.use_ssr = True
+    safe_set(scene.eevee, "use_ssr", True)
     # 折射
-    scene.eevee.use_ssr_refraction = True
+    safe_set(scene.eevee, "use_ssr_refraction", True)
     # 半精度追踪
-    scene.eevee.use_ssr_halfres = False
+    safe_set(scene.eevee, "use_ssr_halfres", False)
 
     # 运动模糊
-    scene.eevee.use_motion_blur = False
+    safe_set(scene.eevee, "use_motion_blur", False)
 
     # 阴影
     # 矩形尺寸
-    scene.eevee.shadow_cube_size = '1024'
+    safe_set(scene.eevee, "shadow_cube_size", '1024')
     # 级联大小
-    scene.eevee.shadow_cascade_size = '1024'
+    safe_set(scene.eevee, "shadow_cascade_size", '1024')
     # 高位深
-    scene.eevee.use_shadow_high_bitdepth = True
+    safe_set(scene.eevee, "use_shadow_high_bitdepth", True)
     # 柔和阴影
-    scene.eevee.use_soft_shadows = True
+    safe_set(scene.eevee, "use_soft_shadows", True)
 
 
 def set_eevee_next(context):
