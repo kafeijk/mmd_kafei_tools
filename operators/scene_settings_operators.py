@@ -191,11 +191,10 @@ def reset(struct):
 def set_eevee(context):
     scene = context.scene
     # 预设目的：快速渲染视频。非图像渲染，非渲染高质量视频
-    # 恢复 Eevee 默认设置
-    reset(scene.eevee)
-
     # 渲染引擎 - Eevee
     scene.render.engine = EEVEE_ENGINE
+    # 恢复 Eevee 默认设置
+    reset(scene.eevee)
 
     # 环境光遮蔽
     scene.eevee.use_gtao = True
@@ -225,11 +224,10 @@ def set_eevee(context):
 
 def set_eevee_next(context):
     scene = context.scene
-    # 恢复 Eevee 默认设置
-    reset(scene.eevee)
-
     # 渲染引擎 - Eevee
     safe_set(scene.render, "engine", EEVEE_ENGINE)
+    # 恢复 Eevee 默认设置
+    reset(scene.eevee)
 
     # 时序重投影。该参数默认值即为True，但参数use_bloom（辉光）会影响到该值的设定，所以这里显示设置
     safe_set(scene.eevee, "use_taa_reprojection", True)
