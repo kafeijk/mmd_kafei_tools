@@ -157,16 +157,34 @@ def find_matching_world(world_name, match_func):
 def set_env(context, world_name, strength):
     """设置世界环境，返回需要提示的信息（None 表示无需提示）"""
     scene = context.scene
-    if world_name == "DEFAULT":
-        # 已有结构一致的同名世界时直接复用，否则新建
-        world = find_matching_world("World", is_default_world)
-        if world is not None:
-            scene.world = world
-            return
-        world = bpy.data.worlds.new("World")
-        if not IS_5_0_OR_NEWER:  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
-            world.use_nodes = True
-        world_nodes = world.node_tree
+    is_default = world_name == "DEFAULT"
+    world_display_name = "World" if is_default else world_name.capitalize()
+
+    if is_default:
+        env_texture_path = ""
+    else:
+        # 环境纹理目录：LOCAL 资源路径 + 官方数据目录（resource_path 结果可能不存在，但不会返回None）
+        # https://docs.blender.org/api/current/bpy.utils.html#bpy.utils.resource_path
+        env_folder = os.path.join(bpy.utils.resource_path('LOCAL'), 'datafiles', 'studiolights', 'world')
+        # Blender 自带的 HDRI 文件名为全小写
+        env_file_name = f'{world_name.lower()}.exr'
+        env_texture_path = os.path.join(env_folder, env_file_name)
+
+    # 已有结构一致的同名世界时直接复用，否则新建
+    match_func = is_default_world if is_default else (lambda w: is_env_world(w, env_texture_path, strength))
+    world = find_matching_world(world_display_name, match_func)
+    if world is not None:
+        scene.world = world
+        return
+
+    # 新建世界：名称与节点开关为公共步骤，节点处理按类型分叉
+    world = bpy.data.worlds.new(world_display_name)
+    if not IS_5_0_OR_NEWER:  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+        world.use_nodes = True
+    world_nodes = world.node_tree
+
+    if is_default:
+        # 黑背景、无光照贡献
         for node in world_nodes.nodes:
             if node.bl_idname == "ShaderNodeBackground":
                 node.inputs[0].default_value = (0, 0, 0, 1)
@@ -175,24 +193,7 @@ def set_env(context, world_name, strength):
         scene.world = world
         return
 
-    # 环境纹理目录：LOCAL 资源路径 + 官方数据目录（resource_path 结果可能不存在，但不会返回None）
-    # https://docs.blender.org/api/current/bpy.utils.html#bpy.utils.resource_path
-    env_folder = os.path.join(bpy.utils.resource_path('LOCAL'), 'datafiles', 'studiolights', 'world')
-    # Blender 自带的 HDRI 文件名为全小写
-    env_file_name = f'{world_name.lower()}.exr'
-    env_texture_path = os.path.join(env_folder, env_file_name)
-    world_display_name = world_name.capitalize()
-
-    # 已有结构一致的同名世界时直接复用，否则新建
-    world = find_matching_world(world_display_name, lambda w: is_env_world(w, env_texture_path, strength))
-    if world is not None:
-        scene.world = world
-        return
-
-    world = bpy.data.worlds.new(world_display_name)
-    if not IS_5_0_OR_NEWER:  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
-        world.use_nodes = True
-    world_nodes = world.node_tree
+    # 天空球：清空默认节点后重建
     world_nodes.nodes.clear()
     # 创建 Texture Coordinate 节点
     tex_coord_node = world_nodes.nodes.new(type='ShaderNodeTexCoord')
