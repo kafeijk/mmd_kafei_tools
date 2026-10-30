@@ -133,8 +133,9 @@ def is_env_world(world, env_texture_path, strength):
         return False
     if background.inputs['Strength'].default_value != strength:
         return False
+    # 未指定贴图属于异常结构，不视为可复用
     if env_tex.image is None:
-        return not os.path.exists(env_texture_path)
+        return False
     return os.path.abspath(bpy.path.abspath(env_tex.image.filepath)) == os.path.abspath(env_texture_path)
 
 
