@@ -445,9 +445,7 @@ class SwapResolutionOperator(bpy.types.Operator):
 
 
 def set_cons(obj, target, subtarget=None):
-    deselect_all_objects()
-    select_and_activate(obj)
-
+    """设置子级约束"""
     # 移除原先约束
     for constraint in reversed(obj.constraints):
         obj.constraints.remove(constraint)
@@ -468,9 +466,8 @@ def set_cons(obj, target, subtarget=None):
     if subtarget:
         cons.subtarget = subtarget
 
-    bpy.ops.constraint.childof_clear_inverse(constraint=cons.name, owner='OBJECT')
-
-    deselect_all_objects()
+    with bpy.context.temp_override(object=obj, active_object=obj):
+        bpy.ops.constraint.childof_clear_inverse(constraint=cons.name, owner='OBJECT')
 
 
 def get_obj_by_attr_value(attr_name, value):
@@ -656,9 +653,6 @@ class LightSettingsOperator(bpy.types.Operator):
 
         for light in lights:
             set_cons(light, light_root)
-
-        deselect_all_objects()
-        select_and_activate(active_obj)
 
         return True
 
