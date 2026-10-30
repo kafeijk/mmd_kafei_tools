@@ -35,6 +35,12 @@ UNKNOWN_ORDER = float("inf")
 KEY_LIGHT_ENERGY = 150
 FILL_LIGHT_ENERGY = KEY_LIGHT_ENERGY * 0.2
 BACK_LIGHT_ENERGY = 250
+# 三点照明的角度（度）与面光源尺寸
+KEY_LIGHT_ANGLE = 30
+FILL_LIGHT_ANGLE = 60
+LIGHT_ROTATION_X = 75
+LIGHT_HEIGHT_ANGLE = 15
+LIGHT_SIZE = 1
 # 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
 IMG_TYPE_EXT_MAP = {
     "BMP": ".bmp",

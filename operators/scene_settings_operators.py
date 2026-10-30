@@ -5,7 +5,8 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, PRECISION
+from ..constants import (BACK_LIGHT_ENERGY, FILL_LIGHT_ANGLE, FILL_LIGHT_ENERGY, KEY_LIGHT_ANGLE,
+                         KEY_LIGHT_ENERGY, LIGHT_HEIGHT_ANGLE, LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
 
 from ..properties.scene_settings_properties import apply_resolution_preset
 
@@ -505,7 +506,7 @@ class LightSettingsOperator(bpy.types.Operator):
 
         if not obj:
             light_data = bpy.data.lights.new(f"{attr_value}Data", type='AREA')
-            light_data.size = 1
+            light_data.size = LIGHT_SIZE
             light_data.energy = energy
             light_data.volume_factor = 0
             light_data.color = hex_to_rgb(color_hex)
@@ -529,9 +530,10 @@ class LightSettingsOperator(bpy.types.Operator):
     def _apply_transforms(self, lights: list, props) -> None:
         key_light, fill_light, back_light = lights
 
-        key_y = math.radians(30)
-        fill_y = math.radians(60)
-        z_angle = math.radians(15)
+        rotation_x = math.radians(LIGHT_ROTATION_X)
+        key_y = math.radians(KEY_LIGHT_ANGLE)
+        fill_y = math.radians(FILL_LIGHT_ANGLE)
+        z_angle = math.radians(LIGHT_HEIGHT_ANGLE)
 
         key_factor = 1 if props.key_position == "RIGHT" else -1
         fill_factor = -key_factor
@@ -542,7 +544,7 @@ class LightSettingsOperator(bpy.types.Operator):
         back_z = props.back_angle
 
         # 主光
-        key_light.rotation_euler = (math.radians(75), 0, key_y * key_factor)
+        key_light.rotation_euler = (rotation_x, 0, key_y * key_factor)
         key_light.location = (
             d_key * math.sin(key_y) * key_factor,
             -d_key * math.cos(key_y),
@@ -550,7 +552,7 @@ class LightSettingsOperator(bpy.types.Operator):
         )
 
         # 辅光
-        fill_light.rotation_euler = (math.radians(75), 0, fill_y * fill_factor)
+        fill_light.rotation_euler = (rotation_x, 0, fill_y * fill_factor)
         fill_light.location = (
             d_fill * math.sin(fill_y) * fill_factor,
             -d_fill * math.cos(fill_y),
@@ -663,7 +665,7 @@ class LightSettingsOperator(bpy.types.Operator):
         vg_name = props.vg_name
         if target_type == "ARMATURE":
             if not active_object:
-                self.report(type={'ERROR'}, message=f'Select armature object!')
+                self.report(type={'ERROR'}, message='Select armature object!')
                 return False
             if active_object.type == "ARMATURE":
                 armature = active_object
@@ -671,7 +673,7 @@ class LightSettingsOperator(bpy.types.Operator):
                 ancestor = find_ancestor(active_object)
                 armature = find_armature(ancestor)
             if not armature:
-                self.report(type={'ERROR'}, message=f'Armature not found!')
+                self.report(type={'ERROR'}, message='Armature not found!')
                 return False
             if bone_name not in armature.pose.bones:
                 self.report(type={'ERROR'},
@@ -680,10 +682,10 @@ class LightSettingsOperator(bpy.types.Operator):
             return True
         elif target_type == "MESH":
             if not active_object:
-                self.report(type={'ERROR'}, message=f'Select mesh object!')
+                self.report(type={'ERROR'}, message='Select mesh object!')
                 return False
             if active_object.type != 'MESH':
-                self.report(type={'ERROR'}, message=f'Select mesh object!')
+                self.report(type={'ERROR'}, message='Select mesh object!')
                 return False
             if vg_name not in active_object.vertex_groups:
                 msg = bpy.app.translations.pgettext_iface("Vertex group \"{}\" not found!").format(vg_name)
@@ -698,6 +700,7 @@ class LightSettingsOperator(bpy.types.Operator):
                 self.report({'ERROR'}, message=msg)
                 return False
             return True
+        return False
 
 
 def find_armature(obj):
