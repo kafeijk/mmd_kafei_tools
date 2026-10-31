@@ -212,6 +212,13 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
 
             modify_mmd_material(mat)
 
+        # 转换材质
+        if mmd_tools_enabled and any(obj.type == 'MESH' for obj in objs):
+            deselect_all_objects()
+            for obj in objs:
+                obj.select_set(True)
+            bpy.ops.mmd_tools.convert_materials()
+
     def remove_modifiers(self, objs, props):
         """移除修改器"""
         keep_first = props.keep_first
