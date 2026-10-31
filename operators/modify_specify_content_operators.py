@@ -76,14 +76,17 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
         average_islands_list = []
         uv_render_map = {}
 
-        # 新建uv
+        # 以网格为单位处理，避免多个物体共用同一网格时重复新建UV
+        meshes = {}
         for obj in objs:
-            mesh = obj.data
+            meshes[obj.data.as_pointer()] = obj.data
 
+        # 新建uv
+        for mesh_ptr, mesh in meshes.items():
             # 记录uv激活状态
             if mesh.uv_layers:
                 active_render_index = next(i for i in range(len(mesh.uv_layers)) if mesh.uv_layers[i].active_render)
-                uv_render_map[obj.name] = (mesh.uv_layers.active_index, active_render_index)
+                uv_render_map[mesh_ptr] = (mesh.uv_layers.active_index, active_render_index)
 
             # 新建UV  name='',创建的名称为属性;如果不填写，创建的名称为UVMap
             if uv_name != '':
@@ -95,11 +98,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             if new_uv:
                 new_uv.active = True
                 new_uv.active_render = True
-                # 只有成功创建UV的物体才会被添加进列表，否则后续操作会破坏其原始UV的布局
-                average_islands_list.append(obj)
-            else:
-                # 达到可创建uv数量上限
-                continue
+                # 只有成功创建UV的网格才加入列表，否则后续操作会破坏其原始UV的布局
+                average_islands_list.extend(obj for obj in objs if obj.data.as_pointer() == mesh_ptr)
 
         # 孤岛比例平均化
         if average_islands_flag and average_islands_list:
@@ -113,11 +113,11 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             bpy.ops.object.mode_set(mode='OBJECT')
 
         # 恢复uv激活状态
-        for obj in objs:
-            mesh = obj.data
+        for mesh_ptr, mesh in meshes.items():
             if mesh.uv_layers and len(mesh.uv_layers) > 1:
-                mesh.uv_layers[uv_render_map[obj.name][0]].active = True
-                mesh.uv_layers[uv_render_map[obj.name][1]].active_render = True
+                active_index, active_render_index = uv_render_map[mesh_ptr]
+                mesh.uv_layers[active_index].active = True
+                mesh.uv_layers[active_render_index].active_render = True
             mesh.update()
 
     def add_color_attribute(self, objs, props):
