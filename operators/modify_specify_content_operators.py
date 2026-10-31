@@ -46,29 +46,30 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
         content_type = props.content_type
         objs = get_obj_by_type(selected_objects, content_type)
 
-        if content_type == 'ADD_UV_MAP':
-            self.add_uv_map(objs, props)
-        elif content_type == 'ADD_COLOR_ATTRIBUTE':
-            self.add_color_attribute(objs, props)
-        elif content_type == 'REMOVE_UV_MAP':
-            self.remove_uvs(objs, props)
-        elif content_type == 'REMOVE_COLOR_ATTRIBUTE':
-            self.remove_color_attribute(objs, props)
-        elif content_type == 'REMOVE_MATERIAL':
-            self.remove_material(objs, props)
-        elif content_type == 'REMOVE_MODIFIER':
-            self.remove_modifiers(objs, props)
-        elif content_type == 'REMOVE_CONSTRAINT':
-            self.remove_constraint(objs, props)
-        elif content_type == 'REMOVE_VERTEX_GROUP':
-            self.remove_vgs(objs, props)
-        elif content_type == 'REMOVE_SHAPE_KEY':
-            self.remove_shape_keys(objs, props)
-        elif content_type == 'CLEAR_SHAPE_KEY':
-            self.clear_shape_keys(objs, props)
-
-        # 恢复选择状态
-        restore_selection(selected_objects, active_object)
+        try:
+            if content_type == 'ADD_UV_MAP':
+                self.add_uv_map(objs, props)
+            elif content_type == 'ADD_COLOR_ATTRIBUTE':
+                self.add_color_attribute(objs, props)
+            elif content_type == 'REMOVE_UV_MAP':
+                self.remove_uvs(objs, props)
+            elif content_type == 'REMOVE_COLOR_ATTRIBUTE':
+                self.remove_color_attribute(objs, props)
+            elif content_type == 'REMOVE_MATERIAL':
+                self.remove_material(objs, props)
+            elif content_type == 'REMOVE_MODIFIER':
+                self.remove_modifiers(objs, props)
+            elif content_type == 'REMOVE_CONSTRAINT':
+                self.remove_constraint(objs, props)
+            elif content_type == 'REMOVE_VERTEX_GROUP':
+                self.remove_vgs(objs, props)
+            elif content_type == 'REMOVE_SHAPE_KEY':
+                self.remove_shape_keys(objs, props)
+            elif content_type == 'CLEAR_SHAPE_KEY':
+                self.clear_shape_keys(objs, props)
+        finally:
+            # 恢复选择状态（异常时同样恢复）
+            restore_selection(selected_objects, active_object)
 
     def add_uv_map(self, objs, props):
         uv_name = props.uv_name
@@ -178,9 +179,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
     def remove_material(self, objs, props):
         """移除材质"""
         create_default = props.create_default
+        mmd_tools_enabled = is_mmd_tools_enabled()
         for obj in objs:
-            deselect_all_objects()
-            select_and_activate(obj)
             mesh = obj.data
 
             # 移除材质
@@ -188,33 +188,31 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             if not create_default:
                 continue
 
-            # 新建默认材质
-            mat = bpy.data.materials.new(name=obj.name)
+            # PMX 模型去掉名称前缀（如 000_xxx → xxx）
+            pmx_root = find_pmx_root_with_child(obj) if mmd_tools_enabled else None
+            target_name = obj.name
+            match = PMX_NAME_PATTERN.match(obj.name) if pmx_root else None
+            if match:
+                target_name = match.group('name')
 
-            blender_version = bpy.app.version
-            if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+            # 同名且无用户的旧材质会导致新建材质变成 xxx.001，先移除
+            remove_orphan_material(target_name)
+
+            # 新建默认材质
+            mat = bpy.data.materials.new(name=target_name)
+
+            if bpy.app.version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
                 mat.use_nodes = True
 
-            if mat.name != obj.name:
-                mat.name = obj.name  # 不清楚为什么要设置两次...
-                mat.name = obj.name
-            if mesh.materials:
-                mesh.materials[0] = mat  # assign to 1st material slot
-            else:
-                mesh.materials.append(mat)  # no slots
+            mesh.materials.append(mat)
 
             # 如果开启mmd_tools，进行额外调整
-            if not is_mmd_tools_enabled():
-                continue
-            # 针对pmx模型处理
-            pmx_root = find_pmx_root_with_child(obj)
             if not pmx_root:
                 continue
-            match = PMX_NAME_PATTERN.match(obj.name)
-            if match:
-                original_name = match.group('name')
-                mat.name = original_name
-                mat.name = original_name
+
+            # mmd_tools 的材质操作需要活动对象与活动材质，这里才需要切换选择
+            deselect_all_objects()
+            select_and_activate(obj)
             modify_mmd_material(mat)
 
     def remove_modifiers(self, objs, props):
@@ -288,6 +286,13 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 kb.slider_max = 1.0  # 先放开上限
                 kb.slider_min = 0.0  # 再设下限，此时 0.0 < 1.0，合法
                 kb.value = 0.0
+
+
+def remove_orphan_material(name):
+    """删除同名且无用户的材质，避免新建材质被自动重命名为 xxx.001"""
+    material = bpy.data.materials.get(name)
+    if material and material.users == 0:
+        bpy.data.materials.remove(material)
 
 
 def get_obj_by_type(objs, content_type):
