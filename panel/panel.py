@@ -446,14 +446,13 @@ class ArrangeObjectPanel(bpy.types.Panel):
                 spacing_col.prop(props, "spacing", index=2, text="Z")
 
             col.prop(props, "num_per_row")
-            col.prop(props, "threshold")
         elif arrangement_type in ["ARC", "CIRCLE"]:
             col.prop(props, "radius")
             col.prop(props, "num_per_circle")
             col.prop(props, "spacing_circle")
             col.prop(props, "offset")
-            col.prop(props, "threshold")
 
+        col.prop(props, "threshold")
         col.operator(ArrangeObjectOperator.bl_idname, text=ArrangeObjectOperator.bl_label)
 
 
