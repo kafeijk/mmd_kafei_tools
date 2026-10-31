@@ -391,7 +391,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
     def execute(self, context):
         if not self.check_props(context):
             return {'CANCELLED'}
-        self.main(context)
+        self.arrange_objects(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def check_props(self, context):
@@ -415,7 +415,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 return False
         return True
 
-    def main(self, context):
+    def arrange_objects(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_arrange_object
 
