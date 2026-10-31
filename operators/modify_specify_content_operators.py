@@ -134,8 +134,9 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 type='BYTE_COLOR',
                 domain='CORNER'
             )
-            for loop in mesh.loops:
-                color_attribute.data[loop.index].color = color
+            # 每个面角一份颜色：将 [R, G, B, A] 重复 len(mesh.loops) 次，
+            color_values = list(color) * len(mesh.loops)
+            color_attribute.data.foreach_set("color", color_values)
 
             mesh.update()
 
