@@ -49,16 +49,18 @@ def find_nodes(mat, names, total_node_map, by="node", recursive=False):
     return node_map
 
 
-def split_keywords(text):
-    """拆分关键词：中英文逗号均可作为分隔符，忽略大小写与空白，允许空串（返回空列表）"""
+def split_keywords(text, keep_empty=False):
+    """拆分关键词：中英文逗号均可作为分隔符，忽略大小写与空白；keep_empty=True 时保留空串"""
     keywords = [keyword.lower().strip() for keyword in re.split(r"[,，]", text)]
+    if keep_empty:
+        return keywords
     return [keyword for keyword in keywords if keyword]
 
 
 def get_keywords(props):
-    """按定位方式取关键词列表（忽略大小写）"""
+    """按定位方式取关键词列表（忽略大小写；允许空串并进入搜索）"""
     text = props.node_keywords if props.search_type == "NODE_NAME" else props.img_keywords
-    return split_keywords(text)
+    return split_keywords(text, keep_empty=True)
 
 
 def get_scope_objs(context, scope):
