@@ -11,6 +11,7 @@ from ..operators.small_feature_operators import (
     SceneRootOperator,
     RemoveMissingDataOperator,
     RepairSSSOperator,
+    split_keywords,
 )
 from ..operators.small_feature_operators import GroupObjectOperator
 from ..operators.ssb_operators import AddSsbOperator, SelectAllSsbOperator
@@ -327,7 +328,7 @@ class SmallFeaturePanel(bpy.types.Panel):
         if option == "MODIFY_COLORSPACE":
             source_colorspace_col = col.column()
             source_colorspace_col.prop(colorspace_props, "source_colorspace")
-            keywords = colorspace_props.keywords
+            keywords = split_keywords(colorspace_props.keywords)
             if keywords:
                 source_colorspace_col.enabled = False
             else:

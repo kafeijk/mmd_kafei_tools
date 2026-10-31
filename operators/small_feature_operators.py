@@ -49,10 +49,16 @@ def find_nodes(mat, names, total_node_map, by="node", recursive=False):
     return node_map
 
 
+def split_keywords(text):
+    """拆分关键词：中英文逗号均可作为分隔符，忽略大小写与空白，允许空串（返回空列表）"""
+    keywords = [keyword.lower().strip() for keyword in re.split(r"[,，]", text)]
+    return [keyword for keyword in keywords if keyword]
+
+
 def get_keywords(props):
     """按定位方式取关键词列表（忽略大小写）"""
     text = props.node_keywords if props.search_type == "NODE_NAME" else props.img_keywords
-    return [keyword.lower().strip() for keyword in text.split(",")]
+    return split_keywords(text)
 
 
 def get_scope_objs(context, scope):
@@ -492,11 +498,10 @@ class ModifyColorspaceOperator(bpy.types.Operator):
 
         source_colorspace = props.source_colorspace
         target_colorspace = props.target_colorspace
-        keywords = props.keywords
+        keyword_list = split_keywords(props.keywords)
 
         for image in bpy.data.images:
-            if keywords:
-                keyword_list = [keyword.lower().strip() for keyword in keywords.split(",")]
+            if keyword_list:
                 if any(keyword in image.name.lower().strip() for keyword in keyword_list):
                     # 修改图像的色彩空间
                     image.colorspace_settings.name = target_colorspace

@@ -59,7 +59,7 @@ class ModifyColorspaceProperty(bpy.types.PropertyGroup):
     )
     keywords: bpy.props.StringProperty(
         name="关键词",
-        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开。若启用关键词搜索，则源色彩空间参数将被忽略",
+        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用中英文逗号分隔开。若启用关键词搜索，则源色彩空间参数将被忽略",
         default=''
     )
 
@@ -95,13 +95,13 @@ class GroupObjectProperty(bpy.types.PropertyGroup):
 
     node_keywords: bpy.props.StringProperty(
         name="关键词",
-        description="节点名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开",
+        description="节点名称关键词，用于搜索贴图。忽略大小写，可用中英文逗号分隔开",
         default='mmd_base_tex'
     )
 
     img_keywords: bpy.props.StringProperty(
         name="关键词",
-        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开",
+        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用中英文逗号分隔开",
         default='BaseColor,Diffuse,Albedo'
     )
 
