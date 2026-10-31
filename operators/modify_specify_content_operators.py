@@ -291,26 +291,32 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
 
 def get_obj_by_type(objs, content_type):
     # https://docs.blender.org/api/current/bpy_types_enum_items/object_type_items.html#rna-enum-object-type-items
-    mesh_only = {'MESH'}
-    type_map = {
-        'REMOVE_MATERIAL': {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'VOLUME', 'GPENCIL'},
-        'REMOVE_MODIFIER': {'MESH', 'CURVE', 'SURFACE', 'FONT', 'VOLUME', 'LATTICE', 'GPENCIL'},
-        'REMOVE_VERTEX_GROUP': mesh_only,
-        'REMOVE_SHAPE_KEY': mesh_only,
-        'CLEAR_SHAPE_KEY': mesh_only,
-        'ADD_UV_MAP': mesh_only,
-        'REMOVE_UV_MAP': mesh_only,
-        'ADD_COLOR_ATTRIBUTE': mesh_only,
-        'REMOVE_COLOR_ATTRIBUTE': mesh_only,
+    mesh_only_types = {
+        'REMOVE_VERTEX_GROUP',
+        'REMOVE_SHAPE_KEY',
+        'CLEAR_SHAPE_KEY',
+        'ADD_UV_MAP',
+        'REMOVE_UV_MAP',
+        'ADD_COLOR_ATTRIBUTE',
+        'REMOVE_COLOR_ATTRIBUTE',
     }
 
     if content_type == 'REMOVE_CONSTRAINT':
-        return objs
+        # 物体级 constraints 属性对所有类型恒存在，这里只做能力校验；空集合删除时为空操作
+        return [obj for obj in objs if hasattr(obj, "constraints")]
 
-    allowed = type_map.get(content_type)
-    if allowed is None:
-        return []
-    return [obj for obj in objs if obj.type in allowed]
+    if content_type == 'REMOVE_MODIFIER':
+        # 同理 modifiers 属性恒存在；融球等无法添加修改器，空集合删除时为空操作
+        return [obj for obj in objs if hasattr(obj, "modifiers")]
+
+    if content_type == 'REMOVE_MATERIAL':
+        # 按数据块是否支持材质判断，避免类型枚举随版本变化（如 GPENCIL → GREASEPENCIL）
+        return [obj for obj in objs if obj.data is not None and hasattr(obj.data, "materials")]
+
+    if content_type in mesh_only_types:
+        return [obj for obj in objs if obj.type == 'MESH']
+
+    return []
 
 
 def modify_mmd_material(material):
