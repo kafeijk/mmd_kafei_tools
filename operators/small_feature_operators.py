@@ -230,23 +230,39 @@ class RemoveMissingDataOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.remove_missing_external_data()
+        removed = self.remove_missing_external_data()
+        self.report(type={'INFO'},
+                    message=bpy.app.translations.pgettext_iface("已移除 {} 个丢失的外部数据").format(removed))
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def remove_missing_external_data(self):
-        """移除丢失的可打包外部数据（图像、字体、声音）"""
+        """移除丢失的可打包外部数据（图像、字体、声音、影片剪辑、体积），返回移除数量"""
+        data_blocks = (
+            bpy.data.images,
+            bpy.data.fonts,
+            bpy.data.sounds,
+            bpy.data.movieclips,
+            bpy.data.volumes,
+        )
 
-        def remove_if_missing(data_block):
-            for item in list(data_block):
-                if item.packed_file:
-                    continue
-                filepath = getattr(item, "filepath", "")
-                if filepath and not os.path.exists(bpy.path.abspath(filepath)):
-                    data_block.remove(item)
+        removed = 0
+        for data_block in data_blocks:
+            removed += self.remove_if_missing(data_block)
+        return removed
 
-        remove_if_missing(bpy.data.images)
-        remove_if_missing(bpy.data.fonts)
-        remove_if_missing(bpy.data.sounds)
+    @staticmethod
+    def remove_if_missing(data_block):
+        """移除指定数据块集合中路径已丢失的项，返回移除数量"""
+        removed = 0
+        for item in list(data_block):
+            # 已打包的数据不依赖外部路径
+            if getattr(item, "packed_file", None):
+                continue
+            filepath = getattr(item, "filepath", "")
+            if filepath and not os.path.exists(bpy.path.abspath(filepath)):
+                data_block.remove(item)
+                removed += 1
+        return removed
 
 
 class RepairSSSOperator(bpy.types.Operator):
