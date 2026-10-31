@@ -421,8 +421,8 @@ class ArrangeObjectOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_arrange_object
 
         # 记录选择状态
-        active_object = bpy.context.active_object
-        selected_objects = bpy.context.selected_objects
+        active_object = context.active_object
+        selected_objects = context.selected_objects
 
         arrangement_type = props.arrangement_type
         direction = props.direction
@@ -512,13 +512,13 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 bpy.data.collections.remove(coll)
         elif arrangement_type in ["ARC", "CIRCLE"]:
             # 在TMP_SCENE中预先创建圆弧/圆环，以解决性能问题
-            curr_scene_name = bpy.context.scene.name
+            curr_scene_name = context.scene.name
             tmp_scene = bpy.data.scenes.new("TMP_SCENE")
-            bpy.context.window.scene = tmp_scene
+            context.window.scene = tmp_scene
 
             # 添加空物体作为锁定追踪目标
             bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
-            empty = bpy.context.active_object
+            empty = context.active_object
             empty.name = "Locked Track Target"
             empty["arrangement"] = "Locked Track Target"
 
@@ -531,7 +531,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 curves.append(curve)
 
             # 恢复Scene
-            bpy.context.window.scene = bpy.data.scenes[curr_scene_name]
+            context.window.scene = bpy.data.scenes[curr_scene_name]
             bpy.data.scenes.remove(tmp_scene)
             # 恢复Link
             coll.objects.link(empty)
