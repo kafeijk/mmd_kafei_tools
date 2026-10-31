@@ -23,14 +23,21 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.main(context)
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        self.modify_content(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def main(self, context):
+    def check_props(self, context):
+        """校验：至少选中一个对象"""
+        if len(context.selected_objects) == 0:
+            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
+            return False
+        return True
+
+    def modify_content(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_modify_specify_content
-        if not self.check_props(props):
-            return
 
         # 记录选择状态
         active_object = bpy.context.active_object
@@ -62,13 +69,6 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
 
         # 恢复选择状态
         restore_selection(selected_objects, active_object)
-
-    def check_props(self, props):
-        objs = bpy.context.selected_objects
-        if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return False
-        return True
 
     def add_uv_map(self, objs, props):
         uv_name = props.uv_name
