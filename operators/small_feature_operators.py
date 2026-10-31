@@ -360,16 +360,15 @@ def is_valid_material(material):
 
 
 def get_materials(objs):
-    materials = []
+    """收集物体的材质，按材质自身去重（同一材质常被多个物体/材质槽共用）"""
+    materials = {}
     for obj in objs:
-        if not obj.material_slots:  # 材质槽为空
-            continue
         for slot in obj.material_slots:
             material = slot.material
             if not material:  # 有材质槽但无材质
                 continue
-            materials.append(material)
-    return materials
+            materials[material.as_pointer()] = material
+    return list(materials.values())
 
 
 def reset_bsdf_sss(nodes):
