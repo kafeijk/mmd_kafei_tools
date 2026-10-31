@@ -92,7 +92,7 @@ class SceneRootOperator(bpy.types.Operator):
 
         root = bpy.data.objects.new("root", None)
         root.location = context.scene.cursor.location.copy()
-        bpy.context.collection.objects.link(root)
+        context.collection.objects.link(root)
 
         context.view_layer.update()
 
@@ -160,15 +160,15 @@ class RepairSSSOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        if len(bpy.context.selected_objects) == 0:
+        if len(context.selected_objects) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
             return {'FINISHED'}
         props = context.scene.mmd_kafei_tools_sf
-        self.repair_sss(props.option)
+        self.repair_sss(context, props.option)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def repair_sss(self, option):
-        objs = bpy.context.selected_objects
+    def repair_sss(self, context, option):
+        objs = context.selected_objects
 
         materials = get_materials(objs)
         for material in materials:
@@ -407,11 +407,11 @@ class GroupObjectOperator(bpy.types.Operator):
         scene = context.scene
         props = scene.mmd_kafei_tools_group_object
 
-        selected_objects = bpy.context.selected_objects
+        selected_objects = context.selected_objects
         if len(selected_objects) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
             return
-        active_object = bpy.context.active_object
+        active_object = context.active_object
         if active_object is None:
             self.report(type={'ERROR'}, message=f'Activate the object!')
             return
@@ -436,7 +436,7 @@ class GroupObjectOperator(bpy.types.Operator):
                 objs = get_mesh_objs(ancestor)
                 ancestor_objs[ancestor] = objs
         elif scope == "SELECTED_OBJECT":
-            objs = bpy.context.selected_objects
+            objs = context.selected_objects
             ancestor_objs[None] = objs
 
         # 关键词
@@ -484,7 +484,7 @@ class GroupObjectOperator(bpy.types.Operator):
             if ancestor:
                 collection = ancestor.users_collection[0]
             else:
-                collection = bpy.context.scene.collection
+                collection = context.scene.collection
 
             for img_name, objs in img_objs.items():
                 img_name = re.sub(r"\.\d+$", "", img_name)  # 去掉.xxx后缀
