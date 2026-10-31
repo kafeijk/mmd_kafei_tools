@@ -49,6 +49,94 @@ def find_nodes(mat, names, total_node_map, by="node", recursive=False):
     return node_map
 
 
+def get_keywords(props):
+    """按定位方式取关键词列表（忽略大小写）"""
+    text = props.node_keywords if props.search_type == "NODE_NAME" else props.img_keywords
+    return [keyword.lower().strip() for keyword in text.split(",")]
+
+
+def get_scope_objs(context, scope):
+    """按影响范围返回 {顶层祖先:待处理对象列表}"""
+    if scope == "SELECTED_OBJECT":
+        return {None: context.selected_objects}
+
+    scope_objs = {}
+    for obj in context.selected_objects:
+        ancestor = find_ancestor(obj)
+        if ancestor is None:
+            continue
+        # 同一祖先已收集过，跳过重复的递归查询
+        if ancestor in scope_objs:
+            continue
+        scope_objs[ancestor] = get_mesh_objs(ancestor)
+    return scope_objs
+
+
+def get_group_parent_collection(context, ancestor):
+    """获取分组挂载的父集合：优先祖先所在集合；祖先不在任何集合中时退回场景根集合"""
+    if ancestor is None:
+        return context.scene.collection
+    if ancestor.users_collection:
+        return ancestor.users_collection[0]
+    return context.scene.collection
+
+
+def collect_img_names(obj, keyword_list, by, recursive, node_cache):
+    """收集单个物体所有材质中命中的贴图名称"""
+    if obj.type != "MESH" or not obj.data.materials:
+        return set()
+
+    img_names = set()
+    for mat in obj.data.materials:
+        # 跳过有材质槽但无材质的mat
+        if not mat:
+            continue
+
+        node_map = find_nodes(mat, keyword_list, node_cache, by=by, recursive=recursive)
+        for node_tree_name, nodes in node_map.items():
+            # 节点组结果按名称缓存，避免同一节点组被重复遍历
+            if node_tree_name and node_tree_name not in node_cache:
+                node_cache[node_tree_name].extend(nodes)
+            for node in nodes:
+                if node.image:
+                    img_names.add(node.image.name)
+
+    return img_names
+
+
+def group_objs_by_img(objs, keyword_list, by, recursive, node_cache):
+    """按贴图分组：只处理恰好匹配到一张贴图的物体"""
+    img_objs = defaultdict(list)
+    for obj in objs:
+        img_names = collect_img_names(obj, keyword_list, by, recursive, node_cache)
+        if len(img_names) == 1:
+            img_objs[img_names.pop()].append(obj)
+    return img_objs
+
+
+def get_image_sub_collection(parent, img_name):
+    """按贴图名获取/创建子集合：去掉序号后缀与扩展名"""
+    name = re.sub(r"\.\d+$", "", img_name)
+    coll_name = os.path.splitext(name)[0]
+    # https://docs.blender.org/manual/en/latest/advanced/limits.html
+    # Blender的ID限定在63个ASCII字符，所以image_name和collection_name限定长度是一致的，即使image_name名称被截断，也不影响collection的创建
+    if coll_name in parent.children:
+        return parent.children[coll_name]
+
+    sub_col = bpy.data.collections.new(coll_name)
+    parent.children.link(sub_col)
+    return sub_col
+
+
+def move_obj_to_collection(obj, collection):
+    """把物体从所有原集合移到目标集合"""
+    for c in obj.users_collection:
+        c.objects.unlink(obj)
+
+    if obj.name not in collection.objects:
+        collection.objects.link(obj)
+
+
 class SceneRootOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.sf_scene_root"
     bl_label = "执行"
@@ -407,106 +495,31 @@ class GroupObjectOperator(bpy.types.Operator):
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def group_by_tex(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_group_object
+        if not self.check_props(context):
+            return False
 
-        selected_objects = context.selected_objects
-        if len(selected_objects) == 0:
+        props = context.scene.mmd_kafei_tools_group_object
+        keyword_list = get_keywords(props)
+        by = "node" if props.search_type == "NODE_NAME" else "tex"
+        # 记录 节点组 - 匹配节点列表，避免重复查询
+        node_cache = defaultdict(list)
+
+        for ancestor, objs in get_scope_objs(context, props.scope).items():
+            img_objs = group_objs_by_img(objs, keyword_list, by, props.recursive, node_cache)
+            parent = get_group_parent_collection(context, ancestor)
+            for img_name, img_objs_group in img_objs.items():
+                sub_col = get_image_sub_collection(parent, img_name)
+                for obj in img_objs_group:
+                    move_obj_to_collection(obj, sub_col)
+
+        return True
+
+    def check_props(self, context):
+        """校验选择：至少选中一个物体，且存在活动物体"""
+        if len(context.selected_objects) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
             return False
-        active_object = context.active_object
-        if active_object is None:
+        if context.active_object is None:
             self.report(type={'ERROR'}, message=f'Activate the object!')
             return False
-
-        scope = props.scope
-        search_type = props.search_type
-        node_keywords = props.node_keywords
-        img_keywords = props.img_keywords
-        recursive = props.recursive
-
-        ancestors = set()
-        for obj in selected_objects:
-            ancestor = find_ancestor(obj)
-            if not ancestor:
-                continue
-            ancestors.add(ancestor)
-
-        # 影响范围
-        ancestor_objs = {}
-        if scope == "ROOT":
-            for ancestor in ancestors:
-                objs = get_mesh_objs(ancestor)
-                ancestor_objs[ancestor] = objs
-        elif scope == "SELECTED_OBJECT":
-            objs = context.selected_objects
-            ancestor_objs[None] = objs
-
-        # 关键词
-        if search_type == "NODE_NAME":
-            keywords = node_keywords
-        else:
-            keywords = img_keywords
-        keyword_list = [keyword.lower().strip() for keyword in keywords.split(",")]
-
-        # 记录 节点组 - 匹配节点列表 避免重复查询
-        total_node_map = defaultdict(list)
-        for ancestor, objs in ancestor_objs.items():
-            img_objs = defaultdict(list)
-            for obj in objs:
-                if obj.type != "MESH":
-                    continue
-                if not obj.data.materials:
-                    continue
-
-                # 单物体所有材质匹配的贴图数量
-                img_names = set()
-                for mat in obj.data.materials:
-                    # 跳过有材质槽但无材质的mat
-                    if not mat:
-                        continue
-
-                    # 获取节点
-                    if search_type == "NODE_NAME":
-                        node_map = find_nodes(mat, keyword_list, total_node_map, by="node", recursive=recursive)
-
-                    else:
-                        node_map = find_nodes(mat, keyword_list, total_node_map, by="tex", recursive=recursive)
-
-                    for node_tree_name, nodes in node_map.items():
-                        if node_tree_name and node_tree_name not in total_node_map.keys():
-                            total_node_map[node_tree_name].extend(nodes)
-                        for node in nodes:
-                            if node.image:
-                                img_names.add(node.image.name)
-
-                if len(img_names) == 1:
-                    img_name = img_names.pop()
-                    img_objs[img_name].append(obj)
-
-            if ancestor:
-                collection = ancestor.users_collection[0]
-            else:
-                collection = context.scene.collection
-
-            for img_name, objs in img_objs.items():
-                img_name = re.sub(r"\.\d+$", "", img_name)  # 去掉.xxx后缀
-                coll_name = os.path.splitext(img_name)[0]
-                # 检查是否已存在同名子集合
-                # https://docs.blender.org/manual/en/latest/advanced/limits.html
-                # Blender的ID限定在63个ASCII字符，所以image_name和collection_name限定长度是一致的，即使image_name名称被截断，也不影响collection的创建
-                if coll_name in collection.children:
-                    sub_col = collection.children[coll_name]
-                else:
-                    sub_col = bpy.data.collections.new(coll_name)
-                    collection.children.link(sub_col)
-                for obj in objs:
-                    # 先把 obj 从所属集合里移除
-                    for c in obj.users_collection:
-                        c.objects.unlink(obj)
-
-                    # 再加到新子集合
-                    if obj.name not in sub_col.objects:
-                        sub_col.objects.link(obj)
-
         return True
