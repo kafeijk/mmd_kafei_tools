@@ -816,7 +816,8 @@ class CameraSettingsOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.gen_camera_animation(context)
+        if not self.gen_camera_animation(context):
+            return {'CANCELLED'}
         return {'FINISHED'}
 
     def gen_camera_animation(self, context):
@@ -830,10 +831,9 @@ class CameraSettingsOperator(bpy.types.Operator):
         - 根据顶点组中顶点移动时，顶点如果消失（如受到焊接修改器、遮罩修改器影响），相机动画会受到影响<Vector (0.0000, 0.0000, 0.0000)>，但不会报错，需文档提示用户
         """
         props = bpy.context.scene.mmd_kafei_tools_camera_settings
-        preview_props = bpy.context.scene.mmd_kafei_tools_render_preview
 
         if self.check_props(props) is False:
-            return
+            return False
 
         active_object = bpy.context.active_object
 
@@ -892,6 +892,8 @@ class CameraSettingsOperator(bpy.types.Operator):
         # 切换到相机视图
         with bpy.context.temp_override(**view3d_context()):
             switch_to_camera_view()
+
+        return True
 
     def check_props(self, props):
         active_object = bpy.context.active_object
