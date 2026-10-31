@@ -5,9 +5,9 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import (BACK_LIGHT_ENERGY, FILL_LIGHT_ANGLE, FILL_LIGHT_ENERGY, KEY_LIGHT_ANGLE,
-                         KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS, LIGHT_HEIGHT_ANGLE, LIGHT_ROTATION_X,
-                         LIGHT_SIZE, PRECISION)
+from ..constants import (BACK_LIGHT_ENERGY, CAMERA_Z_FACTOR, FILL_LIGHT_ANGLE, FILL_LIGHT_ENERGY,
+                         KEY_LIGHT_ANGLE, KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS, LIGHT_HEIGHT_ANGLE,
+                         LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
 
 from ..properties.scene_settings_properties import apply_resolution_preset
 
@@ -1044,7 +1044,8 @@ def bake_camera_animation(context, props, camera, armature=None, empty=None):
         camera.location[0] += delta_x
         camera.location[1] += delta_y
         if abs(delta_z) > threshold_z:
-            camera.location[2] += delta_z / 2  # 假设角色高度为1，相机视野高为1。若角色蹲下使高为0.5，则为了使角色处于中心，相机应下降0.25
+            # 假设角色高度为1，相机视野高为1。若角色蹲下使高为0.5，则为了使角色处于中心，相机应下降0.25
+            camera.location[2] += delta_z * CAMERA_Z_FACTOR
 
         # 插入关键帧
         camera.keyframe_insert(data_path="location", frame=frame)

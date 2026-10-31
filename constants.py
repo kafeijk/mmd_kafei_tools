@@ -47,6 +47,9 @@ LIGHT_COLOR_PRESETS = {
     "RED_BLUE": ("#FF5959", "#BCC4FF", "#5979FF"),
     "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
 }
+
+# 相机 Z 位移系数：按角色高度约 1 的假设，相机跟随的升降量取骨骼 Z 位移的一半
+CAMERA_Z_FACTOR = 0.5
 # 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
 IMG_TYPE_EXT_MAP = {
     "BMP": ".bmp",
