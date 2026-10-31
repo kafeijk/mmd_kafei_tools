@@ -210,9 +210,6 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             if not pmx_root:
                 continue
 
-            # mmd_tools 的材质操作需要活动对象与活动材质，这里才需要切换选择
-            deselect_all_objects()
-            select_and_activate(obj)
             modify_mmd_material(mat)
 
     def remove_modifiers(self, objs, props):
@@ -357,10 +354,6 @@ def modify_mmd_material(material):
     mmd_material.is_shared_toon_texture = False
     # 移除卡通纹理
     mmd_material.toon_texture = ""
-    # 移除材质纹理
-    bpy.ops.mmd_tools.material_remove_texture()
-    # 移除球形纹理
-    bpy.ops.mmd_tools.material_remove_sphere_texture()
     # 脚本
     mmd_material.comment = ""
 
