@@ -1069,22 +1069,11 @@ def bake_camera_animation(context, props, camera, armature=None, empty=None):
             savepoint_z = lo_z
     # 根据 最大不同帧间隔 设置关键帧
     fcurves = get_action_fcurves(camera)
-    fcurves = [fc for fc in fcurves if fc.data_path == "location"]
+    # 按 array_index 建立 X/Y/Z 通道映射，不依赖 F-Curve 的列表顺序
+    fcurve_map = {fc.array_index: fc for fc in fcurves if fc.data_path == "location"}
 
-    # fc.array_index X/Y/Z 三个通道索引
-    # kp.co.x 帧号
-    # kp.co.y 关键帧的数值
-    keyframes = {}
-    for fc in fcurves:
-        keyframes[fc.array_index] = [(kp.co.x, kp.co.y) for kp in fc.keyframe_points]
-
-    # 遍历 X/Y/Z 三个通道的关键帧列表
-    all_frame_numbers = []
-    for klist in keyframes.values():
-        # 遍历该通道里的每个关键帧 (frame, value)
-        for k in klist:
-            frame_number = k[0]  # 取出帧号
-            all_frame_numbers.append(frame_number)
+    # kp.co.x 帧号，kp.co.y 关键帧的数值
+    all_frame_numbers = [kp.co.x for fc in fcurve_map.values() for kp in fc.keyframe_points]
     # 去重并排序
     frames = sorted(set(all_frame_numbers))
 
@@ -1096,14 +1085,14 @@ def bake_camera_animation(context, props, camera, armature=None, empty=None):
 
         # 获取帧上的 location 值
         loc1 = Vector((
-            fcurves[0].evaluate(f1),
-            fcurves[1].evaluate(f1),
-            fcurves[2].evaluate(f1),
+            fcurve_map[0].evaluate(f1),
+            fcurve_map[1].evaluate(f1),
+            fcurve_map[2].evaluate(f1),
         ))
         loc2 = Vector((
-            fcurves[0].evaluate(f2),
-            fcurves[1].evaluate(f2),
-            fcurves[2].evaluate(f2),
+            fcurve_map[0].evaluate(f2),
+            fcurve_map[1].evaluate(f2),
+            fcurve_map[2].evaluate(f2),
         ))
 
         # 差值判断
