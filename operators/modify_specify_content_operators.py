@@ -40,8 +40,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_modify_specify_content
 
         # 记录选择状态
-        active_object = bpy.context.active_object
-        selected_objects = bpy.context.selected_objects
+        active_object = context.active_object
+        selected_objects = context.selected_objects
 
         content_type = props.content_type
         objs = get_obj_by_type(selected_objects, content_type)
