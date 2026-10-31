@@ -969,6 +969,17 @@ class CameraSettingsOperator(bpy.types.Operator):
             return True
 
 
+class CameraSettingsMeshOperator(bpy.types.Operator):
+    """网格目标专用入口：在提示中额外说明顶点消失的影响"""
+    bl_idname = "mmd_kafei_tools.camera_settings_mesh"
+    bl_label = "执行"
+    bl_description = ("生成相机跟随动画\n"
+                      "顶点被焊接、遮罩等修改器移除时，相机动画会受到影响")
+
+    def execute(self, context):
+        return bpy.ops.mmd_kafei_tools.camera_settings('EXEC_DEFAULT')
+
+
 def set_empty(context, props, active_object):
     # 获取跟随对象
     vg_name = props.vg_name

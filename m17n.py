@@ -217,6 +217,7 @@ translation_dict = {
         ("*", "相机X轴旋转"):"Camera rotation around X-axis",
         ("*", "两个不同关键帧之间的最大帧间隔，用于避免角色几乎不动时相机缓慢移动的问题"):"Maximum gap between distinct keyframes; prevents slow camera movement when character is nearly still",
         ("*", "生成相机跟随动画"): "Generate camera follow animation",
+        ("*", "生成相机跟随动画\n顶点被焊接、遮罩等修改器移除时，相机动画会受到影响"): "Generate camera follow animation\nIf vertices are removed by modifiers (e.g. welding, masking), the camera animation will be affected",
         ("Operator", "设置视频分辨率"): "Set Video Resolution",
         ("*", "设置视频分辨率"): "Set video resolution",
         ("*", "按预设应用渲染分辨率"): "Apply the preset render resolution",

@@ -37,7 +37,7 @@ from ..operators.scene_settings_operators import WorldSettingsOperator
 from ..operators.scene_settings_operators import SwapResolutionOperator
 from ..operators.scene_settings_operators import LightSettingsOperator
 from ..operators.scene_settings_operators import ResetLightSettingsOperator
-from ..operators.scene_settings_operators import CameraSettingsOperator
+from ..operators.scene_settings_operators import CameraSettingsOperator, CameraSettingsMeshOperator
 from ..operators.quick_operation_operators import MergeVerticesOperator
 from ..operators.quick_operation_operators import DummyOperator
 from ..operators.quick_operation_operators import SetMatNameByObjNameOperator
@@ -293,7 +293,8 @@ class CameraSettingsPanel(bpy.types.Panel):
 
         col.prop(props, "max_gap")
 
-        col.operator(CameraSettingsOperator.bl_idname, text=CameraSettingsOperator.bl_label)
+        operator = CameraSettingsMeshOperator if target_type == "MESH" else CameraSettingsOperator
+        col.operator(operator.bl_idname, text=CameraSettingsOperator.bl_label)
 
 
 class SmallFeaturePanel(bpy.types.Panel):
