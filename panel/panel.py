@@ -282,16 +282,14 @@ class CameraSettingsPanel(bpy.types.Panel):
             col.prop(props, "bone_name", icon='BONE_DATA')
         elif target_type == "MESH":
             col.prop(props, "vg_name", icon='GROUP_VERTEX')
-            frame_col = col.column(align=True)
-            frame_col.prop(scene, "frame_start", text="起始帧")
-            frame_col.prop(scene, "frame_end", text="结束帧")
+            col.prop(scene, "frame_start", text="起始帧")
+            col.prop(scene, "frame_end", text="结束帧")
 
         col.prop(props, "rotation_euler_x")
 
-        threshold_col = col.column(align=True)
-        threshold_col.prop(props, "threshold_x")
-        threshold_col.prop(props, "threshold_y")
-        threshold_col.prop(props, "threshold_z")
+        col.prop(props, "threshold_x")
+        col.prop(props, "threshold_y")
+        col.prop(props, "threshold_z")
 
         col.prop(props, "max_gap")
 
