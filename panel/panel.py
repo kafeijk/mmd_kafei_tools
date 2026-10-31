@@ -367,8 +367,8 @@ class ToolsPanel(bpy.types.Panel):
         layout = self.layout
 
 
-class RemoveSpecifyContentPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_remove_specify_content"
+class ModifySpecifyContentPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_modify_specify_content"
     bl_label = "物体操作"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
