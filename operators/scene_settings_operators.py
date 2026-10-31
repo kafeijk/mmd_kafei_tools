@@ -830,12 +830,12 @@ class CameraSettingsOperator(bpy.types.Operator):
         - 可能会在不同关键帧之间产生较长连续间隙，从而导致相机缓慢移动但角色基本不动的问题，需根据最大不同帧间隔调整
         - 根据顶点组中顶点移动时，顶点如果消失（如受到焊接修改器、遮罩修改器影响），相机动画会受到影响<Vector (0.0000, 0.0000, 0.0000)>，但不会报错，需文档提示用户
         """
-        props = bpy.context.scene.mmd_kafei_tools_camera_settings
+        props = context.scene.mmd_kafei_tools_camera_settings
 
-        if self.check_props(props) is False:
+        if self.check_props(context, props) is False:
             return False
 
-        active_object = bpy.context.active_object
+        active_object = context.active_object
 
         # 获取跟随目标
         armature = None
@@ -849,10 +849,10 @@ class CameraSettingsOperator(bpy.types.Operator):
                 ancestor = find_ancestor(active_object)
                 armature = find_armature(ancestor)
         else:
-            empty = set_empty(props, active_object)
+            empty = set_empty(context, props, active_object)
 
         # 创建跟随相机
-        camera = create_follow_camera(props)
+        camera = create_follow_camera(context, props)
 
         # 拷贝骨架并精简骨骼
         if target_type == "ARMATURE":
@@ -860,7 +860,7 @@ class CameraSettingsOperator(bpy.types.Operator):
             armature_copied = copy_and_prune_armature(armature, bone_name)
 
         # 记录当前场景
-        main_scene = bpy.context.scene
+        main_scene = context.scene
 
         # 创建并切换到临时场景
         # 添加一个新的空场景，并拷贝当前场景的设置。可排除frame_start、frame_end、fps等设置因新场景初始化带来的影响
@@ -868,35 +868,35 @@ class CameraSettingsOperator(bpy.types.Operator):
         bpy.ops.scene.new(type='EMPTY')
         scenes_after = set(bpy.data.scenes)
         tmp_scene = (scenes_after - scenes_before).pop()
-        bpy.context.window.scene = tmp_scene
+        context.window.scene = tmp_scene
         tmp_scene.name = "TmpScene"
 
         # 烘焙相机动画
         if target_type == "ARMATURE":
             tmp_scene.collection.objects.link(armature_copied)
-            bake_camera_animation(props, camera, armature=armature_copied)
+            bake_camera_animation(context, props, camera, armature=armature_copied)
             bpy.data.objects.remove(armature_copied, do_unlink=True)
         else:
             tmp_scene.collection.objects.link(empty)
-            bake_camera_animation(props, camera, empty=empty)
+            bake_camera_animation(context, props, camera, empty=empty)
             bpy.data.objects.remove(empty, do_unlink=True)
 
         # 恢复主场景
-        bpy.context.window.scene = main_scene
+        context.window.scene = main_scene
         bpy.data.scenes.remove(tmp_scene)
 
         # 选中相机控制器 激活相机
         deselect_all_objects()
         select_and_activate(camera.parent)
-        bpy.context.scene.camera = camera
+        context.scene.camera = camera
         # 切换到相机视图
-        with bpy.context.temp_override(**view3d_context()):
+        with context.temp_override(**view3d_context()):
             switch_to_camera_view()
 
         return True
 
-    def check_props(self, props):
-        active_object = bpy.context.active_object
+    def check_props(self, context, props):
+        active_object = context.active_object
         target_type = props.target_type
         bone_name = props.bone_name
         vg_name = props.vg_name
@@ -924,7 +924,7 @@ class CameraSettingsOperator(bpy.types.Operator):
             return True
         elif target_type == "MESH":
             # 获取选中网格对象
-            selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+            selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
             if not selected_objects:
                 self.report(type={'ERROR'}, message=f'Select mesh object!')
                 return False
@@ -952,10 +952,10 @@ class CameraSettingsOperator(bpy.types.Operator):
             return True
 
 
-def set_empty(props, active_object):
+def set_empty(context, props, active_object):
     # 获取跟随对象
     vg_name = props.vg_name
-    selected_objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+    selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
     if active_object and active_object.type == "MESH" and vg_name in active_object.vertex_groups:
         mesh_object = active_object
     else:
@@ -970,14 +970,14 @@ def set_empty(props, active_object):
 
     # 创建空物体子级
     empty = bpy.data.objects.new("TmpEmpty", None)
-    bpy.context.scene.collection.objects.link(empty)
+    context.scene.collection.objects.link(empty)
     empty.parent = mesh_object
     empty.parent_type = 'VERTEX'
     empty.parent_vertices[0] = vertex.index
     return empty
 
 
-def bake_camera_animation(props, camera, armature=None, empty=None):
+def bake_camera_animation(context, props, camera, armature=None, empty=None):
     bone_name = props.bone_name
     threshold_x = props.threshold_x
     threshold_y = props.threshold_y
@@ -991,11 +991,11 @@ def bake_camera_animation(props, camera, armature=None, empty=None):
     if target_type == "ARMATURE":
         frame_start, frame_end = get_armature_keyframe_range(armature)
     else:
-        frame_start, frame_end = bpy.context.scene.frame_start, bpy.context.scene.frame_end
+        frame_start, frame_end = context.scene.frame_start, context.scene.frame_end
 
-    depsgraph = bpy.context.evaluated_depsgraph_get()
+    depsgraph = context.evaluated_depsgraph_get()
     for frame in range(frame_start, frame_end + 1):
-        bpy.context.scene.frame_set(frame)
+        context.scene.frame_set(frame)
 
         if target_type == "ARMATURE":
             # 获取指定骨骼实际全局位置
@@ -1085,7 +1085,7 @@ def bake_camera_animation(props, camera, armature=None, empty=None):
         camera.location = loc1
         camera.keyframe_insert(data_path="location", frame=insert_frame)
 
-    bpy.context.scene.frame_set(0)
+    context.scene.frame_set(0)
 
 
 def copy_and_prune_armature(armature, bone_name):
@@ -1109,7 +1109,7 @@ def copy_and_prune_armature(armature, bone_name):
     return armature_copied
 
 
-def create_follow_camera(props):
+def create_follow_camera(context, props):
     # 生成相机及所在集合
     camera_name = bpy.app.translations.pgettext_iface("跟随相机")
     camera_data = bpy.data.cameras.new(name=camera_name)
@@ -1122,8 +1122,8 @@ def create_follow_camera(props):
     empty = bpy.data.objects.new(bpy.app.translations.pgettext_iface("相机控制器"), None)
     empty.scale = [0.1, 0.1, 0.1]
     collection.objects.link(empty)
-    active_object = bpy.context.active_object
-    selected_objects = bpy.context.selected_objects
+    active_object = context.active_object
+    selected_objects = context.selected_objects
     deselect_all_objects()
     select_and_activate(empty)
     bpy.ops.object.transform_apply(scale=True)
@@ -1132,7 +1132,7 @@ def create_follow_camera(props):
     camera.matrix_parent_inverse = empty.matrix_world.inverted()
 
     # 设置相机初始位置
-    bpy.context.scene.frame_set(0)
+    context.scene.frame_set(0)
 
     do_camera_to_view_selected('PERSPECTIVE', True,
                                props.rotation_euler_x, math.radians(0), math.radians(0),
