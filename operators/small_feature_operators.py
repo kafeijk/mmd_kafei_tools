@@ -81,7 +81,7 @@ def get_group_parent_collection(context, ancestor):
     return context.scene.collection
 
 
-def collect_img_names(obj, keyword_list, by, recursive, node_cache):
+def collect_img_names(obj, keyword_list, by, recursive, node_cache, mat_cache):
     """收集单个物体所有材质中命中的贴图名称"""
     if obj.type != "MESH" or not obj.data.materials:
         return set()
@@ -92,7 +92,13 @@ def collect_img_names(obj, keyword_list, by, recursive, node_cache):
         if not mat:
             continue
 
-        node_map = find_nodes(mat, keyword_list, node_cache, by=by, recursive=recursive)
+        # 同一材质常被多个物体共用，按材质缓存节点查询结果避免重复扫描
+        mat_key = mat.as_pointer()
+        node_map = mat_cache.get(mat_key)
+        if node_map is None:
+            node_map = find_nodes(mat, keyword_list, node_cache, by=by, recursive=recursive)
+            mat_cache[mat_key] = node_map
+
         for node_tree_name, nodes in node_map.items():
             # 节点组结果按名称缓存，避免同一节点组被重复遍历
             if node_tree_name and node_tree_name not in node_cache:
@@ -104,11 +110,11 @@ def collect_img_names(obj, keyword_list, by, recursive, node_cache):
     return img_names
 
 
-def group_objs_by_img(objs, keyword_list, by, recursive, node_cache):
+def group_objs_by_img(objs, keyword_list, by, recursive, node_cache, mat_cache):
     """按贴图分组：只处理恰好匹配到一张贴图的物体"""
     img_objs = defaultdict(list)
     for obj in objs:
-        img_names = collect_img_names(obj, keyword_list, by, recursive, node_cache)
+        img_names = collect_img_names(obj, keyword_list, by, recursive, node_cache, mat_cache)
         if len(img_names) == 1:
             img_objs[img_names.pop()].append(obj)
     return img_objs
@@ -501,11 +507,12 @@ class GroupObjectOperator(bpy.types.Operator):
         props = context.scene.mmd_kafei_tools_group_object
         keyword_list = get_keywords(props)
         by = "node" if props.search_type == "NODE_NAME" else "tex"
-        # 记录 节点组 - 匹配节点列表，避免重复查询
+        # 节点组缓存 + 材质缓存，避免同一节点组/材质被重复查询
         node_cache = defaultdict(list)
+        mat_cache = {}
 
         for ancestor, objs in get_scope_objs(context, props.scope).items():
-            img_objs = group_objs_by_img(objs, keyword_list, by, props.recursive, node_cache)
+            img_objs = group_objs_by_img(objs, keyword_list, by, props.recursive, node_cache, mat_cache)
             parent = get_group_parent_collection(context, ancestor)
             for img_name, img_objs_group in img_objs.items():
                 sub_col = get_image_sub_collection(parent, img_name)
