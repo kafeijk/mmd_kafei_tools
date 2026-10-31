@@ -14,7 +14,7 @@ else:
     SUBSURFACE = 'Subsurface Weight'
 
 
-def find_nodes(mat, names, total_node_map, by="node", recursive=False):
+def find_nodes(mat, names, node_cache, by="node", recursive=False):
     """
     在材质 mat 中查找符合条件的节点
     by="node" -> 根据节点名称
@@ -40,10 +40,12 @@ def find_nodes(mat, names, total_node_map, by="node", recursive=False):
             if _match(node, names):
                 node_map[node_tree_name].append(node)
             if recursive and node.type == 'GROUP' and node.node_tree:
-                if node.node_tree.name in total_node_map.keys():
-                    node_map[node.node_tree.name] = total_node_map.get(node.node_tree.name)
+                group_name = node.node_tree.name
+                # 该节点组之前已查询过，直接复用缓存中的命中结果，避免重复递归
+                if group_name in node_cache:
+                    node_map[group_name] = node_cache[group_name]
                     continue
-                _search(node.node_tree, node.node_tree.name)
+                _search(node.node_tree, group_name)
 
     _search(mat.node_tree)
     return node_map
