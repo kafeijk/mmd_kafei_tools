@@ -393,14 +393,10 @@ class ModifySpecifyContentPanel(bpy.types.Panel):
         elif content_type == 'ADD_COLOR_ATTRIBUTE':
             col.prop(props, "color_attribute_name", icon="GROUP_VCOL")
             col.prop(props, "color")
-        elif content_type == 'REMOVE_UV_MAP':
-            col.prop(props, "keep_first")
-        elif content_type == 'REMOVE_COLOR_ATTRIBUTE':
+        elif content_type in {'REMOVE_UV_MAP', 'REMOVE_COLOR_ATTRIBUTE', 'REMOVE_MODIFIER', 'REMOVE_CONSTRAINT'}:
             col.prop(props, "keep_first")
         elif content_type == 'REMOVE_MATERIAL':
             col.prop(props, "create_default")
-        elif content_type in ['REMOVE_MODIFIER', 'REMOVE_CONSTRAINT']:
-            col.prop(props, "keep_first")
         elif content_type == 'REMOVE_VERTEX_GROUP':
             col.prop(props, "keep_locked")
         elif content_type == 'REMOVE_SHAPE_KEY':
