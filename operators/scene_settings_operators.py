@@ -19,6 +19,7 @@ from ..utils import (
     find_ancestor,
     get_action_fcurves,
     get_collection,
+    get_fcurve_frames,
     hex_to_rgb,
     restore_selection,
     safe_set,
@@ -1166,18 +1167,21 @@ def get_armature_keyframe_range(armature):
     if fcurves is None:
         return None, None
 
-    # 用于存储所有关键帧帧号
-    keyframe_numbers = []
+    frame_start = None
+    frame_end = None
 
     for fcurve in fcurves:
-        for keyframe_point in fcurve.keyframe_points:
-            frame_number = keyframe_point.co.x  # co.x 帧号
-            keyframe_numbers.append(frame_number)
+        # 批量读取该曲线的全部帧号，避免逐关键帧访问 RNA 属性
+        frames = get_fcurve_frames(fcurve)
+        if not frames:
+            continue
 
-    # 如果找到了关键帧
-    if keyframe_numbers:
-        min_frame = int(min(keyframe_numbers))
-        max_frame = int(max(keyframe_numbers))
-        return min_frame, max_frame
+        fc_start = min(frames)
+        fc_end = max(frames)
+        frame_start = fc_start if frame_start is None else min(frame_start, fc_start)
+        frame_end = fc_end if frame_end is None else max(frame_end, fc_end)
 
-    return None, None
+    if frame_start is None:
+        return None, None
+
+    return int(frame_start), int(frame_end)

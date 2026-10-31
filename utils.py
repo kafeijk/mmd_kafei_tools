@@ -986,6 +986,32 @@ def get_action_fcurves(obj):
         return channelbag.fcurves
 
 
+# foreach_get / foreach_set 在个别版本上不支持对应属性，
+# 这些异常都表示"批量读写不可用"，统一退回逐帧读写。
+_FOREACH_ERRORS = (AttributeError, TypeError, ValueError, RuntimeError, NotImplementedError)
+
+
+def get_fcurve_frames(fcurve):
+    """
+    读取一条 F-Curve 上所有关键帧的帧号（float），一次 RNA 调用批量取回。
+
+    用 foreach_get 取回全部 co（帧号、值成对排列），比逐关键帧访问 co.x 快得多；
+    不支持批量读取时退回逐帧读取。
+    """
+    keyframe_points = fcurve.keyframe_points
+    count = len(keyframe_points)
+
+    if count == 0:
+        return []
+
+    try:
+        co = [0.0] * (count * 2)
+        keyframe_points.foreach_get("co", co)
+        return co[0::2]
+    except _FOREACH_ERRORS:
+        return [kp.co[0] for kp in keyframe_points]
+
+
 def translate(key: str) -> str:
     """翻译快捷方法"""
     return bpy.app.translations.pgettext_iface(key)
