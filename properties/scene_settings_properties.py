@@ -283,6 +283,7 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
         name="增量阈值 X",
         description="骨骼X轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
         default=0.1,
+        min=0.0,
         subtype='DISTANCE'
     )
 
@@ -290,6 +291,7 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
         name="Y",
         description="骨骼Y轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
         default=0.1,
+        min=0.0,
         subtype='DISTANCE'
 
     )
@@ -298,6 +300,7 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
         name="Z",
         description="骨骼Z轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
         default=0.1,
+        min=0.0,
         subtype='DISTANCE'
     )
 
@@ -312,6 +315,7 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
         name="最大不同帧间隔",
         description="两个不同关键帧之间的最大帧间隔，用于避免角色几乎不动时相机缓慢移动的问题",
         default=15,
+        min=1,
     )
 
     @staticmethod
