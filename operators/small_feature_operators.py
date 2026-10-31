@@ -56,13 +56,14 @@ class SceneRootOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.gen_scene_root(context)
+        if not self.gen_scene_root(context):
+            return {'CANCELLED'}
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def gen_scene_root(self, context):
         """创建一个空物体，以实现对整个场景的统一控制"""
         if len(bpy.data.objects) == 0:
-            return
+            return False
 
         # 获取集合类型实例所依赖的源对象
         sources = set()
@@ -88,7 +89,7 @@ class SceneRootOperator(bpy.types.Operator):
             show_object(root)
             deselect_all_objects()
             select_and_activate(root)
-            return
+            return True
 
         root = bpy.data.objects.new("root", None)
         root.location = context.scene.cursor.location.copy()
@@ -125,6 +126,7 @@ class SceneRootOperator(bpy.types.Operator):
         # 选中root空物体
         deselect_all_objects()
         select_and_activate(root)
+        return True
 
 
 class RemoveMissingDataOperator(bpy.types.Operator):
@@ -162,7 +164,7 @@ class RepairSSSOperator(bpy.types.Operator):
     def execute(self, context):
         if len(context.selected_objects) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return {'FINISHED'}
+            return {'CANCELLED'}
         props = context.scene.mmd_kafei_tools_sf
         self.repair_sss(context, props.option)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
@@ -400,7 +402,8 @@ class GroupObjectOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.group_by_tex(context)
+        if not self.group_by_tex(context):
+            return {'CANCELLED'}
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def group_by_tex(self, context):
@@ -410,11 +413,11 @@ class GroupObjectOperator(bpy.types.Operator):
         selected_objects = context.selected_objects
         if len(selected_objects) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return
+            return False
         active_object = context.active_object
         if active_object is None:
             self.report(type={'ERROR'}, message=f'Activate the object!')
-            return
+            return False
 
         scope = props.scope
         search_type = props.search_type
@@ -505,3 +508,5 @@ class GroupObjectOperator(bpy.types.Operator):
                     # 再加到新子集合
                     if obj.name not in sub_col.objects:
                         sub_col.objects.link(obj)
+
+        return True
