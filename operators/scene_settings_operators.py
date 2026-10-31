@@ -915,7 +915,7 @@ class CameraSettingsOperator(bpy.types.Operator):
                             message=bpy.app.translations.pgettext_iface("Bone \"{}\" not found!").format(bone_name))
                 return False
             frame_start, frame_end = get_armature_keyframe_range(armature)
-            if not frame_start and not frame_end:
+            if frame_start is None or frame_end is None:
                 self.report(type={'ERROR'}, message=f'Armature has no keyframes!')
                 return False
             return True
