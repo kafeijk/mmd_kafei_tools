@@ -295,7 +295,7 @@ translation_dict = {
         ("*", "移除约束"): "Remove Constraints",
         ("*", "移除顶点组"): "Remove Vertex Groups",
         ("*", "移除形态键"): "Remove Shape Keys",
-        ("*", "清除形态键"): "Clear Shape Keys",
+        ("*", "重置形态键"): "Reset Shape Key Values",
         # Object operations description
         ("*", "修改指定内容"): "Modify Specified Content",
         ("*", "操作内容"): "Operation",
@@ -305,7 +305,7 @@ translation_dict = {
         ("*", "移除时，保留位于首位的内容"): "Keep the item in the first position when removing",
         ("*", "移除时，保留锁定组"): "Keep the locked vertex group when removing",
         ("*", "移除形态键时，保留当前形态，否则保留默认形态"): "Keep the current shape when removing shape keys, otherwise keep the default shape",
-        ("*", "清除形态键，恢复默认的范围上下限，并将全部形态键数值归零"): "Clear shape keys, restore the default range limits (minimum and maximum), and reset all shape key values to 0" ,
+        ("*", "将全部形态键数值归零，并恢复默认的范围上下限"): "Reset all shape key values to 0 and restore the default range limits (minimum and maximum)" ,
         # Object Arrangement panel / parameter
         ("*", "物体排列"): "Object Arrangement",
         ("*", "阵列"): "Array",

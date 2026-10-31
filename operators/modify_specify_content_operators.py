@@ -65,8 +65,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 self.remove_vgs(objs, props)
             elif content_type == 'REMOVE_SHAPE_KEY':
                 self.remove_shape_keys(objs, props)
-            elif content_type == 'CLEAR_SHAPE_KEY':
-                self.clear_shape_keys(objs, props)
+            elif content_type == 'RESET_SHAPE_KEY':
+                self.reset_shape_key_values(objs, props)
         finally:
             # 恢复选择状态（异常时同样恢复）
             restore_selection(selected_objects, active_object)
@@ -274,7 +274,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 obj.shape_key_remove(shape_key)
             obj.shape_key_remove(sk)
 
-    def clear_shape_keys(self, objs, props):
+    def reset_shape_key_values(self, objs, props):
         """
         Blender逻辑 -> 重置所有形态键权重为0，或最接近限制的值.
         当前逻辑 -> 重置所有形态键权重为0
@@ -304,7 +304,7 @@ def get_obj_by_type(objs, content_type):
     mesh_only_types = {
         'REMOVE_VERTEX_GROUP',
         'REMOVE_SHAPE_KEY',
-        'CLEAR_SHAPE_KEY',
+        'RESET_SHAPE_KEY',
         'ADD_UV_MAP',
         'REMOVE_UV_MAP',
         'ADD_COLOR_ATTRIBUTE',
