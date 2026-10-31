@@ -230,6 +230,7 @@ translation_dict = {
         ("*", "创建场景控制器"): "Create Scene Controller",
         ("*", "移除丢失外部数据"): "Remove Missing External Data",
         ("*", "已移除 {} 个丢失的外部数据"): "Removed {} missing external data",
+        ("*", "请至少选择一个对象！"): "Select at least one object!",
         ("*", "修复Eevee显示泛蓝"): "Fix Eevee Blue Tint Display Issue",
         ("*", "修复Cycles显示模糊"): "Fix Cycles Blurry Display Issue",
         ("*", "修复Eevee显示泛蓝 / 修复Cycles显示模糊"): "Fix Eevee Blue Tint / Fix Cycles Blurry Display",

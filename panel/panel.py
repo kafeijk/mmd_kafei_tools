@@ -329,10 +329,7 @@ class SmallFeaturePanel(bpy.types.Panel):
             source_colorspace_col = col.column()
             source_colorspace_col.prop(colorspace_props, "source_colorspace")
             keywords = split_keywords(colorspace_props.keywords)
-            if keywords:
-                source_colorspace_col.enabled = False
-            else:
-                source_colorspace_col.enabled = True
+            source_colorspace_col.enabled = not keywords
 
             col.prop(colorspace_props, "target_colorspace")
             col.prop(colorspace_props, "keywords", icon="FILE_IMAGE")

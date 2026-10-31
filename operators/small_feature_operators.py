@@ -281,7 +281,7 @@ class RepairSSSOperator(bpy.types.Operator):
 
     def execute(self, context):
         if len(context.selected_objects) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
             return {'CANCELLED'}
         props = context.scene.mmd_kafei_tools_sf
         self.repair_sss(context, props.option)
@@ -292,7 +292,7 @@ class RepairSSSOperator(bpy.types.Operator):
 
         materials = get_materials(objs)
         for material in materials:
-            if not is_valid_material(material):
+            if not has_node_tree_nodes(material):
                 continue
 
             node_tree = material.node_tree
@@ -331,11 +331,12 @@ class RepairSSSOperator(bpy.types.Operator):
                 force_process(node_tree, output_node)
         if option == "SUBSURFACE_EV":
             result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
-            if len(result) > 0:
+            if result:
                 self.report(type={'WARNING'},
-                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
+                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(", ".join(result)))
                 self.report(type={'WARNING'},
-                            message="Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑")
+                            message=bpy.app.translations.pgettext_iface(
+                                "Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑"))
 
 
 def is_collection_instance(obj):
@@ -348,7 +349,8 @@ def is_collection_instance(obj):
     )
 
 
-def is_valid_material(material):
+def has_node_tree_nodes(material):
+    """判断材质是否存在节点树且节点非空"""
     node_tree = material.node_tree
     if not node_tree:  # 有材质但无节点树
         return False
@@ -544,11 +546,8 @@ class GroupObjectOperator(bpy.types.Operator):
         return True
 
     def check_props(self, context):
-        """校验选择：至少选中一个物体，且存在活动物体"""
-        if len(context.selected_objects) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return False
-        if context.active_object is None:
-            self.report(type={'ERROR'}, message=f'Activate the object!')
+        """校验：至少选中一个物体"""
+        if not context.selected_objects:
+            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
             return False
         return True
