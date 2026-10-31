@@ -389,18 +389,21 @@ class ArrangeObjectOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
         self.main(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def check_props(self, props):
-        objs = bpy.context.selected_objects
+    def check_props(self, context):
+        objs = context.selected_objects
         if len(objs) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
             return False
+        props = context.scene.mmd_kafei_tools_arrange_object
         arrangement_type = props.arrangement_type
         if arrangement_type in ["ARC", "CIRCLE"]:
             found = False
-            for addon in bpy.context.preferences.addons.keys():
+            for addon in context.preferences.addons.keys():
                 # add_curve_extra_objects 3.6
                 # extra_curve_objectes 4.2 4.5
                 if "extra" in addon and "curve" in addon and "object" in addon:
@@ -415,8 +418,6 @@ class ArrangeObjectOperator(bpy.types.Operator):
     def main(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_arrange_object
-        if not self.check_props(props):
-            return
 
         # 记录选择状态
         active_object = bpy.context.active_object
