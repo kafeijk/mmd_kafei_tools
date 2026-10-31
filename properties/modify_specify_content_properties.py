@@ -122,7 +122,8 @@ class ArrangeObjectProperty(bpy.types.PropertyGroup):
     num_per_row: bpy.props.IntProperty(
         name="每行数量",
         description="每行数量",
-        default=20
+        default=20,
+        min=1
     )
     spacing: bpy.props.FloatVectorProperty(
         name="间距",
@@ -148,7 +149,8 @@ class ArrangeObjectProperty(bpy.types.PropertyGroup):
     num_per_circle: bpy.props.IntProperty(
         name="每环数量",
         description="每个圆环/圆弧放置角色的数量",
-        default=20
+        default=20,
+        min=1
     )
     spacing_circle: bpy.props.FloatProperty(
         name="间距",
