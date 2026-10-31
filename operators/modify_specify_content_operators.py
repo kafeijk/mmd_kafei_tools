@@ -121,7 +121,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             mesh.update()
 
     def add_color_attribute(self, objs, props):
-        """添加颜色属性，重名则覆盖（空串名称除外）"""
+        """添加颜色属性：重名时由 Blender 自动追加数字后缀，名称为空时生成默认名称"""
         name = props.color_attribute_name
         color = props.color
 
