@@ -397,7 +397,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
     def check_props(self, context):
         objs = context.selected_objects
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
             return False
         props = context.scene.mmd_kafei_tools_arrange_object
         arrangement_type = props.arrangement_type
@@ -411,7 +411,8 @@ class ArrangeObjectOperator(bpy.types.Operator):
                     break
             if not found:
                 self.report({'ERROR'},
-                            "Please enable the 'Extra Objects' / 'Extra Curve Objects' add-on in Preferences.")
+                            bpy.app.translations.pgettext_iface(
+                                "请在偏好设置中启用 Extra Objects / Extra Curve Objects 插件"))
                 return False
         return True
 

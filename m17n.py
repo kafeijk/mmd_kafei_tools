@@ -347,6 +347,7 @@ translation_dict = {
         ("*", "每个圆环/圆弧放置角色的数量"): "Number of Characters per Ring/Arc",
         ("*", "圆环/圆弧间距"): "Ring/Arc Spacing",
         ("*", "对不同圆环/圆弧上的角色进行偏移"): "Offset Characters across Different Rings/Arcs",
+        ("*", "请在偏好设置中启用 Extra Objects / Extra Curve Objects 插件"): "Please enable the 'Extra Objects' / 'Extra Curve Objects' add-on in Preferences.",
 
         # Model Editing panel
         ("*", "模型修改"): "Model Editing",
