@@ -901,7 +901,8 @@ class CameraSettingsOperator(bpy.types.Operator):
         bone_name = props.bone_name
         vg_name = props.vg_name
         if target_type == "ARMATURE":
-            if not active_object:
+            if not active_object or not active_object.select_get():
+                # 必须同时满足选中且激活
                 self.report(type={'ERROR'}, message=f'Select armature object!')
                 return False
             if active_object.type == "ARMATURE":
