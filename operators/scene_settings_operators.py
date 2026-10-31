@@ -868,22 +868,35 @@ class CameraSettingsOperator(bpy.types.Operator):
         bpy.ops.scene.new(type='EMPTY')
         scenes_after = set(bpy.data.scenes)
         tmp_scene = (scenes_after - scenes_before).pop()
-        context.window.scene = tmp_scene
-        tmp_scene.name = "TmpScene"
 
-        # 烘焙相机动画
-        if target_type == "ARMATURE":
-            tmp_scene.collection.objects.link(armature_copied)
-            bake_camera_animation(context, props, camera, armature=armature_copied)
-            bpy.data.objects.remove(armature_copied, do_unlink=True)
-        else:
-            tmp_scene.collection.objects.link(empty)
-            bake_camera_animation(context, props, camera, empty=empty)
-            bpy.data.objects.remove(empty, do_unlink=True)
+        try:
+            context.window.scene = tmp_scene
+            tmp_scene.name = "TmpScene"
 
-        # 恢复主场景
-        context.window.scene = main_scene
-        bpy.data.scenes.remove(tmp_scene)
+            # 烘焙相机动画
+            if target_type == "ARMATURE":
+                tmp_scene.collection.objects.link(armature_copied)
+                bake_camera_animation(context, props, camera, armature=armature_copied)
+                bpy.data.objects.remove(armature_copied, do_unlink=True)
+            else:
+                tmp_scene.collection.objects.link(empty)
+                bake_camera_animation(context, props, camera, empty=empty)
+                bpy.data.objects.remove(empty, do_unlink=True)
+        except Exception as e:
+            # 异常时清理已创建的相机与临时对象，并提示用户
+            for obj in (camera.parent, camera, armature_copied, empty):
+                if obj is None:
+                    continue
+                try:
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                except ReferenceError:
+                    pass
+            self.report({'ERROR'}, f"相机动画生成失败：{e}")
+            return False
+        finally:
+            # 无论烘焙是否成功，都恢复主场景并清理临时场景
+            context.window.scene = main_scene
+            bpy.data.scenes.remove(tmp_scene)
 
         # 选中相机控制器 激活相机
         deselect_all_objects()
