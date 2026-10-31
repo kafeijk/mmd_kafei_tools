@@ -49,95 +49,15 @@ def find_nodes(mat, names, total_node_map, by="node", recursive=False):
     return node_map
 
 
-class SmallFeatureOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.sf"
+class SceneRootOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.sf_scene_root"
     bl_label = "执行"
-    bl_description = "执行"
+    bl_description = "创建场景控制器"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.main(context)
+        self.gen_scene_root(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
-
-    def main(self, context):
-
-        scene = context.scene
-        props = scene.mmd_kafei_tools_sf
-        if self.check_props(props) is False:
-            return
-
-        option = props.option
-        if option == 'SCENE_ROOT':
-            self.gen_scene_root(context)
-        elif option == "REMOVE_MISSING_DATA":
-            self.remove_missing_external_data()
-        elif option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
-            self.repair_sss(option)
-
-    def remove_missing_external_data(self):
-        """移除丢失的可打包外部数据（图像、字体、声音）"""
-
-        def remove_if_missing(data_block):
-            for item in list(data_block):
-                if item.packed_file:
-                    continue
-                filepath = getattr(item, "filepath", "")
-                if filepath and not os.path.exists(bpy.path.abspath(filepath)):
-                    data_block.remove(item)
-
-        remove_if_missing(bpy.data.images)
-        remove_if_missing(bpy.data.fonts)
-        remove_if_missing(bpy.data.sounds)
-
-    def repair_sss(self, option):
-        objs = bpy.context.selected_objects
-
-        materials = get_materials(objs)
-        for material in materials:
-            if not is_valid_material(material):
-                continue
-
-            node_tree = material.node_tree
-            nodes = node_tree.nodes
-
-            # 找到当前被使用的材质输出节点
-            output_node = None
-            linked_node = None
-            for node in nodes:
-                if node.bl_idname == 'ShaderNodeOutputMaterial' and node.is_active_output:
-                    # 确认表面插槽是否被连接
-                    for link in node_tree.links:
-                        if link.to_node == node and link.to_socket.name == 'Surface':
-                            output_node = node
-                            linked_node = link.from_node
-                            break
-                    if output_node:
-                        break
-            if output_node is None:
-                continue
-
-            if option == "SUBSURFACE_CY":
-                reset_bsdf_sss(nodes)
-            elif option == "SUBSURFACE_EV":
-                # 处理原理化BSDF节点
-                processed = process_bsdf(linked_node)
-                if processed:
-                    continue
-
-                # 如果已经强制处理过，则不再处理
-                processed = is_force_processed(linked_node, node_tree)
-                if processed:
-                    continue
-
-                # 强制处理
-                force_process(node_tree, output_node)
-        if option == "SUBSURFACE_EV":
-            result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
-            if len(result) > 0:
-                self.report(type={'WARNING'},
-                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
-                self.report(type={'WARNING'},
-                            message="Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑")
 
     def gen_scene_root(self, context):
         """创建一个空物体，以实现对整个场景的统一控制"""
@@ -206,14 +126,96 @@ class SmallFeatureOperator(bpy.types.Operator):
         deselect_all_objects()
         select_and_activate(root)
 
-    def check_props(self, props):
-        option = props.option
-        if option in ['SUBSURFACE_EV', 'SUBSURFACE_CY']:
-            objs = bpy.context.selected_objects
-            if len(objs) == 0:
-                self.report(type={'ERROR'}, message=f'Select at least one object!')
-                return False
-        return True
+
+class RemoveMissingDataOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.sf_remove_missing_data"
+    bl_label = "执行"
+    bl_description = "移除丢失外部数据"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        self.remove_missing_external_data()
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def remove_missing_external_data(self):
+        """移除丢失的可打包外部数据（图像、字体、声音）"""
+
+        def remove_if_missing(data_block):
+            for item in list(data_block):
+                if item.packed_file:
+                    continue
+                filepath = getattr(item, "filepath", "")
+                if filepath and not os.path.exists(bpy.path.abspath(filepath)):
+                    data_block.remove(item)
+
+        remove_if_missing(bpy.data.images)
+        remove_if_missing(bpy.data.fonts)
+        remove_if_missing(bpy.data.sounds)
+
+
+class RepairSSSOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.sf_repair_sss"
+    bl_label = "执行"
+    bl_description = "修复Eevee显示泛蓝 / 修复Cycles显示模糊"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        if len(bpy.context.selected_objects) == 0:
+            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            return {'FINISHED'}
+        props = context.scene.mmd_kafei_tools_sf
+        self.repair_sss(props.option)
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def repair_sss(self, option):
+        objs = bpy.context.selected_objects
+
+        materials = get_materials(objs)
+        for material in materials:
+            if not is_valid_material(material):
+                continue
+
+            node_tree = material.node_tree
+            nodes = node_tree.nodes
+
+            # 找到当前被使用的材质输出节点
+            output_node = None
+            linked_node = None
+            for node in nodes:
+                if node.bl_idname == 'ShaderNodeOutputMaterial' and node.is_active_output:
+                    # 确认表面插槽是否被连接
+                    for link in node_tree.links:
+                        if link.to_node == node and link.to_socket.name == 'Surface':
+                            output_node = node
+                            linked_node = link.from_node
+                            break
+                    if output_node:
+                        break
+            if output_node is None:
+                continue
+
+            if option == "SUBSURFACE_CY":
+                reset_bsdf_sss(nodes)
+            elif option == "SUBSURFACE_EV":
+                # 处理原理化BSDF节点
+                processed = process_bsdf(linked_node)
+                if processed:
+                    continue
+
+                # 如果已经强制处理过，则不再处理
+                processed = is_force_processed(linked_node, node_tree)
+                if processed:
+                    continue
+
+                # 强制处理
+                force_process(node_tree, output_node)
+        if option == "SUBSURFACE_EV":
+            result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
+            if len(result) > 0:
+                self.report(type={'WARNING'},
+                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(result))
+                self.report(type={'WARNING'},
+                            message="Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑")
 
 
 def is_collection_instance(obj):

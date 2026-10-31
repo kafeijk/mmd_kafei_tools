@@ -231,6 +231,7 @@ translation_dict = {
         ("*", "移除丢失外部数据"): "Remove Missing External Data",
         ("*", "修复Eevee显示泛蓝"): "Fix Eevee Blue Tint Display Issue",
         ("*", "修复Cycles显示模糊"): "Fix Cycles Blurry Display Issue",
+        ("*", "修复Eevee显示泛蓝 / 修复Cycles显示模糊"): "Fix Eevee Blue Tint / Fix Cycles Blurry Display",
         ("*", "修改贴图色彩空间"): "Adjust Texture Color Space",
         ("*", "网格对象分组"): "Group Mesh Objects",
         # Small Features description

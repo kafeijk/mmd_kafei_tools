@@ -7,7 +7,11 @@ from ..operators.remove_uv_map_operators import RemoveUvMapOperator
 from ..operators.render_preview_operators import GenPreviewCameraOperator
 from ..operators.scene_settings_operators import LoadRenderPresetOperator
 from ..operators.render_preview_operators import RenderPreviewOperator
-from ..operators.small_feature_operators import SmallFeatureOperator
+from ..operators.small_feature_operators import (
+    SceneRootOperator,
+    RemoveMissingDataOperator,
+    RepairSSSOperator,
+)
 from ..operators.small_feature_operators import GroupObjectOperator
 from ..operators.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operators.transfer_preset_operators import TransferPresetOperator
@@ -343,8 +347,12 @@ class SmallFeaturePanel(bpy.types.Panel):
             col.prop(group_props, "recursive")
             col.operator(GroupObjectOperator.bl_idname, text=GroupObjectOperator.bl_label)
 
-        else:
-            col.operator(SmallFeatureOperator.bl_idname, text=SmallFeatureOperator.bl_label)
+        elif option == "SCENE_ROOT":
+            col.operator(SceneRootOperator.bl_idname, text=SceneRootOperator.bl_label)
+        elif option == "REMOVE_MISSING_DATA":
+            col.operator(RemoveMissingDataOperator.bl_idname, text=RemoveMissingDataOperator.bl_label)
+        elif option in ("SUBSURFACE_EV", "SUBSURFACE_CY"):
+            col.operator(RepairSSSOperator.bl_idname, text=RepairSSSOperator.bl_label)
 
 
 class ToolsPanel(bpy.types.Panel):
