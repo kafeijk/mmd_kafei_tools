@@ -986,6 +986,7 @@ def bake_camera_animation(context, props, camera, armature=None, empty=None):
     savepoint_x = None
     savepoint_y = None
     savepoint_z = None
+    is_first_frame = True
     # 获取帧范围
     target_type = props.target_type
     if target_type == "ARMATURE":
@@ -1011,8 +1012,9 @@ def bake_camera_animation(context, props, camera, armature=None, empty=None):
             lo_x, lo_y, lo_z = lo.x, lo.y, lo.z
 
         # 第一帧作为参考帧
-        if savepoint_x is None and savepoint_y is None and savepoint_z is None:
+        if is_first_frame:
             savepoint_x, savepoint_y, savepoint_z = lo_x, lo_y, lo_z
+            is_first_frame = False
             continue
 
         # 第二帧起计算差值
