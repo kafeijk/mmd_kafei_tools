@@ -906,6 +906,9 @@ class CameraSettingsOperator(bpy.types.Operator):
         with context.temp_override(**view3d_context()):
             switch_to_camera_view()
 
+        # 结束时恢复为场景起始帧
+        context.scene.frame_set(context.scene.frame_start)
+
         return True
 
     def check_props(self, context, props):
