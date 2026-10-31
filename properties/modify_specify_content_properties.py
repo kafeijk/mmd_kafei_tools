@@ -1,7 +1,5 @@
 import bpy
 
-from .batch_properties import BatchProperty
-
 
 class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
     content_type: bpy.props.EnumProperty(
@@ -68,7 +66,6 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
         description="移除形态键时，保留当前形态，否则保留默认形态",
         default=True
     )
-    batch: bpy.props.PointerProperty(type=BatchProperty)
 
     @staticmethod
     def register():
