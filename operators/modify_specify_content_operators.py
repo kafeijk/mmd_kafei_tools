@@ -151,7 +151,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
 
             for i in range(len(mesh.uv_layers) - 1, -1, -1):
                 if keep_first and i == 0:
-                    # 保留第一个颜色属性
+                    # 保留首个 UV 贴图
                     continue
                 uv = mesh.uv_layers[i]
                 mesh.uv_layers.remove(uv)
