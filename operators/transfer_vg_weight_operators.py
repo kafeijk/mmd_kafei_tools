@@ -33,30 +33,34 @@ class TransferVgWeightOperator(bpy.types.Operator):
             for obj in objs:
                 vgs = obj.vertex_groups
 
-                # 如果源顶点组不存在，则跳过；如果目标顶点组不存在，则新建
+                # 如果源顶点组不存在，则跳过
                 if source_vg_name not in vgs:
                     continue
-                if target_vg_name not in vgs:
-                    obj.vertex_groups.new(name=target_vg_name)
-
                 source_vg = vgs[source_vg_name]
-                target_vg = vgs[target_vg_name]
                 source_vg_index = source_vg.index
-                target_vg_index = target_vg.index
 
+                # 目标顶点组在出现第一个可转移顶点时才创建，源组无权重时不留下空组
+                target_vg = None
+                target_vg_index = -1
                 for vert in obj.data.vertices:
                     if selected_v_only and not vert.select:
                         continue
                     v_index = vert.index
                     groups = [vg.group for vg in vert.groups]  # vert.groups 返回顶点组id和对应权重（只读）
-                    if source_vg_index in groups:
-                        weight_s = source_vg.weight(v_index)    # 顶点在源顶点组中的顶点权重
-                        if target_vg_index in groups:
-                            weight_t = target_vg.weight(v_index)    # 顶点在目标顶点组中的顶点权重
-                            target_vg.add([v_index], weight_s + weight_t, 'REPLACE')
-                        else:
-                            target_vg.add([v_index], weight_s, 'ADD')
-                        source_vg.remove([v_index])
+                    if source_vg_index not in groups:
+                        continue
+                    if target_vg is None:
+                        if target_vg_name not in vgs:
+                            obj.vertex_groups.new(name=target_vg_name)
+                        target_vg = vgs[target_vg_name]
+                        target_vg_index = target_vg.index
+                    weight_s = source_vg.weight(v_index)    # 顶点在源顶点组中的顶点权重
+                    if target_vg_index in groups:
+                        weight_t = target_vg.weight(v_index)    # 顶点在目标顶点组中的顶点权重
+                        target_vg.add([v_index], weight_s + weight_t, 'REPLACE')
+                    else:
+                        target_vg.add([v_index], weight_s, 'ADD')
+                    source_vg.remove([v_index])
         finally:
             # 恢复进入前的模式
             if mode != "OBJECT":
