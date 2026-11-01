@@ -554,12 +554,12 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 follow_path_cons.use_fixed_location = True
 
                 if offset:
-                    # (1 / num_per_circle) 一个身位
-                    # (1 / num_per_circle) * unit   几分之一个身位
-                    # ((curr_curve_index + (1 / unit)) % (1 / unit) 当前环数对(1 / unit)求模，使其结果小于(1 / unit)
-                    # curr_offset 当前环所有物体共同的偏移量，其结果始终小于1个身位
-                    unit = 0.25  # 暂不对外提供参数
-                    curr_offset = (1 / num_per_circle) * unit * ((curr_curve_index + (1 / unit)) % (1 / unit))
+                    # 一个身位 = 1 / num_per_circle；
+                    # 相邻环之间再错开 unit 个身位，并按 1 / unit 个环为一组循环，
+                    # 保证不同环的共同偏移量始终小于 1 个身位
+                    unit = 1 / 4  # 暂不对外提供参数
+                    ring_offset = curr_curve_index % (1 / unit)
+                    curr_offset = (1 / num_per_circle) * unit * ring_offset
                     offset_factor = curr_curve_character_index / num_per_circle + curr_offset
                 else:
                     if arrangement_type == "ARC":
