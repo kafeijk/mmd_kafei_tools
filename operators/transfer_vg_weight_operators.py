@@ -10,8 +10,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        props = context.scene.mmd_kafei_tools_transfer_vg_weight
-        if not self.check_props(props):
+        if not self.check_props(context):
             return {'CANCELLED'}
         self.main(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
@@ -23,12 +22,12 @@ class TransferVgWeightOperator(bpy.types.Operator):
         target_vg_name = props.target_vg_name
         selected_v_only = props.selected_v_only
 
-        if bpy.context.active_object and bpy.context.active_object.mode != "OBJECT":
+        if context.active_object and context.active_object.mode != "OBJECT":
             bpy.ops.object.mode_set(mode='OBJECT')
 
         # 记录选择状态
-        active_object = bpy.context.active_object
-        objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+        active_object = context.active_object
+        objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
 
         for index, obj in enumerate(objs):
             deselect_all_objects()
@@ -64,8 +63,9 @@ class TransferVgWeightOperator(bpy.types.Operator):
         restore_selection(objs, active_object)
         self.report({'INFO'}, "Weight transfer completed")
 
-    def check_props(self, props):
-        objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+    def check_props(self, context):
+        props = context.scene.mmd_kafei_tools_transfer_vg_weight
+        objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
         if len(objs) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one mesh!')
             return False
