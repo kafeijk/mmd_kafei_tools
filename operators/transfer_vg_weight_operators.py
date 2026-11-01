@@ -29,7 +29,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
         active_object = context.active_object
         objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
 
-        for index, obj in enumerate(objs):
+        for obj in objs:
             deselect_all_objects()
             select_and_activate(obj)
             vgs = obj.vertex_groups
