@@ -15,6 +15,9 @@ from ..utils import (
     select_and_activate,
 )
 
+# 尺寸超过阈值的物体统一放置的位置（与 ArrangeObjectProperty.threshold 的描述一致）
+BIG_OBJECT_LOCATION = (0, 300, 0)
+
 
 class ModifySpecifyContentOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.modify_specify_content"
@@ -582,9 +585,9 @@ class ArrangeObjectOperator(bpy.types.Operator):
 
                 curr_curve_character_index += 1
 
-        # 排列X长度大于 threshold 的物体
+        # 尺寸超过阈值的物体统一放置
         for ancestor in big_objs:
-            ancestor.location = (0, 300, 0)
+            ancestor.location = BIG_OBJECT_LOCATION
 
         # 恢复选中状态
         restore_selection(selected_objects, active_object)
