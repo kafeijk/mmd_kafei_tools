@@ -28,6 +28,8 @@ class TransferVgWeightOperator(bpy.types.Operator):
         if mode != "OBJECT":
             bpy.ops.object.mode_set(mode='OBJECT')
         objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        total_moved = 0
+        total_selected = 0
 
         try:
             for obj in objs:
@@ -43,8 +45,10 @@ class TransferVgWeightOperator(bpy.types.Operator):
                 target_vg = None
                 target_vg_index = -1
                 for vert in obj.data.vertices:
-                    if selected_v_only and not vert.select:
-                        continue
+                    if selected_v_only:
+                        if not vert.select:
+                            continue
+                        total_selected += 1
                     v_index = vert.index
                     groups = [vg.group for vg in vert.groups]  # vert.groups 返回顶点组id和对应权重（只读）
                     if source_vg_index not in groups:
@@ -62,12 +66,18 @@ class TransferVgWeightOperator(bpy.types.Operator):
                     else:
                         target_vg.add([v_index], weight_s, 'ADD')
                     source_vg.remove([v_index])
+                    total_moved += 1
         finally:
             # 恢复进入前的模式
             if mode != "OBJECT":
                 bpy.ops.object.mode_set(mode=mode)
 
-        self.report({'INFO'}, translate("权重转移完成"))
+        if total_moved:
+            self.report({'INFO'}, translate("权重转移完成"))
+        elif selected_v_only and total_selected == 0:
+            self.report(type={'WARNING'}, message=translate("未选中任何顶点"))
+        else:
+            self.report(type={'WARNING'}, message=translate("源顶点组中无顶点"))
 
     def check_props(self, context):
         props = context.scene.mmd_kafei_tools_transfer_vg_weight
@@ -96,7 +106,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
             self.report(type={'ERROR'},
                         message=translate("不支持 mmd_edge_scale / mmd_vertex_order 顶点组！"))
             return False
-            # 仅选中顶点依赖编辑模式中的顶点选择，需先进入编辑模式
+        # 仅选中顶点依赖编辑模式中的顶点选择，需先进入编辑模式
         active_object = context.active_object
         if props.selected_v_only and (
                 not active_object or active_object.type != 'MESH' or active_object.mode != 'EDIT'):
