@@ -14,11 +14,13 @@ from ..utils import (
     find_pmx_root_with_child,
     find_rigid_body_parent,
     get_physical_bone,
+    is_mmd_tools_enabled,
     is_pose_bone_selected,
     matmul,
     select_and_activate,
     select_pose_bone,
     show_object,
+    translate,
 )
 
 
@@ -194,6 +196,9 @@ def check_props(operator, option):
     if option in ("FLIP_BONE", "PHYSICAL_BONE", "BAKE_BONE", "LINKED_BONE", "RING_BONE", "INVALID_RIGIDBODY_JOINT",
                   "MORE_BONE", "EXTEND_CHILDREN_BONE", "EXTEND_PARENT_BONE",
                   "LESS_BONE", "LESS_PARENT_BONE", "LESS_CHILDREN_BONE"):
+        if not is_mmd_tools_enabled():
+            operator.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            return False
         active_object = bpy.context.active_object
         if not active_object:
             operator.report(type={'ERROR'}, message="Select MMD model!")

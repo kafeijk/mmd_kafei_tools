@@ -512,15 +512,13 @@ def find_children(obj, obj_type=None):
 
 def is_mmd_tools_enabled():
     """
-    校验mmd_tools是否开启，addon.module分别为：
-    3.x版本 为 mmd_tools
-    4.2版本 临时为 bl_ext.user_default.mmd_tools
-    4.3版本及以后 bl_ext.blender_org.mmd_tools
+    校验mmd_tools是否开启
+
+    直接看 Object.mmd_type 是否注册即可：它由 mmd_tools 注册，
+    注册了就说明插件可用；反注册了（含 addon_utils.disable() 半关闭）就不可用。
+    这样不用遍历 addon_utils.modules()，面板每次重绘都不会有额外开销。
     """
-    for addon in bpy.context.preferences.addons:
-        if addon.module.endswith("mmd_tools"):
-            return True
-    return False
+    return hasattr(bpy.types.Object, "mmd_type")
 
 
 def batch_process(func, props, f_flag=False):

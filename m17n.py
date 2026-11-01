@@ -229,6 +229,7 @@ translation_dict = {
         ("*", "请激活网格对象！"): "Activate the mesh object!",
         ("*", "移除了 {} 个顶点"): "Removed {} vertice(s)",
         ("*", "请选择MMD模型！"): "Select MMD model!",
+        ("*", "未启用MMD Tools插件！"): "MMD Tools add-on is not enabled!",
         ("*", "未找到模型骨架！"): "Armature not found!",
         ("*", "{} 与 {} 重合面数: {} (占比 A: {:.2%}, B: {:.2%})"): "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})",
         ("*", "检测完成，点击查看报告↑↑↑"): "Check completed, click to view the report ↑↑↑",
