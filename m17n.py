@@ -10,7 +10,6 @@ translation_dict = {
         ("*", "Select at least one object!"): "请选择至少一个物体！",
 
         # bone_operators
-        ("*", "No bones selected!"): "请至少选择一根骨骼！",
         ("*", "Select bones on one side!"): "请选择单侧骨骼！",
 
         # change_rest_pose_operators
@@ -231,6 +230,7 @@ translation_dict = {
         ("*", "请选择MMD模型！"): "Select MMD model!",
         ("*", "未启用MMD Tools插件！"): "MMD Tools add-on is not enabled!",
         ("*", "未找到模型骨架！"): "Armature not found!",
+        ("*", "请至少选择一根骨骼！"): "Select at least one bone!",
         ("*", "{} 与 {} 重合面数: {} (占比 A: {:.2%}, B: {:.2%})"): "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})",
         ("*", "检测完成，点击查看报告↑↑↑"): "Check completed, click to view the report ↑↑↑",
         ("*", "未发现网格面之间重合"): "No overlapping mesh faces found",

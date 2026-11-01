@@ -200,16 +200,13 @@ def check_props(context, operator, option):
             operator.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
             return False
         active_object = context.active_object
-        if not active_object:
-            operator.report(type={'ERROR'}, message="Select MMD model!")
-            return False
         pmx_root = find_pmx_root_with_child(active_object)
-        if not pmx_root:
-            operator.report(type={'ERROR'}, message=f'Select MMD model!')
+        if not active_object or not pmx_root:
+            operator.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
             return False
         armature = find_pmx_armature(pmx_root)
         if not armature:
-            operator.report(type={'ERROR'}, message=f'Armature not found!')
+            operator.report(type={'ERROR'}, message=translate("未找到模型骨架！"))
             return False
 
         if option in ("FLIP_BONE"):
@@ -219,7 +216,7 @@ def check_props(context, operator, option):
                 if is_pose_bone_selected(pb):
                     selected_pbs.append(pb)
             if not selected_pbs:
-                operator.report(type={'ERROR'}, message=f'No bones selected!')
+                operator.report(type={'ERROR'}, message=translate("请至少选择一根骨骼！"))
                 return False
 
             unsupported_pbs = []
@@ -231,7 +228,7 @@ def check_props(context, operator, option):
                 for pb in unsupported_pbs:
                     print(pb.name)
                 operator.report(type={'ERROR'},
-                                message="仅支持四元数旋转模式，详情请查看控制台")
+                                message=translate("仅支持四元数旋转模式，详情请查看控制台"))
                 return False
 
     return True
