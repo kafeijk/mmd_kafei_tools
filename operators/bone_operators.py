@@ -32,9 +32,9 @@ class FlipBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "FLIP_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        mirror_pose()
+        mirror_pose(context)
         return {'FINISHED'}
 
 
@@ -46,9 +46,9 @@ class DeleteInvalidRigidbodyJointOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "INVALID_RIGIDBODY_JOINT"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        remove_invalid_rigidbody_joint()
+        remove_invalid_rigidbody_joint(context)
         return {'FINISHED'}
 
 
@@ -60,9 +60,9 @@ class SelectPhysicalBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "PHYSICAL_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_physical_bone()
+        select_physical_bone(context)
         return {'FINISHED'}
 
 
@@ -74,9 +74,9 @@ class SelectBakeBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "BAKE_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bake_bone()
+        select_bake_bone(context)
         return {'FINISHED'}
 
 
@@ -88,9 +88,9 @@ class SelectLinkedBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LINKED_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
@@ -102,9 +102,9 @@ class SelectRingBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "RING_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
@@ -116,9 +116,9 @@ class SelecExtendParentBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "EXTEND_PARENT_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
@@ -130,9 +130,9 @@ class SelectExtendChildrenBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "EXTEND_CHILDREN_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
@@ -144,9 +144,9 @@ class SelectLessParentBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LESS_PARENT_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
@@ -158,9 +158,9 @@ class SelectLessChildrenBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LESS_CHILDREN_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
@@ -172,9 +172,9 @@ class SelectMoreBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "MORE_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
@@ -186,20 +186,20 @@ class SelectLessBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LESS_BONE"
-        if not check_props(self, option):
+        if not check_props(context, self, option):
             return {'CANCELLED'}
-        select_bone_by_input(option)
+        select_bone_by_input(context, option)
         return {'FINISHED'}
 
 
-def check_props(operator, option):
+def check_props(context, operator, option):
     if option in ("FLIP_BONE", "PHYSICAL_BONE", "BAKE_BONE", "LINKED_BONE", "RING_BONE", "INVALID_RIGIDBODY_JOINT",
                   "MORE_BONE", "EXTEND_CHILDREN_BONE", "EXTEND_PARENT_BONE",
                   "LESS_BONE", "LESS_PARENT_BONE", "LESS_CHILDREN_BONE"):
         if not is_mmd_tools_enabled():
             operator.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
             return False
-        active_object = bpy.context.active_object
+        active_object = context.active_object
         if not active_object:
             operator.report(type={'ERROR'}, message="Select MMD model!")
             return False
@@ -517,9 +517,9 @@ def get_mirror_name(bl_name):
     return mirror_bl_name
 
 
-def mirror_pose():
+def mirror_pose(context):
     """翻转骨骼姿态，该部分从mmd_tools提取，原理不清楚，但流程相当于导出动作再镜像导入。"""
-    obj = bpy.context.active_object
+    obj = context.active_object
     pmx_root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(pmx_root)
 
@@ -557,10 +557,10 @@ def mirror_pose():
     # 重设选择状态会影响重复修改原骨骼，不重设选择状态会影响K帧，暂不修改选择状态
 
 
-def remove_invalid_rigidbody_joint():
+def remove_invalid_rigidbody_joint(context):
     """清理无效刚体Joint"""
-    original_mode = bpy.context.active_object.mode
-    obj = bpy.context.active_object
+    obj = context.active_object
+    original_mode = obj.mode
     root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(root)
     rigidbody_parent = find_rigid_body_parent(root)
@@ -607,10 +607,10 @@ def remove_invalid_rigidbody_joint():
     bpy.ops.object.mode_set(mode=original_mode)
 
 
-def select_physical_bone():
+def select_physical_bone(context):
     """选择物理骨骼"""
-    original_mode = bpy.context.active_object.mode
-    obj = bpy.context.active_object
+    obj = context.active_object
+    original_mode = obj.mode
     root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(root)
     bl_names = get_physical_bone(root)
@@ -629,10 +629,10 @@ def select_physical_bone():
         bpy.ops.object.mode_set(mode='EDIT')
 
 
-def select_bake_bone():
+def select_bake_bone(context):
     """选择用于烘焙VMD的骨骼"""
-    original_mode = bpy.context.active_object.mode
-    obj = bpy.context.active_object
+    obj = context.active_object
+    original_mode = obj.mode
     pmx_root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(pmx_root)
     # 选中骨架并进入姿态模式
@@ -679,7 +679,7 @@ def get_bone_info(armature, original_mode):
         return eb_hide_map, original_mode, layers
 
 
-def select_bone_by_input(option):
+def select_bone_by_input(context, option):
     """根据用户所选择的骨骼，来选择option相关骨骼
 
     关联骨骼：
@@ -707,8 +707,8 @@ def select_bone_by_input(option):
     就算激活骨骼未被选中，他也可能是激活骨骼。
     """
     # 获取基本信息
-    original_mode = bpy.context.active_object.mode
-    obj = bpy.context.active_object
+    obj = context.active_object
+    original_mode = obj.mode
     pmx_root = find_pmx_root_with_child(obj)
     armature = find_pmx_armature(pmx_root)
 

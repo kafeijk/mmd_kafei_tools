@@ -534,7 +534,7 @@ class BonePanel(bpy.types.Panel):
         # 选择 镜像骨骼
         operator_row = operator_col.row(align=True)
         mirror_bone_col = operator_row.column(align=True)
-        if bpy.context.active_object and bpy.context.active_object.mode == "EDIT":
+        if context.active_object and context.active_object.mode == "EDIT":
             mirror_bone_col.operator("armature.select_mirror", text="镜像骨骼", icon="VIEWZOOM")
         else:
             mirror_bone_col.operator("pose.select_mirror", text="镜像骨骼", icon="VIEWZOOM")
@@ -572,7 +572,7 @@ class BonePanel(bpy.types.Panel):
         operator_row.operator(DeleteInvalidRigidbodyJointOperator.bl_idname,
                               text=DeleteInvalidRigidbodyJointOperator.bl_label, icon="TRASH")
 
-        active_object = bpy.context.active_object
+        active_object = context.active_object
         if active_object and active_object.type == "ARMATURE" and active_object.mode in ["EDIT", "POSE"]:
             link_bone_col.enabled = True
             ring_bone_bol.enabled = True
