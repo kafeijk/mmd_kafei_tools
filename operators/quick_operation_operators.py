@@ -17,7 +17,7 @@ from ..utils import (
 class MergeVerticesOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.merge_vertices"
     bl_label = "合并顶点"
-    bl_description = "按距离合并顶点，合并间距0.00001，并重设法向。支持一次选择多个网格对象并分别处理。在物体模式，作用范围为选择的物体；在编辑模式，作用范围为选择的顶点"
+    bl_description = "按距离合并顶点，合并间距1e-05，并重设法向。支持一次选择多个网格对象并分别处理。在物体模式，作用范围为选择的物体；在编辑模式，作用范围为选择的顶点"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
