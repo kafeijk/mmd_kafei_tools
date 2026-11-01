@@ -112,13 +112,18 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
         return {'FINISHED'}
 
     def check_props(self, context):
-        if len(context.selected_objects) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
+        objs = context.selected_objects
+        if len(objs) == 0:
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
+            return False
+        if not any(obj.type == "MESH" for obj in objs):
+            self.report(type={'ERROR'}, message=translate("请至少选择一个网格对象！"))
             return False
         return True
 
     def rename(self, context):
         objs = context.selected_objects
+        processed = 0
         skipped_names = []
         conflicts = []
 
@@ -153,8 +158,9 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
                 conflicts.append(obj.name)
             if is_mmd_tools_enabled():
                 mat_new.mmd_material.name_j = obj_name
+            processed += 1
 
-        report_rename_result(self, skipped_names, conflicts)
+        report_rename_result(self, processed, skipped_names, conflicts)
 
 
 class SetObjNameByMatNameOperator(bpy.types.Operator):
@@ -170,13 +176,18 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
         return {'FINISHED'}
 
     def check_props(self, context):
-        if len(context.selected_objects) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
+        objs = context.selected_objects
+        if len(objs) == 0:
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
+            return False
+        if not any(obj.type == "MESH" for obj in objs):
+            self.report(type={'ERROR'}, message=translate("请至少选择一个网格对象！"))
             return False
         return True
 
     def rename(self, context):
         objs = context.selected_objects
+        processed = 0
         skipped_names = []
         conflicts = []
 
@@ -209,12 +220,13 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
                 if obj.name != new_name:
                     # 对象名称冲突时记录改名后的当前对象名
                     conflicts.append(obj.name)
+            processed += 1
 
-        report_rename_result(self, skipped_names, conflicts)
+        report_rename_result(self, processed, skipped_names, conflicts)
 
 
-def report_rename_result(operator, skipped_names, conflicts):
-    """报告改名结果：全部完成时提示完成，否则先给出明细警告，再提示查看详情"""
+def report_rename_result(operator, processed, skipped_names, conflicts):
+    """报告改名结果"""
     if skipped_names or conflicts:
         details = []
         if skipped_names:
@@ -222,7 +234,10 @@ def report_rename_result(operator, skipped_names, conflicts):
         if conflicts:
             details.append(translate("重命名时名称存在冲突，已自动添加后缀：{}").format(conflicts))
         operator.report(type={'WARNING'}, message="\n".join(details))
-        operator.report(type={'WARNING'}, message=translate("重命名部分完成，点击查看详情↑↑↑"))
+        if processed:
+            operator.report(type={'WARNING'}, message=translate("重命名部分完成，点击查看详情↑↑↑"))
+        else:
+            operator.report(type={'WARNING'}, message=translate("没有可重命名的对象，点击查看详情↑↑↑"))
     else:
         operator.report(type={'INFO'}, message=translate("重命名全部完成"))
 

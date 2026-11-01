@@ -242,6 +242,8 @@ translation_dict = {
         ("*", "未发现网格面之间重合"): "No overlapping mesh faces found",
         ("*", "重命名全部完成"): "All objects renamed",
         ("*", "重命名部分完成，点击查看详情↑↑↑"): "Partially renamed, click to view details ↑↑↑",
+        ("*", "请至少选择一个网格对象！"): "Select at least one mesh object!",
+        ("*", "没有可重命名的对象，点击查看详情↑↑↑"): "No renameable object, click to view details ↑↑↑",
         ("*", "对象材质数不为1（多材质槽/空材质槽），已跳过：{}"): "Objects whose material count is not 1 (multi-material / empty slot), skipped: {}",
         ("*", "重命名时名称存在冲突，已自动添加后缀：{}"): "Name conflict during renaming, suffix was appended: {}",
         ("*", "修复Eevee显示泛蓝"): "Fix Eevee Blue Tint Display Issue",
