@@ -597,21 +597,20 @@ class ArrangeObjectOperator(bpy.types.Operator):
 
 
 def has_big_obj(objs, threshold):
+    """任一网格对象在 X、Y 或 Z 方向上的尺寸超过阈值时返回 True"""
     for mesh_obj in objs:
-        # 计算物体在X轴上的长度
         x_length = mesh_obj.dimensions[0]
         y_length = mesh_obj.dimensions[1]
         z_length = mesh_obj.dimensions[2]
-        # 如果物体在X轴上的长度大于5，就把它添加到big_objs列表中
         if x_length > threshold or y_length > threshold or z_length > threshold:
             return True
     return False
 
 
 def get_max_length(objs):
+    """返回所有网格对象在 X、Y、Z 三个方向上的最大尺寸"""
     max_length = 0
     for mesh_obj in objs:
-        # 计算物体在X轴上的长度
         x_length = mesh_obj.dimensions[0]
         y_length = mesh_obj.dimensions[1]
         z_length = mesh_obj.dimensions[2]
