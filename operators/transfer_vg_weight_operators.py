@@ -22,45 +22,49 @@ class TransferVgWeightOperator(bpy.types.Operator):
         target_vg_name = props.target_vg_name
         selected_v_only = props.selected_v_only
 
-        if context.active_object and context.active_object.mode != "OBJECT":
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        # 记录选择状态
+        # 记录进入前的模式和选择状态
         active_object = context.active_object
+        mode = active_object.mode if active_object else "OBJECT"
+        if mode != "OBJECT":
+            bpy.ops.object.mode_set(mode='OBJECT')
         objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
 
-        for obj in objs:
-            deselect_all_objects()
-            select_and_activate(obj)
-            vgs = obj.vertex_groups
+        try:
+            for obj in objs:
+                deselect_all_objects()
+                select_and_activate(obj)
+                vgs = obj.vertex_groups
 
-            # 如果源顶点组不存在，则跳过；如果目标顶点组不存在，则新建
-            if source_vg_name not in vgs:
-                continue
-            if target_vg_name not in vgs:
-                obj.vertex_groups.new(name=target_vg_name)
-
-            source_vg = vgs[source_vg_name]
-            target_vg = vgs[target_vg_name]
-            source_vg_index = source_vg.index
-            target_vg_index = target_vg.index
-
-            for vert in obj.data.vertices:
-                if selected_v_only and not vert.select:
+                # 如果源顶点组不存在，则跳过；如果目标顶点组不存在，则新建
+                if source_vg_name not in vgs:
                     continue
-                v_index = vert.index
-                groups = [vg.group for vg in vert.groups]  # vert.groups 返回顶点组id和对应权重（只读）
-                if source_vg_index in groups:
-                    weight_s = source_vg.weight(v_index)    # 顶点在源顶点组中的顶点权重
-                    if target_vg_index in groups:
-                        weight_t = target_vg.weight(v_index)    # 顶点在目标顶点组中的顶点权重
-                        target_vg.add([v_index], weight_s + weight_t, 'REPLACE')
-                    else:
-                        target_vg.add([v_index], weight_s, 'ADD')
-                    source_vg.remove([v_index])
+                if target_vg_name not in vgs:
+                    obj.vertex_groups.new(name=target_vg_name)
 
-        # 恢复选择状态
-        restore_selection(objs, active_object)
+                source_vg = vgs[source_vg_name]
+                target_vg = vgs[target_vg_name]
+                source_vg_index = source_vg.index
+                target_vg_index = target_vg.index
+
+                for vert in obj.data.vertices:
+                    if selected_v_only and not vert.select:
+                        continue
+                    v_index = vert.index
+                    groups = [vg.group for vg in vert.groups]  # vert.groups 返回顶点组id和对应权重（只读）
+                    if source_vg_index in groups:
+                        weight_s = source_vg.weight(v_index)    # 顶点在源顶点组中的顶点权重
+                        if target_vg_index in groups:
+                            weight_t = target_vg.weight(v_index)    # 顶点在目标顶点组中的顶点权重
+                            target_vg.add([v_index], weight_s + weight_t, 'REPLACE')
+                        else:
+                            target_vg.add([v_index], weight_s, 'ADD')
+                        source_vg.remove([v_index])
+        finally:
+            # 恢复选择状态与进入前的模式
+            restore_selection(objs, active_object)
+            if mode != "OBJECT":
+                bpy.ops.object.mode_set(mode=mode)
+
         self.report({'INFO'}, translate("权重转移完成"))
 
     def check_props(self, context):
