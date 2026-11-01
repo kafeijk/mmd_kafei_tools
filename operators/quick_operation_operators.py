@@ -336,7 +336,7 @@ class CleanSceneOperator(bpy.types.Operator):
     def clean_scene(self, context):
         """清空全部场景的数据，而非仅当前场景"""
         # bpy.data.objects 是全局数据，包含所有场景的物体，故这里会清空全部场景
-        for obj in reversed(bpy.data.objects):
+        for obj in list(bpy.data.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
 
         # bpy.data.collections 同样是全局数据，所有场景的集合都会被移除
@@ -346,10 +346,8 @@ class CleanSceneOperator(bpy.types.Operator):
         # 递归清理未使用的数据块
         bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
 
-        # 刷新场景  预防导入模型时刚体掉一地，但该情况出现的原因暂不明确，故通过更改当前帧来刷新场景的方式有待后续确认
-        frame_current = context.scene.frame_current
-        context.scene.frame_current = context.scene.frame_current + 1
-        context.scene.frame_current = frame_current
+        # 删除后把当前帧设为第一帧，解决导入模型时刚体散落的问题
+        context.scene.frame_current = 1
 
         # 新建默认集合
         get_collection("Collection")
