@@ -20,27 +20,31 @@ class MergeVerticesOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
         self.merge_vertices(context)
         return {'FINISHED'}
 
-    def merge_vertices(self, context):
-        scene = context.scene
-
-        objs = bpy.context.selected_objects
+    def check_props(self, context):
+        objs = context.selected_objects
         if len(objs) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return
-        active_object = bpy.context.active_object
+            return False
+        active_object = context.active_object
         if active_object is None:
             self.report(type={'ERROR'}, message=f'Activate the object!')
-            return
+            return False
         if active_object.type != "MESH":
             self.report(type={'ERROR'}, message=f'Activate the mesh object!')
-            return
+            return False
+        return True
+
+    def merge_vertices(self, context):
+        objs = context.selected_objects
 
         total_vertices = self.get_total_vertices(objs)
 
-        if bpy.context.active_object and bpy.context.active_object.mode == "EDIT":
+        if context.active_object and context.active_object.mode == "EDIT":
             bpy.ops.mesh.remove_doubles(threshold=1e-05)
             bpy.ops.mesh.normals_tools(mode='RESET')
         else:
@@ -98,14 +102,19 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        self.rename()
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        self.rename(context)
         return {'FINISHED'}
 
-    def rename(self):
-        objs = bpy.context.selected_objects
-        if len(objs) == 0:
+    def check_props(self, context):
+        if len(context.selected_objects) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return
+            return False
+        return True
+
+    def rename(self, context):
+        objs = context.selected_objects
 
         for obj in objs:
             if obj.type != "MESH":
@@ -143,14 +152,19 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        self.rename()
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        self.rename(context)
         return {'FINISHED'}
 
-    def rename(self):
-        objs = bpy.context.selected_objects
-        if len(objs) == 0:
+    def check_props(self, context):
+        if len(context.selected_objects) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return
+            return False
+        return True
+
+    def rename(self, context):
+        objs = context.selected_objects
 
         for obj in objs:
             if obj.type != "MESH":
@@ -211,11 +225,13 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
         self.detect_overlapping_faces()
         return {'FINISHED'}
 
-    def check_props(self):
-        active_object = bpy.context.active_object
+    def check_props(self, context):
+        active_object = context.active_object
         if not active_object:
             self.report(type={'ERROR'}, message=f'Select MMD model!')
             return False
@@ -230,9 +246,6 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
         return True
 
     def detect_overlapping_faces(self):
-        if self.check_props() is False:
-            return
-
         active_object = bpy.context.active_object
         root = find_pmx_root_with_child(active_object)
         rig = find_pmx_armature(root)
