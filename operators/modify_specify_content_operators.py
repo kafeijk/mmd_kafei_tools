@@ -512,27 +512,28 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 bpy.data.collections.remove(coll)
         elif arrangement_type in ["ARC", "CIRCLE"]:
             # 在TMP_SCENE中预先创建圆弧/圆环，以解决性能问题
-            curr_scene_name = context.scene.name
+            curr_scene = context.scene
             tmp_scene = bpy.data.scenes.new("TMP_SCENE")
-            context.window.scene = tmp_scene
+            try:
+                context.window.scene = tmp_scene
 
-            # 添加空物体作为锁定追踪目标
-            bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
-            empty = context.active_object
-            empty.name = "Locked Track Target"
-            empty["arrangement"] = "Locked Track Target"
+                # 添加空物体作为锁定追踪目标
+                bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
+                empty = context.active_object
+                empty.name = "Locked Track Target"
+                empty["arrangement"] = "Locked Track Target"
 
-            # 创建圆环
-            curves = []
-            num_circles = math.ceil(len(normal_objs_sorted) / num_per_circle)
-            for i in range(num_circles):
-                curve = create_curve(arrangement_type, radius + i * spacing_circle)
-                curve["arrangement"] = "Curve"
-                curves.append(curve)
-
-            # 恢复Scene
-            context.window.scene = bpy.data.scenes[curr_scene_name]
-            bpy.data.scenes.remove(tmp_scene)
+                # 创建圆环
+                curves = []
+                num_circles = math.ceil(len(normal_objs_sorted) / num_per_circle)
+                for i in range(num_circles):
+                    curve = create_curve(arrangement_type, radius + i * spacing_circle)
+                    curve["arrangement"] = "Curve"
+                    curves.append(curve)
+            finally:
+                # 无论是否异常都切回原场景并删除临时场景，避免把用户留在临时场景
+                context.window.scene = curr_scene
+                bpy.data.scenes.remove(tmp_scene)
             # 恢复Link
             coll.objects.link(empty)
             for curve in curves:
