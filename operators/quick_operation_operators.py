@@ -317,11 +317,12 @@ class CleanSceneOperator(bpy.types.Operator):
         return {'FINISHED'}
 
     def clean_scene(self):
-        # 移除所有对象
+        """清空全部场景的数据，而非仅当前场景"""
+        # bpy.data.objects 是全局数据，包含所有场景的物体，故这里会清空全部场景
         for obj in reversed(bpy.data.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
 
-        # 移除所有集合
+        # bpy.data.collections 同样是全局数据，所有场景的集合都会被移除
         for coll in list(bpy.data.collections):
             bpy.data.collections.remove(coll)
 
