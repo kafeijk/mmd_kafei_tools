@@ -123,9 +123,9 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
             if obj.type != "MESH":
                 continue
 
-            # 跳过多材质
-            material_count = len([m for m in obj.data.materials if m is not None])
-            if material_count != 1:
+            # 跳过多材质对象和存在空槽的对象
+            materials = obj.data.materials
+            if len(materials) != 1 or materials[0] is None:
                 continue
 
             # 获取对象实际名称。名称.xxx 形式的，视为重名，暂不处理
@@ -136,16 +136,15 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
 
             # 设置材质名称
             mat = obj.data.materials[0]
+            # 复制一份，避免影响与其它物体共用的材质
             mat_new = mat.copy()
-            max_retry = 3
-            retry = 0
-            # 可解决大多数因重名导致的 .xxx 情况，但若场景中本身已存在两个同名材质（包括带 .xxx 后缀的情况），仍可能出现 .xxx 命名
-            while mat_new.name != obj_name and retry < max_retry:
-                mat_new.name = obj_name
-                retry += 1
+            obj.data.materials[0] = mat_new
+            # 旧材质在本物体上已不再使用，若无用户则删除，避免它占用目标名称导致新材质被命名为 .xxx
+            if mat.users == 0:
+                bpy.data.materials.remove(mat)
+            mat_new.name = obj_name
             if is_mmd_tools_enabled():
                 mat_new.mmd_material.name_j = obj_name
-            obj.data.materials[0] = mat_new
 
 
 class SetObjNameByMatNameOperator(bpy.types.Operator):
@@ -173,9 +172,9 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
             if obj.type != "MESH":
                 continue
 
-            # 跳过多材质
-            material_count = len([m for m in obj.data.materials if m is not None])
-            if material_count != 1:
+            # 跳过多材质对象和存在空槽的对象
+            materials = obj.data.materials
+            if len(materials) != 1 or materials[0] is None:
                 continue
 
             # 获取网格对象名称前缀
