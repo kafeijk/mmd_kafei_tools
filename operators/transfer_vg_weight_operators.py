@@ -57,6 +57,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
                     weight_s = source_vg.weight(v_index)    # 顶点在源顶点组中的顶点权重
                     if target_vg_index in groups:
                         weight_t = target_vg.weight(v_index)    # 顶点在目标顶点组中的顶点权重
+                        # 正常情况下同一顶点的权重合计不超过 1，超出部分由 Blender 截断到 1.0
                         target_vg.add([v_index], weight_s + weight_t, 'REPLACE')
                     else:
                         target_vg.add([v_index], weight_s, 'ADD')
@@ -94,5 +95,11 @@ class TransferVgWeightOperator(bpy.types.Operator):
             return False
         if source_vg_name == target_vg_name:
             self.report(type={'ERROR'}, message=translate("源顶点组与目标顶点组名称相同！"))
+            return False
+        # mmd_tools 的两个特殊顶点组存放的不是普通蒙皮权重，不允许参与转移
+        special_vgs = ("mmd_edge_scale", "mmd_vertex_order")
+        if source_vg_name in special_vgs or target_vg_name in special_vgs:
+            self.report(type={'ERROR'},
+                        message=translate("不支持 mmd_edge_scale / mmd_vertex_order 顶点组！"))
             return False
         return True

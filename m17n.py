@@ -245,6 +245,7 @@ translation_dict = {
         ("*", "请进入编辑模式！"): "Please enter Edit Mode first!",
         ("*", "请输入目标顶点组名称！"): "Target vertex group required!",
         ("*", "源顶点组与目标顶点组名称相同！"): "Source and target vertex groups have same name!",
+        ("*", "不支持 mmd_edge_scale / mmd_vertex_order 顶点组！"): "Transferring the mmd_edge_scale / mmd_vertex_order vertex groups is not supported!",
         ("*", "权重转移完成"): "Weight transfer completed",
         ("*", "修复Eevee显示泛蓝"): "Fix Eevee Blue Tint Display Issue",
         ("*", "修复Cycles显示模糊"): "Fix Cycles Blurry Display Issue",
