@@ -509,14 +509,11 @@ class BonePanel(bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        scene = context.scene
-
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
-        col = layout.column(align=True)
 
-        operator_col = col.column(align=True)
+        operator_col = layout.column(align=True)
 
         # 选择 物理骨骼 烘焙骨骼
         operator_row = operator_col.row(align=True)
@@ -534,10 +531,9 @@ class BonePanel(bpy.types.Panel):
         # 选择 镜像骨骼
         operator_row = operator_col.row(align=True)
         mirror_bone_col = operator_row.column(align=True)
-        if context.active_object and context.active_object.mode == "EDIT":
-            mirror_bone_col.operator("armature.select_mirror", text="镜像骨骼", icon="VIEWZOOM")
-        else:
-            mirror_bone_col.operator("pose.select_mirror", text="镜像骨骼", icon="VIEWZOOM")
+        in_edit_mode = bool(context.active_object and context.active_object.mode == "EDIT")
+        mirror_bone_col.operator("armature.select_mirror" if in_edit_mode else "pose.select_mirror", text="镜像骨骼",
+                                 icon="VIEWZOOM")
         flip_bone_col = operator_row.column(align=True)
         flip_bone_col.operator(FlipBoneOperator.bl_idname, text=FlipBoneOperator.bl_label, icon='PASTEFLIPDOWN')
         # mirror_bone_col.label(text="")  # 空白标签，占据空间
@@ -567,7 +563,7 @@ class BonePanel(bpy.types.Panel):
                                    text=SelectLessChildrenBoneOperator.bl_label,
                                    icon="VIEWZOOM")
 
-        # 翻转姿态 清理无效刚体Joint
+        # 清理无效刚体Joint
         operator_row = operator_col.row(align=True)
         operator_row.operator(DeleteInvalidRigidbodyJointOperator.bl_idname,
                               text=DeleteInvalidRigidbodyJointOperator.bl_label, icon="TRASH")
