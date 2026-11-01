@@ -12,6 +12,7 @@ from ..utils import (
     is_mmd_tools_enabled,
     restore_selection,
     select_and_activate,
+    translate,
 )
 class MergeVerticesOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.merge_vertices"
@@ -28,14 +29,14 @@ class MergeVerticesOperator(bpy.types.Operator):
     def check_props(self, context):
         objs = context.selected_objects
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return False
         active_object = context.active_object
         if active_object is None:
-            self.report(type={'ERROR'}, message=f'Activate the object!')
+            self.report(type={'ERROR'}, message=translate("请激活对象！"))
             return False
         if active_object.type != "MESH":
-            self.report(type={'ERROR'}, message=f'Activate the mesh object!')
+            self.report(type={'ERROR'}, message=translate("请激活网格对象！"))
             return False
         return True
 
@@ -67,7 +68,7 @@ class MergeVerticesOperator(bpy.types.Operator):
                 restore_selection(objs, active_object)
 
         total_vertices_after = self.get_total_vertices(context, objs)
-        self.report(type={'INFO'}, message=bpy.app.translations.pgettext_iface("Removed {} vertice(s)").format(
+        self.report(type={'INFO'}, message=translate("移除了 {} 个顶点").format(
             total_vertices - total_vertices_after))
 
     def get_total_vertices(self, context, objs):
@@ -235,15 +236,15 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
     def check_props(self, context):
         active_object = context.active_object
         if not active_object:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
             return False
         pmx_root = find_pmx_root_with_child(active_object)
         if not pmx_root:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
             return False
         armature = find_pmx_armature(pmx_root)
         if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
+            self.report(type={'ERROR'}, message=translate("未找到模型骨架！"))
             return False
         return True
 
@@ -277,8 +278,8 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
                 ratio_a = len(intersection) / len(faces_a)
                 ratio_b = len(intersection) / len(faces_b)
 
-                msg = bpy.app.translations.pgettext_iface(
-                    "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})").format(
+                msg = translate(
+                    "{} 与 {} 重合面数: {} (占比 A: {:.2%}, B: {:.2%})").format(
                     obj_a.name,
                     obj_b.name,
                     len(intersection),
@@ -296,9 +297,11 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
         if msgs:
             combined_msg = "\n".join(msgs)
             self.report(type={'INFO'}, message=combined_msg)
-            self.report(type={'INFO'}, message="Check completed, click to view the report ↑↑↑")
+            self.report(type={'INFO'},
+                        message=translate("检测完成，点击查看报告↑↑↑"))
         else:
-            self.report(type={'INFO'}, message="No overlapping mesh faces found")
+            self.report(type={'INFO'},
+                        message=translate("未发现网格面之间重合"))
 
 
 def select_faces_by_index(obj, face_indices):
