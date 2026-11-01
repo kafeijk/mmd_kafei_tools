@@ -10,8 +10,8 @@ from ..utils import (
     find_pmx_root_with_child,
     get_collection,
     is_mmd_tools_enabled,
+    restore_selection,
     select_and_activate,
-    show_object,
 )
 class MergeVerticesOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.merge_vertices"
@@ -41,27 +41,30 @@ class MergeVerticesOperator(bpy.types.Operator):
 
     def merge_vertices(self, context):
         objs = context.selected_objects
+        active_object = context.active_object
 
         total_vertices = self.get_total_vertices(context, objs)
 
-        if context.active_object and context.active_object.mode == "EDIT":
+        if active_object and active_object.mode == "EDIT":
             bpy.ops.mesh.remove_doubles(threshold=1e-05)
             bpy.ops.mesh.normals_tools(mode='RESET')
         else:
-            deselect_all_objects()
-            for obj in objs:
-                if obj.type != "MESH":
-                    continue
-                deselect_all_objects()
-                show_object(obj)
-                select_and_activate(obj)
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.select_mode(type="VERT")
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.mesh.remove_doubles(threshold=1e-05)
-                bpy.ops.mesh.normals_tools(mode='RESET')
-                bpy.ops.mesh.select_all(action='DESELECT')
-                bpy.ops.object.mode_set(mode='OBJECT')
+            target_objs = [obj for obj in objs if obj.type == "MESH"]
+            try:
+                if target_objs:
+                    deselect_all_objects()
+                    for obj in target_objs:
+                        select_and_activate(obj)
+                    # 多物体编辑模式下一次完成合并与法向处理
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    bpy.ops.mesh.select_mode(type="VERT")
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.mesh.remove_doubles(threshold=1e-05)
+                    bpy.ops.mesh.normals_tools(mode='RESET')
+                    bpy.ops.mesh.select_all(action='DESELECT')
+                    bpy.ops.object.mode_set(mode='OBJECT')
+            finally:
+                restore_selection(objs, active_object)
 
         total_vertices_after = self.get_total_vertices(context, objs)
         self.report(type={'INFO'}, message=bpy.app.translations.pgettext_iface("Removed {} vertice(s)").format(
