@@ -126,11 +126,12 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
             if obj.type != "MESH":
                 continue
 
-            # 跳过多材质对象和存在空槽的对象
-            materials = obj.data.materials
-            if len(materials) != 1 or materials[0] is None:
+            # 跳过有效材质不为 1 的对象（多材质或全部为空槽）；空槽不影响判断
+            valid_slots = [(i, mat) for i, mat in enumerate(obj.data.materials) if mat is not None]
+            if len(valid_slots) != 1:
                 skipped_names.append(obj.name)
                 continue
+            slot_index, mat = valid_slots[0]
 
             # 获取对象实际名称。名称.xxx 形式的，视为重名，暂不处理
             obj_name = obj.name
@@ -139,10 +140,9 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
                 obj_name = match.group('name')
 
             # 设置材质名称
-            mat = obj.data.materials[0]
             # 复制一份，避免影响与其它物体共用的材质
             mat_new = mat.copy()
-            obj.data.materials[0] = mat_new
+            obj.data.materials[slot_index] = mat_new
             # 旧材质在本物体上已不再使用，若无用户则删除，避免它占用目标名称导致新材质被命名为 .xxx
             if mat.users == 0:
                 bpy.data.materials.remove(mat)
@@ -184,9 +184,9 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
             if obj.type != "MESH":
                 continue
 
-            # 跳过多材质对象和存在空槽的对象
-            materials = obj.data.materials
-            if len(materials) != 1 or materials[0] is None:
+            # 跳过有效材质不为 1 的对象（多材质或全部为空槽）；空槽不影响判断
+            valid_mats = [mat for mat in obj.data.materials if mat is not None]
+            if len(valid_mats) != 1:
                 skipped_names.append(obj.name)
                 continue
 
@@ -197,7 +197,7 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
                 prefix = match.group('prefix')
 
             # 更新网格名称
-            mat_name = obj.data.materials[0].name
+            mat_name = valid_mats[0].name
             if prefix:
                 new_name = prefix + mat_name
             else:
