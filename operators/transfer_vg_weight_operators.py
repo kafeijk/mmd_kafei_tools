@@ -1,6 +1,6 @@
 import bpy
 
-from ..utils import deselect_all_objects, restore_selection, select_and_activate, translate
+from ..utils import translate
 
 
 class TransferVgWeightOperator(bpy.types.Operator):
@@ -22,7 +22,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
         target_vg_name = props.target_vg_name
         selected_v_only = props.selected_v_only
 
-        # 记录进入前的模式和选择状态
+        # 记录进入前的模式，处理完再恢复
         active_object = context.active_object
         mode = active_object.mode if active_object else "OBJECT"
         if mode != "OBJECT":
@@ -31,8 +31,6 @@ class TransferVgWeightOperator(bpy.types.Operator):
 
         try:
             for obj in objs:
-                deselect_all_objects()
-                select_and_activate(obj)
                 vgs = obj.vertex_groups
 
                 # 如果源顶点组不存在，则跳过；如果目标顶点组不存在，则新建
@@ -60,8 +58,7 @@ class TransferVgWeightOperator(bpy.types.Operator):
                             target_vg.add([v_index], weight_s, 'ADD')
                         source_vg.remove([v_index])
         finally:
-            # 恢复选择状态与进入前的模式
-            restore_selection(objs, active_object)
+            # 恢复进入前的模式
             if mode != "OBJECT":
                 bpy.ops.object.mode_set(mode=mode)
 
