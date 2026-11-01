@@ -465,31 +465,32 @@ class ArrangeObjectOperator(bpy.types.Operator):
         # 对原来的选中物体按面数进行排序
         normal_objs_sorted = []
         if order in {"FACE_ASC", "FACE_DESC"}:
-            # 计算每个对象的总面数：[(obj1,face_count1),(obj2,face_count2),...]
+            # 计算每个对象的总面数：[(ancestor1,face_count1),(ancestor2,face_count2),...]
             obj_face_counts = []
-            for obj, mesh_objs in zip(normal_objs, normal_mesh_objs):
+            for ancestor, mesh_objs in zip(normal_objs, normal_mesh_objs):
                 face_count = sum(len(mesh_obj.data.polygons) for mesh_obj in mesh_objs)
-                obj_face_counts.append((obj, face_count))
+                obj_face_counts.append((ancestor, face_count))
             reverse = order == "FACE_DESC"
             obj_face_counts.sort(key=lambda x: x[1], reverse=reverse)
-            normal_objs_sorted = [obj for obj, _ in obj_face_counts]
+            normal_objs_sorted = [ancestor for ancestor, _ in obj_face_counts]
         elif order in {"NAME_ASC", "NAME_DESC"}:
             normal_objs_sorted = normal_objs.copy()
             reverse = order == "NAME_DESC"
-            normal_objs_sorted.sort(key=lambda obj: alphanum_key(obj.name), reverse=reverse)
+            normal_objs_sorted.sort(key=lambda ancestor: alphanum_key(ancestor.name), reverse=reverse)
         elif order in {"SIZE_ASC", "SIZE_DESC"}:
             reverse = order == "SIZE_DESC"
-            obj_size_list = [(obj, get_max_length(mesh_objs)) for obj, mesh_objs in zip(normal_objs, normal_mesh_objs)]
+            obj_size_list = [(ancestor, get_max_length(mesh_objs))
+                             for ancestor, mesh_objs in zip(normal_objs, normal_mesh_objs)]
             obj_size_list.sort(key=lambda x: x[1], reverse=reverse)
-            normal_objs_sorted = [obj for obj, _ in obj_size_list]
+            normal_objs_sorted = [ancestor for ancestor, _ in obj_size_list]
         elif order == "DEFAULT":
             normal_objs_sorted = normal_objs.copy()
 
-        for obj in normal_objs_sorted:
+        for ancestor in normal_objs_sorted:
             # 移除原先约束
-            for constraint in obj.constraints:
+            for constraint in ancestor.constraints:
                 if constraint.type in {'FOLLOW_PATH', 'LOCKED_TRACK'}:
-                    obj.constraints.remove(constraint)
+                    ancestor.constraints.remove(constraint)
 
         # 每次复用集合
         coll = get_collection("Controller Collection")
@@ -498,19 +499,19 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 bpy.data.objects.remove(obj, do_unlink=True)
 
         if arrangement_type == "ARRAY":
-            for i, obj in enumerate(normal_objs_sorted):
+            for i, ancestor in enumerate(normal_objs_sorted):
                 if direction == "HORIZONTAL":
                     row = i // num_per_row
                     col = i % num_per_row
                     x = start_x + col * spacing_x
                     y = start_y + row * spacing_y
-                    obj.location = (x, y, 0)
+                    ancestor.location = (x, y, 0)
                 else:
                     row = i // num_per_row
                     col = i % num_per_row
                     x = start_x + col * spacing_x
                     z = start_z + row * spacing_z
-                    obj.location = (x, 0, z)
+                    ancestor.location = (x, 0, z)
 
             if len(coll.objects) == 0:
                 bpy.data.collections.remove(coll)
@@ -545,16 +546,16 @@ class ArrangeObjectOperator(bpy.types.Operator):
 
             curr_curve_character_index = 0
             curr_curve_index = 0
-            for i, obj in enumerate(normal_objs_sorted):
+            for ancestor in normal_objs_sorted:
                 if curr_curve_character_index >= num_per_circle:
                     curr_curve_character_index = 0
                     curr_curve_index += 1
                 curr_curve = curves[curr_curve_index]
                 # 位置归零，旋转暂不处理
-                obj.location = (0, 0, 0)
+                ancestor.location = (0, 0, 0)
 
                 # 添加跟随路径约束
-                follow_path_cons = obj.constraints.new(type='FOLLOW_PATH')
+                follow_path_cons = ancestor.constraints.new(type='FOLLOW_PATH')
                 follow_path_cons.target = curr_curve
                 follow_path_cons.use_fixed_location = True
 
@@ -580,7 +581,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 follow_path_cons.up_axis = 'UP_Z'
                 follow_path_cons.influence = 1
 
-                locked_track_cons = obj.constraints.new(type='LOCKED_TRACK')
+                locked_track_cons = ancestor.constraints.new(type='LOCKED_TRACK')
                 locked_track_cons.target = empty
                 locked_track_cons.track_axis = 'TRACK_NEGATIVE_Y'
                 locked_track_cons.influence = 1
@@ -588,8 +589,8 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 curr_curve_character_index += 1
 
         # 排列X长度大于 threshold 的物体
-        for obj in big_objs:
-            obj.location = (0, 300, 0)
+        for ancestor in big_objs:
+            ancestor.location = (0, 300, 0)
 
         # 恢复选中状态
         restore_selection(selected_objects, active_object)
