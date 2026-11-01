@@ -119,6 +119,8 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
 
     def rename(self, context):
         objs = context.selected_objects
+        skipped_names = []
+        conflicts = []
 
         for obj in objs:
             if obj.type != "MESH":
@@ -127,6 +129,7 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
             # 跳过多材质对象和存在空槽的对象
             materials = obj.data.materials
             if len(materials) != 1 or materials[0] is None:
+                skipped_names.append(obj.name)
                 continue
 
             # 获取对象实际名称。名称.xxx 形式的，视为重名，暂不处理
@@ -144,8 +147,14 @@ class SetMatNameByObjNameOperator(bpy.types.Operator):
             if mat.users == 0:
                 bpy.data.materials.remove(mat)
             mat_new.name = obj_name
+            # 目标名称已被其它材质占用时，Blender 会自动加 .xxx 后缀
+            if mat_new.name != obj_name:
+                # 材质名称冲突时记录当前对象名，便于在场景中定位
+                conflicts.append(obj.name)
             if is_mmd_tools_enabled():
                 mat_new.mmd_material.name_j = obj_name
+
+        report_rename_result(self, skipped_names, conflicts)
 
 
 class SetObjNameByMatNameOperator(bpy.types.Operator):
@@ -168,6 +177,8 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
 
     def rename(self, context):
         objs = context.selected_objects
+        skipped_names = []
+        conflicts = []
 
         for obj in objs:
             if obj.type != "MESH":
@@ -176,6 +187,7 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
             # 跳过多材质对象和存在空槽的对象
             materials = obj.data.materials
             if len(materials) != 1 or materials[0] is None:
+                skipped_names.append(obj.name)
                 continue
 
             # 获取网格对象名称前缀
@@ -193,6 +205,26 @@ class SetObjNameByMatNameOperator(bpy.types.Operator):
 
             if obj.name != new_name:
                 obj.name = new_name
+                # 目标名称已被其它对象占用时，Blender 会自动加 .xxx 后缀
+                if obj.name != new_name:
+                    # 对象名称冲突时记录改名后的当前对象名
+                    conflicts.append(obj.name)
+
+        report_rename_result(self, skipped_names, conflicts)
+
+
+def report_rename_result(operator, skipped_names, conflicts):
+    """报告改名结果：全部完成时提示完成，否则先给出明细警告，再提示查看详情"""
+    if skipped_names or conflicts:
+        details = []
+        if skipped_names:
+            details.append(translate("对象材质数不为1（多材质槽/空材质槽），已跳过：{}").format(skipped_names))
+        if conflicts:
+            details.append(translate("重命名时名称存在冲突，已自动添加后缀：{}").format(conflicts))
+        operator.report(type={'WARNING'}, message="\n".join(details))
+        operator.report(type={'WARNING'}, message=translate("重命名部分完成，点击查看详情↑↑↑"))
+    else:
+        operator.report(type={'INFO'}, message=translate("重命名全部完成"))
 
 
 def round_vec(v):
