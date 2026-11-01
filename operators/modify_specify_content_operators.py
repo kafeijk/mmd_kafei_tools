@@ -451,6 +451,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 ancestors.append(ancestor)
 
         # 分离大小物体
+        normal_mesh_objs = []  # 与 normal_objs 一一对应，复用网格列表避免重复递归
         for ancestor in ancestors:
             if "arrangement" in ancestor.keys():
                 continue
@@ -459,13 +460,16 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 big_objs.append(ancestor)
             else:
                 normal_objs.append(ancestor)
+                normal_mesh_objs.append(mesh_objs)
 
         # 对原来的选中物体按面数进行排序
         normal_objs_sorted = []
         if order in {"FACE_ASC", "FACE_DESC"}:
-            # 计算每个对象的总面数的元组列表[(obj1,face_count1),(obj2,face_count2),...]
-            obj_face_counts = [(obj, sum(len(mesh_obj.data.polygons) for mesh_obj in get_mesh_objs(obj))) for obj in
-                               normal_objs]
+            # 计算每个对象的总面数：[(obj1,face_count1),(obj2,face_count2),...]
+            obj_face_counts = []
+            for obj, mesh_objs in zip(normal_objs, normal_mesh_objs):
+                face_count = sum(len(mesh_obj.data.polygons) for mesh_obj in mesh_objs)
+                obj_face_counts.append((obj, face_count))
             reverse = order == "FACE_DESC"
             obj_face_counts.sort(key=lambda x: x[1], reverse=reverse)
             normal_objs_sorted = [obj for obj, _ in obj_face_counts]
@@ -475,13 +479,13 @@ class ArrangeObjectOperator(bpy.types.Operator):
             normal_objs_sorted.sort(key=lambda obj: alphanum_key(obj.name), reverse=reverse)
         elif order in {"SIZE_ASC", "SIZE_DESC"}:
             reverse = order == "SIZE_DESC"
-            obj_size_list = [(obj, get_max_length(get_mesh_objs(obj))) for obj in normal_objs]
+            obj_size_list = [(obj, get_max_length(mesh_objs)) for obj, mesh_objs in zip(normal_objs, normal_mesh_objs)]
             obj_size_list.sort(key=lambda x: x[1], reverse=reverse)
             normal_objs_sorted = [obj for obj, _ in obj_size_list]
         elif order == "DEFAULT":
             normal_objs_sorted = normal_objs.copy()
 
-        for i, obj in enumerate(normal_objs_sorted):
+        for obj in normal_objs_sorted:
             # 移除原先约束
             for constraint in obj.constraints:
                 if constraint.type in {'FOLLOW_PATH', 'LOCKED_TRACK'}:
