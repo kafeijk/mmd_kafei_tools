@@ -402,14 +402,8 @@ class ArrangeObjectOperator(bpy.types.Operator):
         props = context.scene.mmd_kafei_tools_arrange_object
         arrangement_type = props.arrangement_type
         if arrangement_type in ["ARC", "CIRCLE"]:
-            found = False
-            for addon in context.preferences.addons.keys():
-                # add_curve_extra_objects 3.6
-                # extra_curve_objectes 4.2 4.5
-                if "extra" in addon and "curve" in addon and "object" in addon:
-                    found = True
-                    break
-            if not found:
+            operator_type = "CURVE_OT_simple" if arrangement_type == "ARC" else "CURVE_OT_spirals"
+            if not hasattr(bpy.types, operator_type):
                 self.report({'ERROR'},
                             bpy.app.translations.pgettext_iface(
                                 "请在偏好设置中启用 Extra Objects / Extra Curve Objects 插件"))
