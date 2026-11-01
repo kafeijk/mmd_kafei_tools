@@ -241,6 +241,7 @@ translation_dict = {
         ("*", "重命名时名称存在冲突，已自动添加后缀：{}"): "Name conflict during renaming, suffix was appended: {}",
         # transfer_vg_weight_operators
         ("*", "请输入源顶点组名称！"): "Source vertex group required!",
+        ("*", "所选网格中不存在源顶点组！"): "The source vertex group does not exist in the selected meshes!",
         ("*", "请输入目标顶点组名称！"): "Target vertex group required!",
         ("*", "源顶点组与目标顶点组名称相同！"): "Source and target vertex groups have same name!",
         ("*", "权重转移完成"): "Weight transfer completed",

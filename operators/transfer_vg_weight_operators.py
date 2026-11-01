@@ -74,6 +74,10 @@ class TransferVgWeightOperator(bpy.types.Operator):
         if source_vg_name is None or source_vg_name == '':
             self.report(type={'ERROR'}, message=translate("请输入源顶点组名称！"))
             return False
+        # 至少要有一个网格存在源顶点组，否则不会有任何权重被转移
+        if not any(source_vg_name in obj.vertex_groups for obj in objs):
+            self.report(type={'ERROR'}, message=translate("所选网格中不存在源顶点组！"))
+            return False
         target_vg_name = props.target_vg_name
         if target_vg_name is None or target_vg_name == '':
             self.report(type={'ERROR'}, message=translate("请输入目标顶点组名称！"))
