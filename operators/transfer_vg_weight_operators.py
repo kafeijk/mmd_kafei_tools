@@ -12,10 +12,10 @@ class TransferVgWeightOperator(bpy.types.Operator):
     def execute(self, context):
         if not self.check_props(context):
             return {'CANCELLED'}
-        self.main(context)
+        self.transfer_weights(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def main(self, context):
+    def transfer_weights(self, context):
         """将选中对象的源顶点组的权重，转移到目标顶点组"""
         props = context.scene.mmd_kafei_tools_transfer_vg_weight
         source_vg_name = props.source_vg_name
