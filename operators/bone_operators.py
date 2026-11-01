@@ -32,8 +32,8 @@ class FlipBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "FLIP_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         mirror_pose()
         return {'FINISHED'}
 
@@ -46,8 +46,8 @@ class DeleteInvalidRigidbodyJointOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "INVALID_RIGIDBODY_JOINT"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         remove_invalid_rigidbody_joint()
         return {'FINISHED'}
 
@@ -60,8 +60,8 @@ class SelectPhysicalBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "PHYSICAL_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_physical_bone()
         return {'FINISHED'}
 
@@ -74,8 +74,8 @@ class SelectBakeBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "BAKE_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bake_bone()
         return {'FINISHED'}
 
@@ -88,8 +88,8 @@ class SelectLinkedBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LINKED_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
@@ -102,8 +102,8 @@ class SelectRingBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "RING_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
@@ -116,8 +116,8 @@ class SelecExtendParentBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "EXTEND_PARENT_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
@@ -130,8 +130,8 @@ class SelectExtendChildrenBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "EXTEND_CHILDREN_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
@@ -144,8 +144,8 @@ class SelectLessParentBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LESS_PARENT_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
@@ -158,8 +158,8 @@ class SelectLessChildrenBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LESS_CHILDREN_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
@@ -172,8 +172,8 @@ class SelectMoreBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "MORE_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
@@ -186,8 +186,8 @@ class SelectLessBoneOperator(bpy.types.Operator):
 
     def execute(self, context):
         option = "LESS_BONE"
-        if check_props(self, option) is False:
-            return {'FINISHED'}
+        if not check_props(self, option):
+            return {'CANCELLED'}
         select_bone_by_input(option)
         return {'FINISHED'}
 
