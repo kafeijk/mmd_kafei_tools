@@ -71,13 +71,6 @@ translation_dict = {
         ("*", "In the PMX model, fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."): "在PMX模型中未找到属于顶点组“{}”且权重为1的至少三个非重合顶点。",
         ("*", "Face object matching failed. The rest poses of the source and target models must be exactly the same. Please check."): "面部对象匹配失败，源模型与目标模型的静置姿态需完全一致，请检查。",
 
-        # transfer_vg_weight_operators
-        ("*", "Select at least one mesh!"): "请选择至少一个网格物体！",
-        ("*", "Source vertex group required!"): "请输入源顶点组名称！",
-        ("*", "Target vertex group required!"): "请输入目标顶点组名称！",
-        ("*", "Source and target vertex groups have same name!"): "源顶点组与目标顶点组名称相同！",
-        ("*", "Weight transfer completed"): "权重转移完成",
-
         # Quick Operation msg
         ("*", "Removed {} vertice(s)"): "移除了 {} 个顶点",
         ("*", "Check completed, click to view the report ↑↑↑"): "检测完成，点击查看报告↑↑↑",
@@ -246,6 +239,11 @@ translation_dict = {
         ("*", "没有可重命名的对象，点击查看详情↑↑↑"): "No renameable object, click to view details ↑↑↑",
         ("*", "对象材质数不为1（多材质槽/空材质槽），已跳过：{}"): "Objects whose material count is not 1 (multi-material / empty slot), skipped: {}",
         ("*", "重命名时名称存在冲突，已自动添加后缀：{}"): "Name conflict during renaming, suffix was appended: {}",
+        # transfer_vg_weight_operators
+        ("*", "请输入源顶点组名称！"): "Source vertex group required!",
+        ("*", "请输入目标顶点组名称！"): "Target vertex group required!",
+        ("*", "源顶点组与目标顶点组名称相同！"): "Source and target vertex groups have same name!",
+        ("*", "权重转移完成"): "Weight transfer completed",
         ("*", "修复Eevee显示泛蓝"): "Fix Eevee Blue Tint Display Issue",
         ("*", "修复Cycles显示模糊"): "Fix Cycles Blurry Display Issue",
         ("*", "修复Eevee显示泛蓝 / 修复Cycles显示模糊"): "Fix Eevee Blue Tint / Fix Cycles Blurry Display",

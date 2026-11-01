@@ -1,6 +1,6 @@
 import bpy
 
-from ..utils import deselect_all_objects, restore_selection, select_and_activate
+from ..utils import deselect_all_objects, restore_selection, select_and_activate, translate
 
 
 class TransferVgWeightOperator(bpy.types.Operator):
@@ -61,23 +61,23 @@ class TransferVgWeightOperator(bpy.types.Operator):
 
         # 恢复选择状态
         restore_selection(objs, active_object)
-        self.report({'INFO'}, "Weight transfer completed")
+        self.report({'INFO'}, translate("权重转移完成"))
 
     def check_props(self, context):
         props = context.scene.mmd_kafei_tools_transfer_vg_weight
         objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one mesh!')
+            self.report(type={'ERROR'}, message=translate("请至少选择一个网格对象！"))
             return False
         source_vg_name = props.source_vg_name
         if source_vg_name is None or source_vg_name == '':
-            self.report(type={'ERROR'}, message=f'Source vertex group required!')
+            self.report(type={'ERROR'}, message=translate("请输入源顶点组名称！"))
             return False
         target_vg_name = props.target_vg_name
         if target_vg_name is None or target_vg_name == '':
-            self.report(type={'ERROR'}, message=f'Target vertex group required!')
+            self.report(type={'ERROR'}, message=translate("请输入目标顶点组名称！"))
             return False
         if source_vg_name == target_vg_name:
-            self.report(type={'ERROR'}, message=f'Source and target vertex groups have same name!')
+            self.report(type={'ERROR'}, message=translate("源顶点组与目标顶点组名称相同！"))
             return False
         return True
