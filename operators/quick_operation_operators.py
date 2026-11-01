@@ -42,7 +42,7 @@ class MergeVerticesOperator(bpy.types.Operator):
     def merge_vertices(self, context):
         objs = context.selected_objects
 
-        total_vertices = self.get_total_vertices(objs)
+        total_vertices = self.get_total_vertices(context, objs)
 
         if context.active_object and context.active_object.mode == "EDIT":
             bpy.ops.mesh.remove_doubles(threshold=1e-05)
@@ -63,14 +63,14 @@ class MergeVerticesOperator(bpy.types.Operator):
                 bpy.ops.mesh.select_all(action='DESELECT')
                 bpy.ops.object.mode_set(mode='OBJECT')
 
-        total_vertices_after = self.get_total_vertices(objs)
+        total_vertices_after = self.get_total_vertices(context, objs)
         self.report(type={'INFO'}, message=bpy.app.translations.pgettext_iface("Removed {} vertice(s)").format(
             total_vertices - total_vertices_after))
 
-    def get_total_vertices(self, objs):
+    def get_total_vertices(self, context, objs):
         """强制刷新后计算总顶点数，仅考虑网格自身数据，不考虑修改器的影响"""
 
-        mode = bpy.context.active_object.mode
+        mode = context.active_object.mode
         bpy.ops.object.mode_set(mode='OBJECT')
         total_vertices = 0
 
@@ -227,7 +227,7 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
     def execute(self, context):
         if not self.check_props(context):
             return {'CANCELLED'}
-        self.detect_overlapping_faces()
+        self.detect_overlapping_faces(context)
         return {'FINISHED'}
 
     def check_props(self, context):
@@ -245,8 +245,8 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
             return False
         return True
 
-    def detect_overlapping_faces(self):
-        active_object = bpy.context.active_object
+    def detect_overlapping_faces(self, context):
+        active_object = context.active_object
         root = find_pmx_root_with_child(active_object)
         rig = find_pmx_armature(root)
         objs = find_pmx_objects(rig)
@@ -326,10 +326,10 @@ class CleanSceneOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        self.clean_scene()
+        self.clean_scene(context)
         return {'FINISHED'}
 
-    def clean_scene(self):
+    def clean_scene(self, context):
         """清空全部场景的数据，而非仅当前场景"""
         # bpy.data.objects 是全局数据，包含所有场景的物体，故这里会清空全部场景
         for obj in reversed(bpy.data.objects):
@@ -343,9 +343,9 @@ class CleanSceneOperator(bpy.types.Operator):
         bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
 
         # 刷新场景  预防导入模型时刚体掉一地，但该情况出现的原因暂不明确，故通过更改当前帧来刷新场景的方式有待后续确认
-        frame_current = bpy.context.scene.frame_current
-        bpy.context.scene.frame_current = bpy.context.scene.frame_current + 1
-        bpy.context.scene.frame_current = frame_current
+        frame_current = context.scene.frame_current
+        context.scene.frame_current = context.scene.frame_current + 1
+        context.scene.frame_current = frame_current
 
         # 新建默认集合
         get_collection("Collection")

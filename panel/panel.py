@@ -660,7 +660,7 @@ class QuickOperationPanel(bpy.types.Panel):
         if is_mmd_tools_enabled():
             mmd_row2.operator('mmd_tools.separate_by_materials', text='Separate by Materials', icon='MOD_EXPLODE')
 
-            active_object = bpy.context.active_object
+            active_object = context.active_object
             if active_object:
                 root = find_pmx_root_with_child(active_object)
                 if root and active_object.type == 'MESH':
