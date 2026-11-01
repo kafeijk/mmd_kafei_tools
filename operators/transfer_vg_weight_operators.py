@@ -70,6 +70,12 @@ class TransferVgWeightOperator(bpy.types.Operator):
         if len(objs) == 0:
             self.report(type={'ERROR'}, message=translate("请至少选择一个网格对象！"))
             return False
+        # 仅选中顶点依赖编辑模式中的顶点选择，需先进入编辑模式
+        active_object = context.active_object
+        if props.selected_v_only and (
+                not active_object or active_object.type != 'MESH' or active_object.mode != 'EDIT'):
+            self.report(type={'ERROR'}, message=translate("请进入编辑模式！"))
+            return False
         source_vg_name = props.source_vg_name
         if source_vg_name is None or source_vg_name == '':
             self.report(type={'ERROR'}, message=translate("请输入源顶点组名称！"))
