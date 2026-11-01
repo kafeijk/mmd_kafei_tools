@@ -200,14 +200,13 @@ def round_vec(v):
     return tuple(round(coord, 5) for coord in v)
 
 
-def hash_face(face_verts):
-    """将面顶点位置生成哈希（不考虑顺序）"""
-    rounded = tuple(sorted(round_vec(v) for v in face_verts))
-    return hash(rounded)
+def face_key(face_verts):
+    """将面顶点位置生成可比较的键（不考虑顺序）"""
+    return tuple(sorted(round_vec(v) for v in face_verts))
 
 
 def get_faces(obj):
-    """获取对象的所有面的映射: {face_hash: polygon_index}"""
+    """获取对象的所有面的映射: {face_key: polygon_index}"""
     mesh = obj.data
     faces = {}
     if not mesh or not mesh.polygons:
@@ -215,8 +214,8 @@ def get_faces(obj):
 
     for poly in mesh.polygons:
         face_verts = [mesh.vertices[i].co for i in poly.vertices]
-        face_hash = hash_face(face_verts)
-        faces[face_hash] = poly.index
+        key = face_key(face_verts)
+        faces[key] = poly.index
 
     return faces
 
@@ -290,7 +289,7 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
 
                 # === 选中重合的面 ===
                 for obj, faces in [(obj_a, faces_a), (obj_b, faces_b)]:
-                    indices = [faces[face_hash] for face_hash in intersection]
+                    indices = [faces[key] for key in intersection]
                     select_faces_by_index(obj, indices)
 
         if msgs:
