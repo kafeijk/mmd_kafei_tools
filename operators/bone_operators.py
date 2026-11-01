@@ -606,28 +606,18 @@ def remove_invalid_rigidbody_joint(context):
 
 def select_physical_bone(context):
     """选择物理骨骼"""
-    obj = context.active_object
-    original_mode = obj.mode
-    root = find_pmx_root_with_child(obj)
-    armature = find_pmx_armature(root)
+    root = find_pmx_root_with_child(context.active_object)
     bl_names = get_physical_bone(root)
-    # 选中骨架并进入姿态模式
-    deselect_all_objects()
-    show_object(armature)
-    select_and_activate(armature)
-    bpy.ops.object.mode_set(mode='POSE')
-    for bone in armature.pose.bones:
-        if bone.name in bl_names:
-            select_pose_bone(bone, True)
-        else:
-            select_pose_bone(bone, False)
-
-    if original_mode == "EDIT":
-        bpy.ops.object.mode_set(mode='EDIT')
+    select_bone_by_predicate(context, lambda bone: bone.name in bl_names)
 
 
 def select_bake_bone(context):
     """选择用于烘焙VMD的骨骼"""
+    select_bone_by_predicate(context, lambda bone: bone.mmd_bone.name_j in PMX_BAKE_BONES)
+
+
+def select_bone_by_predicate(context, predicate):
+    """按给定条件选中/取消选中骨架中的骨骼，完成后恢复原模式"""
     obj = context.active_object
     original_mode = obj.mode
     pmx_root = find_pmx_root_with_child(obj)
@@ -638,13 +628,10 @@ def select_bake_bone(context):
     select_and_activate(armature)
     bpy.ops.object.mode_set(mode='POSE')
     for bone in armature.pose.bones:
-        if bone.mmd_bone.name_j in PMX_BAKE_BONES:
-            select_pose_bone(bone, True)
-        else:
-            select_pose_bone(bone, False)
+        select_pose_bone(bone, predicate(bone))
 
-    if original_mode == "EDIT":
-        bpy.ops.object.mode_set(mode='EDIT')
+    if original_mode != "POSE":
+        bpy.ops.object.mode_set(mode=original_mode)
 
 
 def get_end_bones(selected_pbs, pb_set):
