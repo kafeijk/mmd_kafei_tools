@@ -286,7 +286,6 @@ class DetectOverlappingFacesOperator(bpy.types.Operator):
                     ratio_a,
                     ratio_b
                 )
-                print(msg)
                 msgs.append(msg)
 
                 # === 选中重合的面 ===
