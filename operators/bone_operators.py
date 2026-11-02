@@ -73,11 +73,11 @@ class FlipBoneOperator(BoneOperatorMixin, bpy.types.Operator):
 
         unsupported_pbs = [pb for pb in selected_pbs if pb.rotation_mode != 'QUATERNION']
         if unsupported_pbs:
-            print(bpy.app.translations.pgettext_iface("不支持的骨骼（未处于四元数旋转模式）："))
-            for pb in unsupported_pbs:
-                print(pb.name)
-            self.report(type={'ERROR'},
-                        message=translate("仅支持四元数旋转模式，详情请查看控制台"))
+            names = ", ".join(pb.name for pb in unsupported_pbs)
+            self.report(type={'WARNING'},
+                        message=translate("不支持的骨骼（未处于四元数旋转模式）：{}").format(names))
+            self.report(type={'WARNING'},
+                        message=translate("操作未成功，仅支持四元数旋转模式，详情请查看↑↑↑"))
             return False
         return True
 
