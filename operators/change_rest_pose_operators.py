@@ -70,7 +70,7 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
         props = scene.mmd_kafei_tools_change_rest_pose
 
         # 获取模型信息
-        active_object = bpy.context.active_object
+        active_object = context.active_object
         root = find_pmx_root_with_child(active_object)
         armature = find_pmx_armature(root)
         rigidbody_parent = find_rigid_body_parent(root)
@@ -245,7 +245,7 @@ class ChangeRestPoseEndOperator(ChangeRestPoseOperatorMixin, bpy.types.Operator)
 
     def end(self, context):
         # 获取模型信息
-        active_object = bpy.context.active_object
+        active_object = context.active_object
         root = find_pmx_root_with_child(active_object)
         armature = find_pmx_armature(root)
         objs = find_pmx_objects(armature)
@@ -314,7 +314,7 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
         props = scene.mmd_kafei_tools_change_rest_pose
 
         # 获取模型信息
-        selected_objects = bpy.context.selected_objects
+        selected_objects = context.selected_objects
         roots = set()
         for obj in selected_objects:
             root = find_pmx_root_with_child(obj)
@@ -402,7 +402,7 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
 #         #     return
 #
 #         # 获取模型信息
-#         active_object = bpy.context.active_object
+#         active_object = context.active_object
 #         root = find_pmx_root_with_child(active_object)
 #         armature = find_pmx_armature(root)
 #         rigidbody_parent = find_rigid_body_parent(root)
