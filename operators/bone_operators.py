@@ -334,10 +334,8 @@ def select_bake_bone(context):
 
 
 def select_bone_by_predicate(context, predicate):
-    """按给定条件选中/取消选中骨架中的骨骼，完成后恢复原模式"""
-    obj = context.active_object
-    original_mode = obj.mode
-    pmx_root = find_pmx_root_with_child(obj)
+    """按给定条件选中/取消选中骨架中的骨骼，完成后停留在姿态模式"""
+    pmx_root = find_pmx_root_with_child(context.active_object)
     armature = find_pmx_armature(pmx_root)
     # 选中骨架并进入姿态模式
     deselect_all_objects()
@@ -346,9 +344,6 @@ def select_bone_by_predicate(context, predicate):
     bpy.ops.object.mode_set(mode='POSE')
     for bone in armature.pose.bones:
         select_pose_bone(bone, predicate(bone))
-
-    if original_mode != "POSE":
-        bpy.ops.object.mode_set(mode=original_mode)
 
 
 def get_end_bones(bone_info, selected_pbs, pb_set):
