@@ -496,7 +496,6 @@ class ChangeRestPosePanel(bpy.types.Panel):
         col = layout.column()
 
         col.prop(props, "h_joint_strategy")
-        col.prop(props, "force_apply")
 
         active_object = context.active_object
         root = find_pmx_root_with_child(active_object) if is_mmd_tools_enabled() else None

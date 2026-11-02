@@ -15,12 +15,6 @@ class ChangeRestPoseProperty(bpy.types.PropertyGroup):
         ]
     )
 
-    force_apply: bpy.props.BoolProperty(
-        name="强制应用修改器",
-        description="应用姿态时，如果网格对象存在形态键，则强制应用骨架修改器对网格对象的影响。若关闭此选项，则跳过具有形态键的网格对象",
-        default=True
-    )
-
 
     @staticmethod
     def register():

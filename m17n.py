@@ -370,7 +370,6 @@ translation_dict = {
         # Initial Pose Adjustment panel / parameter / operation
         ("*", "初始姿态调整"): "Initial Pose Adjustment",
         ("*", "横Joint变换策略"): "Horizontal Joint Strategy",
-        ("*", "强制应用修改器"): "Force Apply",
         ("*", "平均"): "Centroid",
         ("*", "跟随刚体A"): "Follow Rigid Body A",
         ("Operator", "绑定"): "Bind",
@@ -383,7 +382,6 @@ translation_dict = {
         ("*", "绑定刚体Joint，调整姿态时将会同步影响刚体Joint"): "Bind rigid body and joints. Adjusting the pose will simultaneously affect the rigid body and joints",
         ("*", "应用刚体Joint的变换并解除绑定"): "Apply the rigid body and joint transformation and unbind",
         ("*", "应用当前姿态对网格和骨架的影响"): "Apply the current pose",
-        ("*", "应用姿态时，如果网格对象存在形态键，则强制应用骨架修改器对网格对象的影响。若关闭此选项，则跳过具有形态键的网格对象"): "When applying a pose, if a mesh object has shape keys, the Armature modifier's effect will be forcibly applied. If this option is disabled, mesh objects with shape keys will be skipped.",
         # Bone operations panel / operator
         ("*", "骨骼操作"): "Bone Operations",
         ("Operator", "物理骨骼"): "Physical Bone",

@@ -300,9 +300,6 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
         return True
 
     def end(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_change_rest_pose
-
         # 获取模型信息
         selected_objects = context.selected_objects
         roots = set()
@@ -314,42 +311,30 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
         root = roots.pop()
         armature = find_pmx_armature(root)
         objs = find_pmx_objects(armature)
-        force_apply = props.force_apply
 
         for obj in objs:
             deselect_all_objects()
             show_object(obj)
             select_and_activate(obj)
 
-            if force_apply:
-                # 记录修改器显示状态并隐藏修改器
-                mod_map = {}
-                for mod in obj.modifiers:
-                    if hasattr(mod, 'show_viewport'):
-                        mod_map[mod.name] = mod.show_viewport
-                        mod.show_viewport = False
+            # 记录修改器显示状态并隐藏修改器
+            mod_map = {}
+            for mod in obj.modifiers:
+                if hasattr(mod, 'show_viewport'):
+                    mod_map[mod.name] = mod.show_viewport
+                    mod.show_viewport = False
 
-                # 创建骨架修改器
-                armature_mod = self.create_armature_mod(obj, armature)
-                # 移动骨架修改器到首位
-                bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
-                # 强制应用修改器
-                applyModifierForObjectWithShapeKeys(context, [armature_mod.name], False)
+            # 创建骨架修改器
+            armature_mod = self.create_armature_mod(obj, armature)
+            # 移动骨架修改器到首位
+            bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
+            # 强制应用修改器
+            applyModifierForObjectWithShapeKeys(context, [armature_mod.name], False)
 
-                # 恢复修改器显示状态
-                for mod in obj.modifiers:
-                    if mod_map.get(mod.name):
-                        mod.show_viewport = mod_map.get(mod.name)
-
-            else:
-                if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 0:
-                    continue
-                # 创建骨架修改器
-                armature_mod = self.create_armature_mod(obj, armature)
-                # 移动骨架修改器到首位
-                bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
-                # 应用修改器
-                bpy.ops.object.modifier_apply(modifier=armature_mod.name, single_user=True)
+            # 恢复修改器显示状态
+            for mod in obj.modifiers:
+                if mod_map.get(mod.name):
+                    mod.show_viewport = mod_map.get(mod.name)
 
         deselect_all_objects()
         show_object(armature)
@@ -360,8 +345,7 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
         bpy.ops.object.mode_set(mode='OBJECT')
 
         # 清理数据块，释放文件体积
-        if force_apply:
-            bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
+        bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
 
     def create_armature_mod(self, obj, armature):
         armature_mod = obj.modifiers.new(name=get_mmd_armature_id(), type='ARMATURE')
