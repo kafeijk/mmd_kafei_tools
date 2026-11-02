@@ -301,7 +301,8 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
 
     def end(self, context):
         # 获取模型信息
-        selected_objects = context.selected_objects
+        selected_objects = list(context.selected_objects)
+        active_object = context.active_object
         roots = set()
         for obj in selected_objects:
             root = find_pmx_root_with_child(obj)
@@ -345,6 +346,15 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
         bpy.ops.pose.select_all(action='DESELECT')
         bpy.ops.pose.armature_apply(selected=False)
         bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 恢复处理前的选择与活动对象
+        deselect_all_objects()
+        for obj in selected_objects:
+            try:
+                obj.select_set(True)
+            except RuntimeError:
+                pass
+        bpy.context.view_layer.objects.active = active_object
 
         # 清理数据块，释放文件体积
         bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
