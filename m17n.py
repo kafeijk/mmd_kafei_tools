@@ -12,9 +12,6 @@ translation_dict = {
         # bone_operators
         ("*", "Select bones on one side!"): "请选择单侧骨骼！",
 
-        # change_rest_pose_operators
-        ("*", "Multiple MMD models detected!"): "检测到多个MMD模型！",
-
         # change_tex_loc_operators
         ("*", "Texture folder name required!"): "请填写贴图文件夹名称！",
         ("*", "Invalid texture folder name!"): "贴图文件夹名称无效！",
@@ -379,6 +376,7 @@ translation_dict = {
         ("Operator", "绑定"): "Bind",
         ("Operator", "应用绑定"): "Apply Bind",
         ("Operator", "应用姿态"): "Apply Pose",
+        ("*", "检测到多个MMD模型！"): "Multiple MMD models detected!",
         # Initial Pose Adjustment description
         ("*", "用何种方式重新设定横Joint的变换"): "Which method to use for resetting horizontal joint transformations",
         ("*", "根据连接的刚体A与刚体B计算平均值"): "Calculate the average based on the connected Rigid Body A and Rigid Body B",

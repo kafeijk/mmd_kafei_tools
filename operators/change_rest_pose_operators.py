@@ -40,15 +40,15 @@ class ChangeRestPoseOperatorMixin:
             return False
         active_object = context.active_object
         if not active_object:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
             return False
         pmx_root = find_pmx_root_with_child(active_object)
         if not pmx_root:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
             return False
         armature = find_pmx_armature(pmx_root)
         if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
+            self.report(type={'ERROR'}, message=translate("未找到模型骨架！"))
             return False
         return True
 
@@ -302,10 +302,10 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
             if root:
                 roots.add(root)
         if not roots:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
             return False
         if len(roots) > 1:
-            self.report(type={'ERROR'}, message=f'Multiple MMD models detected!')
+            self.report(type={'ERROR'}, message=translate("检测到多个MMD模型！"))
             return False
         return True
 
