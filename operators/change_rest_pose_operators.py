@@ -1,5 +1,3 @@
-import math
-
 import bpy
 
 from ..tools.ApplyModifierForObjectWithShapeKeys import applyModifierForObjectWithShapeKeys
@@ -116,8 +114,6 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
                 self.set_joint_cons(joint, rigidbody_parent)
             elif h_joint_strategy == "CENTROID":
                 self.do_set_joint_driver(joint, rigidbody_parent)
-            else:
-                pass
 
     def find_h_joints(self, root, armature, joint_parent):
         bl_names = get_physical_bone(root)
@@ -451,7 +447,7 @@ def modify_root_trans_lock(obj, lock):
         ancestor.rotation_mode = 'QUATERNION'
         ancestor.rotation_quaternion = (1, 0, 0, 0)
         ancestor.rotation_mode = 'XYZ'
-        ancestor.rotation_euler = (math.radians(0), math.radians(0), math.radians(0))
+        ancestor.rotation_euler = (0.0, 0.0, 0.0)
         ancestor.scale = (1, 1, 1)
 
         ancestor.lock_location = (lock, lock, lock)
@@ -477,7 +473,7 @@ def modify_pb_trans_lock(armature, lock):
 
 
 def apply_cons(parent):
-    for index, child in enumerate(parent.children):
+    for child in parent.children:
         global_matrix = child.matrix_world
 
         if child.parent:
