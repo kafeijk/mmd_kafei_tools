@@ -39,16 +39,15 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
+        props = context.scene.mmd_kafei_tools_change_rest_pose
+        if not self.check_props(props):
+            return {'CANCELLED'}
         self.start(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
+        return {'FINISHED'}
 
     def start(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_change_rest_pose
-
-        # 校验是否选中MMD模型
-        if self.check_props(props) is False:
-            return
 
         # 获取模型信息
         active_object = bpy.context.active_object
@@ -238,17 +237,13 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
+        props = context.scene.mmd_kafei_tools_sf
+        if not self.check_props(props):
+            return {'CANCELLED'}
         self.end(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
+        return {'FINISHED'}
 
     def end(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_sf
-
-        # 校验是否选中MMD模型
-        if self.check_props(props) is False:
-            return
-
         # 获取模型信息
         active_object = bpy.context.active_object
         root = find_pmx_root_with_child(active_object)
@@ -309,16 +304,15 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
+        props = context.scene.mmd_kafei_tools_change_rest_pose
+        if not self.check_props(props):
+            return {'CANCELLED'}
         self.end(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
+        return {'FINISHED'}
 
     def end(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_change_rest_pose
-
-        # 校验是否选中MMD模型
-        if self.check_props(props) is False:
-            return
 
         # 获取模型信息
         selected_objects = bpy.context.selected_objects
