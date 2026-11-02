@@ -65,19 +65,10 @@ class FlipBoneOperator(BoneOperatorMixin, bpy.types.Operator):
             return False
         armature = find_pmx_armature(find_pmx_root_with_child(context.active_object))
 
-        # 翻转姿态校验：需选中骨骼，且均为四元数旋转模式
+        # 翻转姿态校验：需选中骨骼
         selected_pbs = [pb for pb in armature.pose.bones if is_pose_bone_selected(pb)]
         if not selected_pbs:
             self.report(type={'ERROR'}, message=translate("请至少选择一根骨骼！"))
-            return False
-
-        unsupported_pbs = [pb for pb in selected_pbs if pb.rotation_mode != 'QUATERNION']
-        if unsupported_pbs:
-            names = ", ".join(pb.name for pb in unsupported_pbs)
-            self.report(type={'WARNING'},
-                        message=translate("不支持的骨骼（未处于四元数旋转模式）：{}").format(names))
-            self.report(type={'WARNING'},
-                        message=translate("操作未成功，仅支持四元数旋转模式，详情请查看↑↑↑"))
             return False
         return True
 
