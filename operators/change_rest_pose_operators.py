@@ -19,7 +19,6 @@ from ..utils import (
 )
 from ..mmd_utils import get_mmd_armature_id
 
-
 # 初始姿态调整状态，记录在 PMX ROOT 空物体上
 REST_POSE_STATE_KEY = "mmd_kafei_tools_rest_pose_state"
 REST_POSE_LAST_ACTION_KEY = "mmd_kafei_tools_rest_pose_last_action"
@@ -113,11 +112,11 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
     def set_joint_controller(self, props, root, armature, joint_parent, rigidbody_parent):
         h_joint_strategy = props.h_joint_strategy
 
-        v_joints = []  # 纵Joints
-        h_joints = self.find_h_joints(root, armature, joint_parent)  # 横Joints
-        for joint in joint_parent.children:
-            if joint not in h_joints:
-                v_joints.append(joint)
+        # 横Joints
+        h_joints = self.find_h_joints(root, armature, joint_parent)
+        h_joint_set = set(h_joints)
+        # 纵Joints
+        v_joints = [joint for joint in joint_parent.children if joint not in h_joint_set]
 
         # 纵Joint约束为刚体A
         for joint in v_joints:
