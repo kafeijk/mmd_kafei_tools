@@ -19,7 +19,6 @@ from ..utils import (
 )
 from ..mmd_utils import get_mmd_armature_id
 
-
 bpy.types.Object.original_location = bpy.props.FloatVectorProperty(
     get=lambda obj: obj.get('original_location', None)
 )
@@ -32,15 +31,36 @@ bpy.types.Object.original_location_lock = bpy.props.BoolVectorProperty(
 )
 
 
-class ChangeRestPoseStartOperator(bpy.types.Operator):
+class ChangeRestPoseOperatorMixin:
+    """初始姿态调整公共逻辑"""
+
+    def check_props(self, context):
+        if not is_mmd_tools_enabled():
+            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            return False
+        active_object = context.active_object
+        if not active_object:
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            return False
+        pmx_root = find_pmx_root_with_child(active_object)
+        if not pmx_root:
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            return False
+        armature = find_pmx_armature(pmx_root)
+        if not armature:
+            self.report(type={'ERROR'}, message=f'Armature not found!')
+            return False
+        return True
+
+
+class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_start"
     bl_label = "绑定"
     bl_description = "绑定刚体Joint，调整姿态时将会同步影响刚体Joint"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        props = context.scene.mmd_kafei_tools_change_rest_pose
-        if not self.check_props(props):
+        if not self.check_props(context):
             return {'CANCELLED'}
         self.start(context)
         return {'FINISHED'}
@@ -132,7 +152,6 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
 
         return h_joints
 
-
     def do_set_joint_driver(self, joint, rigidbody_parent):
         rigidbody1 = joint.rigid_body_constraint.object1
         rigidbody2 = joint.rigid_body_constraint.object2
@@ -211,34 +230,15 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
         if rigidbody1 in rigidbody_parent.children:
             constraint.target = rigidbody1
 
-    def check_props(self, props):
-        if not is_mmd_tools_enabled():
-            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
-            return False
-        active_object = bpy.context.active_object
-        if not active_object:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        pmx_root = find_pmx_root_with_child(active_object)
-        if not pmx_root:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        armature = find_pmx_armature(pmx_root)
-        if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
-            return False
-        return True
 
-
-class ChangeRestPoseEndOperator(bpy.types.Operator):
+class ChangeRestPoseEndOperator(ChangeRestPoseOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_end"
     bl_label = "应用绑定"
     bl_description = "应用刚体Joint的变换并解除绑定"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        props = context.scene.mmd_kafei_tools_sf
-        if not self.check_props(props):
+        if not self.check_props(context):
             return {'CANCELLED'}
         self.end(context)
         return {'FINISHED'}
@@ -278,37 +278,36 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
             # 应用（移除）横Joint驱动器
             apply_driver(joint_parent)
 
-    def check_props(self, props):
-        if not is_mmd_tools_enabled():
-            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
-            return False
-        active_object = bpy.context.active_object
-        if not active_object:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        pmx_root = find_pmx_root_with_child(active_object)
-        if not pmx_root:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        armature = find_pmx_armature(pmx_root)
-        if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
-            return False
-        return True
 
-
-class ChangeRestPoseEnd2Operator(bpy.types.Operator):
+class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_end2"
     bl_label = "应用姿态"
     bl_description = "应用当前姿态对网格和骨架的影响"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        props = context.scene.mmd_kafei_tools_change_rest_pose
-        if not self.check_props(props):
+        if not self.check_props(context):
             return {'CANCELLED'}
         self.end(context)
         return {'FINISHED'}
+
+    def check_props(self, context):
+        if not super().check_props(context):
+            return False
+
+        # 选中对象可能来自多个模型，这里限制为单个模型
+        roots = set()
+        for obj in context.selected_objects:
+            root = find_pmx_root_with_child(obj)
+            if root:
+                roots.add(root)
+        if not roots:
+            self.report(type={'ERROR'}, message=f'Select MMD model!')
+            return False
+        if len(roots) > 1:
+            self.report(type={'ERROR'}, message=f'Multiple MMD models detected!')
+            return False
+        return True
 
     def end(self, context):
         scene = context.scene
@@ -381,35 +380,6 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
         armature_mod.object = armature
         return armature_mod
 
-    def check_props(self, props):
-        if not is_mmd_tools_enabled():
-            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
-            return False
-        selected_objects = bpy.context.selected_objects
-        if not selected_objects:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-
-        roots = set()
-        for obj in selected_objects:
-            root = find_pmx_root_with_child(obj)
-            if not root:
-                continue
-            roots.add(root)
-        if not roots:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        if len(roots) > 1:
-            self.report(type={'ERROR'}, message=f'Multiple MMD models detected!')
-            return False
-
-        root = roots.pop()
-        armature = find_pmx_armature(root)
-        if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
-            return False
-
-        return True
 
 # todo 修正刚体旋转值？	xy轴向如何处理？ 关联刚体的平均值 圆形切向作为x
 # 是否加入该功能待定
