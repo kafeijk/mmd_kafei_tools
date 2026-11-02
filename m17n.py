@@ -393,6 +393,7 @@ translation_dict = {
         ("Operator", "关联骨骼"): "Linked Bone",
         ("Operator", "并排骨骼"): "Ring-shaped Bone",
         ("Operator", "镜像骨骼"): "Mirror Bone",
+        ("*", "镜像骨骼"): "Mirror Bone",
         ("Operator", "翻转姿态"): "Flip Bone",
         ("Operator", "拓展选区"): "More",
         ("Operator", "缩减选区"): "Less",
