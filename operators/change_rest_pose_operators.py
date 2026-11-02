@@ -28,17 +28,6 @@ REST_POSE_ACTION_BIND = "BIND"
 REST_POSE_ACTION_APPLY_BIND = "APPLY_BIND"
 REST_POSE_ACTION_APPLY_POSE = "APPLY_POSE"
 
-bpy.types.Object.original_location = bpy.props.FloatVectorProperty(
-    get=lambda obj: obj.get('original_location', None)
-)
-bpy.types.Object.original_rotation = bpy.props.FloatVectorProperty(
-    subtype="EULER",
-    get=lambda obj: obj.get('original_rotation', None)
-)
-bpy.types.Object.original_location_lock = bpy.props.BoolVectorProperty(
-    get=lambda obj: obj.get('original_location_lock', None)
-)
-
 
 class ChangeRestPoseOperatorMixin:
     """初始姿态调整公共逻辑"""
@@ -163,12 +152,6 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
         rigidbody2 = joint.rigid_body_constraint.object2
         if not all(r in rigidbody_parent.children for r in [rigidbody1, rigidbody2]):
             return
-
-        # 记录初始位置
-        if "original_location" not in joint:
-            joint["original_location"] = joint.location.copy()
-        if "original_rotation" not in joint:
-            joint["original_rotation"] = joint.rotation_euler.copy()
 
         # 移除已有驱动
         if joint.animation_data and joint.animation_data.drivers:
@@ -523,12 +506,6 @@ def set_rigidbody_cons(rigidbody_parent, armature, enabled=True):
 
 def apply_driver(parent):
     for child in parent.children:
-        # 移除自定义属性
-        if "original_location" in child:
-            del child["original_location"]
-        if "original_rotation" in child:
-            del child["original_rotation"]
-
         # 移除 joint 的位置和旋转驱动器
         if child.animation_data and child.animation_data.drivers:
             for fcurve in child.animation_data.drivers:
