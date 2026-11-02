@@ -15,6 +15,7 @@ from ..utils import (
     find_rigid_body_parent,
     get_physical_bone,
     is_mmd_tools_enabled,
+    is_pose_bone_hidden,
     is_pose_bone_selected,
     matmul,
     select_and_activate,
@@ -239,19 +240,13 @@ def is_valid_bone(bone_info, pb):
     if not pb:
         return False
     # 骨骼被隐藏
-    bone = pb.bone
-    if original_mode == 'POSE':
-        if bone.hide:
-            return False
-    if original_mode == 'EDIT':
-        hide_flag = eb_hide_map.get(pb.name)
-        if hide_flag:
-            return False
+    if original_mode == 'POSE' and is_pose_bone_hidden(pb):
+        return False
+    if original_mode == 'EDIT' and eb_hide_map.get(pb.name):
+        return False
 
     # 骨骼不在显示层
-    if pb.name not in visible_bone_names:
-        return False
-    return True
+    return pb.name in visible_bone_names
 
 
 def traverse_parent_linked(bone_info, pb, pb_set):
@@ -284,16 +279,15 @@ def traverse_children(bone_info, pb, pb_set, once):
 
 
 def do_traverse_children(bone_info, pb, pb_set, once):
-    # 如果子骨骼只有一个子骨骼，将其添加到列表
+    # 子骨不可见/被隐藏时不加入，也不继续向下查找
     child = pb.children[0]
-    if is_valid_bone(bone_info, pb) and len(child.children) == 1:
-        pb_set.add(child)
-        if once:
-            return
-        traverse_children(bone_info, child, pb_set, once)  # 继续递归子骨骼
-    else:
-        pb_set.add(child)
+    if not is_valid_bone(bone_info, child):
         return
+    pb_set.add(child)
+    # 只遍历单链骨骼，子骨存在分叉时到此为止
+    if once or len(child.children) != 1:
+        return
+    do_traverse_children(bone_info, child, pb_set, once)  # 继续递归子骨骼
 
 
 def get_ring_bone(bone_info, selected_pbs, pbs, pb_set):

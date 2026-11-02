@@ -954,6 +954,21 @@ def is_pose_bone_selected(pb):
         return pb.select
 
 
+def is_pose_bone_hidden(pb):
+    """
+    获取姿态模式下骨骼的隐藏状态
+
+    Blender 5.0 起 PoseBone 有独立的 hide 属性，与 Bone.hide 不同步，
+    姿态模式下骨骼的隐藏状态应读取 PoseBone.hide。
+
+    """
+    blender_version = bpy.app.version
+    if blender_version < (5, 0, 0):
+        return pb.bone.hide
+    else:
+        return pb.hide
+
+
 def get_action_fcurves(obj):
     """
     获取Action下的fcurves
