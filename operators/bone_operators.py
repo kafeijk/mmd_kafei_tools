@@ -21,215 +21,155 @@ from ..utils import (
 )
 
 
-class FlipBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.flip_bone"
-    bl_label = "翻转姿态"
-    bl_description = "翻转姿态"
+class BoneOperatorMixin:
+    """骨骼操作公共逻辑：统一校验与执行"""
+
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+    option = ""
 
-    def execute(self, context):
-        option = "FLIP_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        pmx_root = find_pmx_root_with_child(context.active_object)
-        flip_bone(context, find_pmx_armature(pmx_root))
-        return {'FINISHED'}
-
-
-class DeleteInvalidRigidbodyJointOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.delete_invalid_rigidbody_joint"
-    bl_label = "清理无效刚体Joint"
-    bl_description = "清理无效的刚体和关节。如果刚体所关联的骨骼不存在，则删除该刚体及与之关联的关节；如果刚体没有关联的骨骼，则不处理"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "INVALID_RIGIDBODY_JOINT"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        remove_invalid_rigidbody_joint(context)
-        return {'FINISHED'}
-
-
-class SelectPhysicalBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_physical_bone"
-    bl_label = "物理骨骼"
-    bl_description = "选择受物理影响的MMD骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "PHYSICAL_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_physical_bone(context)
-        return {'FINISHED'}
-
-
-class SelectBakeBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_bake_bone"
-    bl_label = "K帧骨骼"
-    bl_description = "选择用于K帧的MMD骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "BAKE_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bake_bone(context)
-        return {'FINISHED'}
-
-
-class SelectLinkedBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_linked_bone"
-    bl_label = "关联骨骼"
-    bl_description = "选择以父/子关系关联到当前选中项的所有骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "LINKED_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-class SelectRingBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_ring_bone"
-    bl_label = "并排骨骼"
-    bl_description = "根据骨骼名称，选择当前选中项的环绕骨骼，例如选择裙子骨骼的一周"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "RING_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-class SelecExtendParentBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_extend_parent_bone"
-    bl_label = "父 +"
-    bl_description = "拓展选择当前选中项的父骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "EXTEND_PARENT_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-class SelectExtendChildrenBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_extend_children_bone"
-    bl_label = "子 +"
-    bl_description = "拓展选择当前选中项的子骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "EXTEND_CHILDREN_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-class SelectLessParentBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_less_parent_bone"
-    bl_label = "父 -"
-    bl_description = "从当前选中项的父级开始缩减选择"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "LESS_PARENT_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-class SelectLessChildrenBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_less_children_bone"
-    bl_label = "子 -"
-    bl_description = "从当前选中项的子级开始缩减选择"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "LESS_CHILDREN_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-class SelectMoreBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_more_bone"
-    bl_label = "拓展选区"
-    bl_description = "拓展选择当前选中项的父子骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "MORE_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-class SelectLessBoneOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.select_less_bone"
-    bl_label = "缩减选区"
-    bl_description = "缩减选择当前选中项的父子骨骼"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        option = "LESS_BONE"
-        if not check_props(context, self, option):
-            return {'CANCELLED'}
-        select_bone_by_input(context, option)
-        return {'FINISHED'}
-
-
-def check_props(context, operator, option):
-    if option in ("FLIP_BONE", "PHYSICAL_BONE", "BAKE_BONE", "LINKED_BONE", "RING_BONE", "INVALID_RIGIDBODY_JOINT",
-                  "MORE_BONE", "EXTEND_CHILDREN_BONE", "EXTEND_PARENT_BONE",
-                  "LESS_BONE", "LESS_PARENT_BONE", "LESS_CHILDREN_BONE"):
+    def check_props(self, context):
+        """公共校验"""
         if not is_mmd_tools_enabled():
-            operator.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
             return False
         active_object = context.active_object
         pmx_root = find_pmx_root_with_child(active_object)
         if not active_object or not pmx_root:
-            operator.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
             return False
         armature = find_pmx_armature(pmx_root)
         if not armature:
-            operator.report(type={'ERROR'}, message=translate("未找到模型骨架！"))
+            self.report(type={'ERROR'}, message=translate("未找到模型骨架！"))
+            return False
+        return True
+
+    def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        self.run(context)
+        return {'FINISHED'}
+
+    def run(self, context):
+        """默认执行逻辑：按 option 选择关联骨骼"""
+        select_bone_by_input(context, self.option)
+
+
+class FlipBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.flip_bone"
+    bl_label = "翻转姿态"
+    bl_description = "翻转姿态"
+    option = "FLIP_BONE"
+
+    def check_props(self, context):
+        if not super().check_props(context):
+            return False
+        armature = find_pmx_armature(find_pmx_root_with_child(context.active_object))
+
+        # 翻转姿态校验：需选中骨骼，且均为四元数旋转模式
+        selected_pbs = [pb for pb in armature.pose.bones if is_pose_bone_selected(pb)]
+        if not selected_pbs:
+            self.report(type={'ERROR'}, message=translate("请至少选择一根骨骼！"))
             return False
 
-        if option in ("FLIP_BONE"):
-            selected_pbs = []
-            pbs = armature.pose.bones
-            for pb in pbs:
-                if is_pose_bone_selected(pb):
-                    selected_pbs.append(pb)
-            if not selected_pbs:
-                operator.report(type={'ERROR'}, message=translate("请至少选择一根骨骼！"))
-                return False
+        unsupported_pbs = [pb for pb in selected_pbs if pb.rotation_mode != 'QUATERNION']
+        if unsupported_pbs:
+            print(bpy.app.translations.pgettext_iface("不支持的骨骼（未处于四元数旋转模式）："))
+            for pb in unsupported_pbs:
+                print(pb.name)
+            self.report(type={'ERROR'},
+                        message=translate("仅支持四元数旋转模式，详情请查看控制台"))
+            return False
+        return True
 
-            unsupported_pbs = []
-            for pb in selected_pbs:
-                if pb.rotation_mode != 'QUATERNION':
-                    unsupported_pbs.append(pb)
-            if unsupported_pbs:
-                print(bpy.app.translations.pgettext_iface("不支持的骨骼（未处于四元数旋转模式）："))
-                for pb in unsupported_pbs:
-                    print(pb.name)
-                operator.report(type={'ERROR'},
-                                message=translate("仅支持四元数旋转模式，详情请查看控制台"))
-                return False
+    def run(self, context):
+        pmx_root = find_pmx_root_with_child(context.active_object)
+        flip_bone(context, find_pmx_armature(pmx_root))
 
-    return True
+
+class DeleteInvalidRigidbodyJointOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.delete_invalid_rigidbody_joint"
+    bl_label = "清理无效刚体Joint"
+    bl_description = "清理无效的刚体和关节。如果刚体所关联的骨骼不存在，则删除该刚体及与之关联的关节；如果刚体没有关联的骨骼，则不处理"
+    option = "INVALID_RIGIDBODY_JOINT"
+
+    def run(self, context):
+        remove_invalid_rigidbody_joint(context)
+
+
+class SelectPhysicalBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_physical_bone"
+    bl_label = "物理骨骼"
+    bl_description = "选择受物理影响的MMD骨骼"
+    option = "PHYSICAL_BONE"
+
+    def run(self, context):
+        select_physical_bone(context)
+
+
+class SelectBakeBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_bake_bone"
+    bl_label = "K帧骨骼"
+    bl_description = "选择用于K帧的MMD骨骼"
+    option = "BAKE_BONE"
+
+    def run(self, context):
+        select_bake_bone(context)
+
+
+class SelectLinkedBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_linked_bone"
+    bl_label = "关联骨骼"
+    bl_description = "选择以父/子关系关联到当前选中项的所有骨骼"
+    option = "LINKED_BONE"
+
+
+class SelectRingBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_ring_bone"
+    bl_label = "并排骨骼"
+    bl_description = "根据骨骼名称，选择当前选中项的环绕骨骼，例如选择裙子骨骼的一周"
+    option = "RING_BONE"
+
+
+class SelecExtendParentBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_extend_parent_bone"
+    bl_label = "父 +"
+    bl_description = "拓展选择当前选中项的父骨骼"
+    option = "EXTEND_PARENT_BONE"
+
+
+class SelectExtendChildrenBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_extend_children_bone"
+    bl_label = "子 +"
+    bl_description = "拓展选择当前选中项的子骨骼"
+    option = "EXTEND_CHILDREN_BONE"
+
+
+class SelectLessParentBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_less_parent_bone"
+    bl_label = "父 -"
+    bl_description = "从当前选中项的父级开始缩减选择"
+    option = "LESS_PARENT_BONE"
+
+
+class SelectLessChildrenBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_less_children_bone"
+    bl_label = "子 -"
+    bl_description = "从当前选中项的子级开始缩减选择"
+    option = "LESS_CHILDREN_BONE"
+
+
+class SelectMoreBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_more_bone"
+    bl_label = "拓展选区"
+    bl_description = "拓展选择当前选中项的父子骨骼"
+    option = "MORE_BONE"
+
+
+class SelectLessBoneOperator(BoneOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.select_less_bone"
+    bl_label = "缩减选区"
+    bl_description = "缩减选择当前选中项的父子骨骼"
+    option = "LESS_BONE"
 
 
 def is_valid_bone(bone_info, pb):
