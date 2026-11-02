@@ -108,7 +108,8 @@ class RenderPreviewOperator(bpy.types.Operator):
                 # 备份原始输出路径
                 original_output_path = bpy.context.scene.render.filepath
                 # 渲染
-                bpy.context.scene.render.filepath = new_filepath
+                # Blender 会将输出路径中的 {} 解析为模板表达式，路径中的大括号需转义
+                bpy.context.scene.render.filepath = new_filepath.replace("{", "{{").replace("}", "}}")
                 render(False)
 
                 # 恢复原始输出路径
