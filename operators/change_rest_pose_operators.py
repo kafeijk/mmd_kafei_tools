@@ -19,6 +19,16 @@ from ..utils import (
 )
 from ..mmd_utils import get_mmd_armature_id
 
+
+# 初始姿态调整状态，记录在 PMX ROOT 空物体上
+REST_POSE_STATE_KEY = "mmd_kafei_tools_rest_pose_state"
+REST_POSE_LAST_ACTION_KEY = "mmd_kafei_tools_rest_pose_last_action"
+REST_POSE_STATE_UNBOUND = "UNBOUND"
+REST_POSE_STATE_BOUND = "BOUND"
+REST_POSE_ACTION_BIND = "BIND"
+REST_POSE_ACTION_APPLY_BIND = "APPLY_BIND"
+REST_POSE_ACTION_APPLY_POSE = "APPLY_POSE"
+
 bpy.types.Object.original_location = bpy.props.FloatVectorProperty(
     get=lambda obj: obj.get('original_location', None)
 )
@@ -62,7 +72,10 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
     def execute(self, context):
         if not self.check_props(context):
             return {'CANCELLED'}
+        root = find_pmx_root_with_child(context.active_object)
         self.start(context)
+        root[REST_POSE_STATE_KEY] = REST_POSE_STATE_BOUND
+        root[REST_POSE_LAST_ACTION_KEY] = REST_POSE_ACTION_BIND
         return {'FINISHED'}
 
     def start(self, context):
@@ -86,12 +99,6 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
         deselect_all_objects()
         select_and_activate(armature)
         bpy.ops.object.mode_set(mode='POSE')
-        # 姿态变换归零
-        bpy.ops.pose.select_all(action='SELECT')
-        bpy.ops.pose.loc_clear()
-        bpy.ops.pose.rot_clear()
-        bpy.ops.pose.scale_clear()
-        bpy.ops.pose.select_all(action='DESELECT')
 
         # 如果没有 rigidbody_parent，则关节无意义，此时关节的存在必然会导致MMD闪退
         # 刚体/Joint 部分整体跳过；其余流程照常
@@ -240,7 +247,10 @@ class ChangeRestPoseEndOperator(ChangeRestPoseOperatorMixin, bpy.types.Operator)
     def execute(self, context):
         if not self.check_props(context):
             return {'CANCELLED'}
+        root = find_pmx_root_with_child(context.active_object)
         self.end(context)
+        root[REST_POSE_STATE_KEY] = REST_POSE_STATE_UNBOUND
+        root[REST_POSE_LAST_ACTION_KEY] = REST_POSE_ACTION_APPLY_BIND
         return {'FINISHED'}
 
     def end(self, context):
@@ -288,7 +298,9 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
     def execute(self, context):
         if not self.check_props(context):
             return {'CANCELLED'}
+        root = find_pmx_root_with_child(context.active_object)
         self.end(context)
+        root[REST_POSE_LAST_ACTION_KEY] = REST_POSE_ACTION_APPLY_POSE
         return {'FINISHED'}
 
     def check_props(self, context):

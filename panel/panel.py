@@ -20,6 +20,13 @@ from ..operators.transfer_vg_weight_operators import TransferVgWeightOperator
 from ..operators.change_rest_pose_operators import ChangeRestPoseStartOperator
 from ..operators.change_rest_pose_operators import ChangeRestPoseEndOperator
 from ..operators.change_rest_pose_operators import ChangeRestPoseEnd2Operator
+from ..operators.change_rest_pose_operators import (
+    REST_POSE_STATE_KEY,
+    REST_POSE_STATE_BOUND,
+    REST_POSE_LAST_ACTION_KEY,
+    REST_POSE_ACTION_APPLY_BIND,
+    REST_POSE_ACTION_APPLY_POSE,
+)
 from ..operators.bone_operators import FlipBoneOperator
 from ..operators.bone_operators import DeleteInvalidRigidbodyJointOperator
 from ..operators.bone_operators import SelectPhysicalBoneOperator
@@ -491,12 +498,26 @@ class ChangeRestPosePanel(bpy.types.Panel):
         col.prop(props, "h_joint_strategy")
         col.prop(props, "force_apply")
 
+        active_object = context.active_object
+        root = find_pmx_root_with_child(active_object) if is_mmd_tools_enabled() else None
+        bound = bool(root and root.get(REST_POSE_STATE_KEY) == REST_POSE_STATE_BOUND)
+        last_action = root.get(REST_POSE_LAST_ACTION_KEY, "") if root else ""
+
         col = col.column(align=True)
         row = col.row(align=True)
-        row.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
-        row.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        bind_col = row.column(align=True)
+        bind_col.operator(ChangeRestPoseStartOperator.bl_idname, text=ChangeRestPoseStartOperator.bl_label)
+        bind_col.enabled = bool(root) and not bound
+        apply_bind_col = row.column(align=True)
+        apply_bind_col.operator(ChangeRestPoseEndOperator.bl_idname, text=ChangeRestPoseEndOperator.bl_label)
+        apply_bind_col.enabled = bool(root) and bound
         row = col.row(align=True)
-        row.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
+        apply_pose_col = row.column(align=True)
+        apply_pose_col.operator(ChangeRestPoseEnd2Operator.bl_idname, text=ChangeRestPoseEnd2Operator.bl_label)
+        apply_pose_col.enabled = bool(root) and last_action in (
+            REST_POSE_ACTION_APPLY_BIND,
+            REST_POSE_ACTION_APPLY_POSE,
+        )
 
 
 class BonePanel(bpy.types.Panel):
