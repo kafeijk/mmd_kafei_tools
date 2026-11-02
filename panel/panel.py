@@ -572,7 +572,7 @@ class BonePanel(bpy.types.Panel):
         if active_object and active_object.type == "ARMATURE" and active_object.mode in ["EDIT", "POSE"]:
             link_bone_col.enabled = True
             ring_bone_bol.enabled = True
-            flip_bone_col.enabled = True
+            flip_bone_col.enabled = active_object.mode == "POSE"
             extend_parent_col.enabled = True
             extend_children_col.enabled = True
             less_parent_col.enabled = True

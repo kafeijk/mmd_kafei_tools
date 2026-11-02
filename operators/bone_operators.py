@@ -1,11 +1,8 @@
-import math
 import re
 
 import bpy
 
-from mathutils import Euler, Quaternion, Vector
-
-from ..constants import PMX_BAKE_BONES, PMX_EXPORT_SCALE, PMX_IMPORT_SCALE
+from ..constants import PMX_BAKE_BONES
 
 from ..utils import (
     deselect_all_objects,
@@ -17,7 +14,6 @@ from ..utils import (
     is_mmd_tools_enabled,
     is_pose_bone_hidden,
     is_pose_bone_selected,
-    matmul,
     select_and_activate,
     select_pose_bone,
     show_object,
@@ -35,7 +31,8 @@ class FlipBoneOperator(bpy.types.Operator):
         option = "FLIP_BONE"
         if not check_props(context, self, option):
             return {'CANCELLED'}
-        mirror_pose(context)
+        pmx_root = find_pmx_root_with_child(context.active_object)
+        flip_bone(context, find_pmx_armature(pmx_root))
         return {'FINISHED'}
 
 
@@ -330,206 +327,17 @@ def get_prefix(bl_name):
     return None
 
 
-class BoneConverter:
-    def __init__(self, pose_bone, scale, invert=False):
-        mat = pose_bone.bone.matrix_local.to_3x3()
-        mat[1], mat[2] = mat[2].copy(), mat[1].copy()
-        self.__mat = mat.transposed()
-        self.__scale = scale
-        if invert:
-            self.__mat.invert()
-        self.convert_interpolation = _InterpolationHelper(self.__mat).convert
-
-    def convert_location(self, location):
-        return matmul(self.__mat, Vector(location)) * self.__scale
-
-    def convert_rotation(self, rotation_xyzw):
-        rot = Quaternion()
-        rot.x, rot.y, rot.z, rot.w = rotation_xyzw
-        return Quaternion(matmul(self.__mat, rot.axis) * -1, rot.angle).normalized()
-
-
-class _InterpolationHelper:
-    def __init__(self, mat):
-        self.__indices = indices = [0, 1, 2]
-        l = sorted((-abs(mat[i][j]), i, j) for i in range(3) for j in range(3))
-        _, i, j = l[0]
-        if i != j:
-            indices[i], indices[j] = indices[j], indices[i]
-        _, i, j = next(k for k in l if k[1] != i and k[2] != j)
-        if indices[i] != j:
-            idx = indices.index(j)
-            indices[i], indices[idx] = indices[idx], indices[i]
-
-    def convert(self, interpolation_xyz):
-        return (interpolation_xyz[i] for i in self.__indices)
-
-
-def xyzw_from_rotation_mode(mode):
-    # 如果旋转模式是四元数，直接返回
-    if mode == 'QUATERNION':
-        return lambda xyzw: xyzw
-
-    # 如果旋转模式是坐标轴角度，将其转为四元数
-    if mode == 'AXIS_ANGLE':
-        def __xyzw_from_axis_angle(xyzw):
-            q = Quaternion(xyzw[:3], xyzw[3])
-            return [q.x, q.y, q.z, q.w]
-
-        return __xyzw_from_axis_angle
-
-    # 如果旋转模式是轴角（绕xyzw[:3]旋转了xyzw[3]度），将其转为四元数
-    def __xyzw_from_euler(xyzw):
-        q = Euler(xyzw[:3], xyzw[3]).to_quaternion()
-        return [q.x, q.y, q.z, q.w]
-
-    return __xyzw_from_euler
-
-
-class _MirrorMapper:
-    def __init__(self, data_map=None):
-        self.__data_map = data_map
-
-    @staticmethod
-    def get_location(location):
-        return (-location[0], location[1], location[2])
-
-    @staticmethod
-    def get_rotation(rotation_xyzw):
-        return (rotation_xyzw[0], -rotation_xyzw[1], -rotation_xyzw[2], rotation_xyzw[3])
-
-    @staticmethod
-    def get_rotation3(rotation_xyz):
-        return (rotation_xyz[0], -rotation_xyz[1], -rotation_xyz[2])
-
-
-def minRotationDiff(prev_q, curr_q):
-    t1 = (prev_q.w - curr_q.w) ** 2 + (prev_q.x - curr_q.x) ** 2 + (prev_q.y - curr_q.y) ** 2 + (
-            prev_q.z - curr_q.z) ** 2
-    t2 = (prev_q.w + curr_q.w) ** 2 + (prev_q.x + curr_q.x) ** 2 + (prev_q.y + curr_q.y) ** 2 + (
-            prev_q.z + curr_q.z) ** 2
-    # t1 = prev_q.rotation_difference(curr_q).angle
-    # t2 = prev_q.rotation_difference(-curr_q).angle
-    return -curr_q if t2 < t1 else curr_q
-
-
-def getBoneConverter(bone):
-    converter = BoneConverter(bone, PMX_IMPORT_SCALE)
-    mode = bone.rotation_mode
-    compatible_quaternion = minRotationDiff
-
-    class _ConverterWrap:
-        convert_location = converter.convert_location
-        convert_interpolation = converter.convert_interpolation
-        if mode == 'QUATERNION':
-            convert_rotation = converter.convert_rotation
-            compatible_rotation = compatible_quaternion
-        elif mode == 'AXIS_ANGLE':
-            @staticmethod
-            def convert_rotation(rot):
-                (x, y, z), angle = converter.convert_rotation(rot).to_axis_angle()
-                return (angle, x, y, z)
-
-            @staticmethod
-            def compatible_rotation(prev, curr):
-                angle, x, y, z = curr
-                if prev[1] * x + prev[2] * y + prev[3] * z < 0:
-                    angle, x, y, z = -angle, -x, -y, -z
-                angle_diff = prev[0] - angle
-                if abs(angle_diff) > math.pi:
-                    pi_2 = math.pi * 2
-                    bias = -0.5 if angle_diff < 0 else 0.5
-                    angle += int(bias + angle_diff / pi_2) * pi_2
-                return (angle, x, y, z)
+def flip_bone(context, armature):
+    """翻转骨骼姿态，仅在姿态模式下生效"""
+    selected_pbs = [pb for pb in armature.pose.bones if is_pose_bone_selected(pb)]
+    # MMD Tools 需要 selected_pose_bones，但后台下 selected_pose_bones 为空
+    with context.temp_override(active_object=armature, selected_pose_bones=selected_pbs):
+        # 未启用 MMD Tools 或不是 PMX 模型时，使用 Blender 原生的复制/翻转粘贴
+        if not is_mmd_tools_enabled() or not find_pmx_root_with_child(armature):
+            bpy.ops.pose.copy()
+            bpy.ops.pose.paste(flipped=True)
         else:
-            convert_rotation = lambda rot: converter.convert_rotation(rot).to_euler(mode)
-            compatible_rotation = lambda prev, curr: curr.make_compatible(prev) or curr
-
-    return _ConverterWrap
-
-
-def calculate_mirror_pose(bone_a, bone_b):
-    x, y, z = bone_a.location
-    rw, rx, ry, rz = bone_a.rotation_quaternion
-
-    converter = BoneConverter(bone_a, PMX_EXPORT_SCALE, invert=True)
-    # 将blender位置值转为vmd位置值
-    location = converter.convert_location([x, y, z])
-    # 将blender旋转值转为vmd旋转值
-    get_xyzw = xyzw_from_rotation_mode(bone_a.rotation_mode)
-    curr_rot = converter.convert_rotation(get_xyzw([rx, ry, rz, rw]))
-    rotation_xyzw = curr_rot[1:] + curr_rot[0:1]
-    rotation_xyzw = Quaternion(rotation_xyzw)
-
-    _loc, _rot = _MirrorMapper.get_location, _MirrorMapper.get_rotation
-    converter = getBoneConverter(bone_b)
-    # 将vmd位置值转为blender位置值
-    loc = converter.convert_location(_loc(location))
-    # 将vmd旋转值转为blender旋转值
-    curr_rot = converter.convert_rotation(_rot(rotation_xyzw))
-
-    return loc, curr_rot, bone_a.scale
-
-
-def get_mirror_name(bl_name):
-    # 获取去除数字拓展后的basename
-    basename = re.sub(r'\.\d+$', '', bl_name)
-    # 提取数字扩展部分（如果有）
-    res = re.search(r'(\.\d+)$', bl_name)
-    suffix = res.group(0) if res else ''
-
-    mirror_basename = ''
-    if basename[-2:] == ".L":
-        mirror_basename = basename[:-2] + ".R"
-    elif basename[-2:] == ".l":
-        mirror_basename = basename[:-2] + ".r"
-    elif basename[-2:] == ".R":
-        mirror_basename = basename[:-2] + ".L"
-    elif basename[-2:] == ".r":
-        mirror_basename = basename[:-2] + ".l"
-
-    mirror_bl_name = mirror_basename + suffix
-    return mirror_bl_name
-
-
-def mirror_pose(context):
-    """翻转骨骼姿态，该部分从mmd_tools提取，原理不清楚，但流程相当于导出动作再镜像导入。"""
-    obj = context.active_object
-    pmx_root = find_pmx_root_with_child(obj)
-    armature = find_pmx_armature(pmx_root)
-
-    pbs = armature.pose.bones
-    selected_pbs = []
-    for pb in pbs:
-        if is_pose_bone_selected(pb):
-            selected_pbs.append(pb)
-
-    # 没有骨骼被选择则直接返回
-    if not selected_pbs:
-        return
-
-    bone_pairs = {}
-    for pb in selected_pbs:
-        mirror_pb_name = get_mirror_name(pb.name)
-        mirror_pb = pbs.get(mirror_pb_name)
-        if not mirror_pb:
-            bone_pairs[pb] = None
-        if pb in bone_pairs.keys() or mirror_pb in bone_pairs.keys():
-            continue
-        bone_pairs[pb] = mirror_pb
-
-    for pb, mirror_pb in bone_pairs.items():
-        if mirror_pb is None:
-            pb.location, pb.rotation_quaternion, pb.scale = calculate_mirror_pose(pb, pb)
-            continue
-        if pb in selected_pbs and mirror_pb in selected_pbs:
-            tmp_location, tmp_quaternion, tmp_scale = calculate_mirror_pose(pb, mirror_pb)
-            pb.location, pb.rotation_quaternion, pb.scale = calculate_mirror_pose(mirror_pb, pb)
-            mirror_pb.location, mirror_pb.rotation_quaternion, mirror_pb.scale = tmp_location, tmp_quaternion, tmp_scale
-        else:
-            mirror_pb.location, mirror_pb.rotation_quaternion, mirror_pb.scale = calculate_mirror_pose(pb, mirror_pb)
-
-    # 重设选择状态会影响重复修改原骨骼，不重设选择状态会影响K帧，暂不修改选择状态
+            bpy.ops.mmd_tools.flip_pose()
 
 
 def remove_invalid_rigidbody_joint(context):
