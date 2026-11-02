@@ -12,8 +12,10 @@ from ..utils import (
     find_pmx_root_with_child,
     find_rigid_body_parent,
     get_physical_bone,
+    is_mmd_tools_enabled,
     select_and_activate,
     show_object,
+    translate,
 )
 from ..mmd_utils import get_mmd_armature_id
 
@@ -211,6 +213,9 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
             constraint.target = rigidbody1
 
     def check_props(self, props):
+        if not is_mmd_tools_enabled():
+            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            return False
         active_object = bpy.context.active_object
         if not active_object:
             self.report(type={'ERROR'}, message=f'Select MMD model!')
@@ -279,6 +284,9 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
             apply_driver(joint_parent)
 
     def check_props(self, props):
+        if not is_mmd_tools_enabled():
+            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            return False
         active_object = bpy.context.active_object
         if not active_object:
             self.report(type={'ERROR'}, message=f'Select MMD model!')
@@ -380,6 +388,9 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
         return armature_mod
 
     def check_props(self, props):
+        if not is_mmd_tools_enabled():
+            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            return False
         selected_objects = bpy.context.selected_objects
         if not selected_objects:
             self.report(type={'ERROR'}, message=f'Select MMD model!')
