@@ -235,7 +235,7 @@ def check_props(context, operator, option):
 
 
 def is_valid_bone(bone_info, pb):
-    eb_hide_map, original_mode, visible_info = bone_info
+    eb_hide_map, original_mode, visible_bone_names = bone_info
     if not pb:
         return False
     # 骨骼被隐藏
@@ -249,14 +249,8 @@ def is_valid_bone(bone_info, pb):
             return False
 
     # 骨骼不在显示层
-    if bpy.app.version < (4, 0, 0):
-        layers = bone.layers
-        active_layers = [i for i, layer in enumerate(layers) if layer]
-        if all(not visible_info[i] for i in active_layers):
-            return False
-    else:
-        if pb.name not in visible_info:
-            return False
+    if pb.name not in visible_bone_names:
+        return False
     return True
 
 
@@ -640,17 +634,26 @@ def get_end_bones(selected_pbs, pb_set):
 
 
 def get_bone_info(armature, original_mode):
-    """获取骨骼信息：编辑模式下骨骼的隐藏状态 初始模式 骨骼所在层（4.0+ 为可见骨骼名称集合）"""
+    """获取骨骼信息：编辑模式下骨骼的隐藏状态 初始模式 可见骨骼名称集合"""
     eb_hide_map = {}
     bpy.ops.object.mode_set(mode='EDIT')
     for eb in armature.data.edit_bones:
         eb_hide_map[eb.name] = eb.hide
+    bpy.ops.object.mode_set(mode='POSE')  # Warning: `Collection.bones` is not available in armature edit mode
+
     if bpy.app.version < (4, 0, 0):
-        return eb_hide_map, original_mode, armature.data.layers
+        layers = armature.data.layers
+        visible_bone_names = {
+            bone.name for bone in armature.data.bones
+            if any(layers[i] for i, layer in enumerate(bone.layers) if layer)
+        }
     else:
-        bpy.ops.object.mode_set(mode='POSE')  # Warning: `Collection.bones` is not available in armature edit mode
-        visible_bone_names = {b.name for c in armature.data.collections_all if c.is_visible for b in c.bones}
-        return eb_hide_map, original_mode, visible_bone_names
+        # https://docs.blender.org/api/current/bpy.types.BoneCollection.html#bpy.types.BoneCollection.is_visible_effectively
+        visible_bone_names = {
+            bone.name for collection in armature.data.collections_all
+            if collection.is_visible_effectively for bone in collection.bones
+        }
+    return eb_hide_map, original_mode, visible_bone_names
 
 
 def select_bone_by_input(context, option):
