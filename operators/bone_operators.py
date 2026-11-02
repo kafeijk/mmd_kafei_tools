@@ -360,7 +360,7 @@ def select_bone_by_predicate(context, predicate):
         bpy.ops.object.mode_set(mode=original_mode)
 
 
-def get_end_bones(selected_pbs, pb_set):
+def get_end_bones(bone_info, selected_pbs, pb_set):
     """获取末端子骨，即子骨数量为0或子骨均未被选中"""
     for pb in selected_pbs:
         if len(pb.children) == 0:
@@ -368,7 +368,7 @@ def get_end_bones(selected_pbs, pb_set):
         else:
             selected_child_flag = False
             for child in pb.children:
-                if is_pose_bone_selected(child):
+                if is_pose_bone_selected(child) and is_valid_bone(bone_info, child):
                     selected_child_flag = True
                     break
             if not selected_child_flag:
@@ -440,13 +440,10 @@ def select_bone_by_input(context, option):
 
     pbs = armature.pose.bones
     selected_pbs = []
-    invalid_bone_set = set()
     for pb in pbs:
-        # Blender逻辑中，关联查找不考虑被选中的隐藏骨骼，而查找父级子级时考虑，这里统一考虑
+        # Blender逻辑中，关联查找不考虑被选中的隐藏骨骼，而查找父级子级时考虑，这里统一不考虑
         if is_pose_bone_selected(pb) and is_valid_bone(bone_info, pb):
             selected_pbs.append(pb)
-        else:
-            invalid_bone_set.add(pb)
 
     # 没有骨骼被选择则直接返回
     if not selected_pbs:
@@ -457,12 +454,6 @@ def select_bone_by_input(context, option):
     active_pb = None
     if armature.data.bones.active:
         active_pb = pbs.get(armature.data.bones.active.name)
-
-    # 缩减选择时，查找范围排除无效骨骼
-    if option in ["LESS_PARENT_BONE", "LESS_CHILDREN_BONE", "LESS_BONE"]:
-        unselect_bone(armature, invalid_bone_set)
-    if active_pb and active_pb not in selected_pbs:
-        unselect_bone(armature, {active_pb})
 
     # 获取将被选择/取消选择的集合
     selected_set = set()
@@ -489,12 +480,12 @@ def select_bone_by_input(context, option):
             ancestor = get_deselected_ancestor(bone_info, pb, selected_pbs)
             unselected_set.add(ancestor)
     elif option == "LESS_CHILDREN_BONE":
-        get_end_bones(selected_pbs, unselected_set)
+        get_end_bones(bone_info, selected_pbs, unselected_set)
     elif option == "LESS_BONE":
         for pb in selected_pbs:
             ancestor = get_deselected_ancestor(bone_info, pb, selected_pbs)
             unselected_set.add(ancestor)
-        get_end_bones(selected_pbs, unselected_set)
+        get_end_bones(bone_info, selected_pbs, unselected_set)
 
     # 选择/取消选择
     if option in ["LESS_PARENT_BONE", "LESS_CHILDREN_BONE", "LESS_BONE"]:
@@ -510,7 +501,9 @@ def select_bone_by_input(context, option):
 
 
 def unselect_bone(armature, pb_set):
-    """取消选择骨骼"""
+    """取消选择骨骼（POSE / EDIT 各切换一次）"""
+    if not pb_set:
+        return
     bpy.ops.object.mode_set(mode="POSE")
     for pb in pb_set:
         select_pose_bone(pb, False)
