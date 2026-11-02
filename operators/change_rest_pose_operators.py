@@ -55,6 +55,19 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
     bl_description = "绑定刚体Joint，调整姿态时将会同步影响刚体Joint"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
+    h_joint_strategy: bpy.props.EnumProperty(
+        name="横Joint变换策略",
+        description="用何种方式重新设定横Joint的变换",  # Joint的缩放值对最终结果无影响
+        items=[
+            # 生成横Joint时的逻辑
+            # public IPEVector3[,] GetSideJointPos(IPEVector3[,] bodyPos)
+            # public IPEVector3[,] GetSideJointRot(IPEVector3[,] bodyRot)
+            ("CENTROID", "平均", "根据连接的刚体A与刚体B计算平均值"),
+            # PE修改骨骼时横Joint的变换逻辑
+            ("RIGIDBODY_A", "跟随刚体A", "跟随刚体A")
+        ]
+    )
+
     def execute(self, context):
         if not self.check_props(context):
             return {'CANCELLED'}
@@ -65,9 +78,6 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
         return {'FINISHED'}
 
     def start(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_change_rest_pose
-
         # 获取模型信息
         active_object = context.active_object
         root = find_pmx_root_with_child(active_object)
@@ -94,10 +104,10 @@ class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operato
         set_rigidbody_cons(rigidbody_parent, armature)
         if joint_parent is not None:
             # 设置Joint控制器（约束、驱动）
-            self.set_joint_controller(props, root, armature, joint_parent, rigidbody_parent)
+            self.set_joint_controller(root, armature, joint_parent, rigidbody_parent)
 
-    def set_joint_controller(self, props, root, armature, joint_parent, rigidbody_parent):
-        h_joint_strategy = props.h_joint_strategy
+    def set_joint_controller(self, root, armature, joint_parent, rigidbody_parent):
+        h_joint_strategy = self.h_joint_strategy
 
         # 横Joints
         h_joints = self.find_h_joints(root, armature, joint_parent)

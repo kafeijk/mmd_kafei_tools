@@ -487,15 +487,10 @@ class ChangeRestPosePanel(bpy.types.Panel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_change_rest_pose
-
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
         col = layout.column()
-
-        col.prop(props, "h_joint_strategy")
 
         active_object = context.active_object
         root = find_pmx_root_with_child(active_object) if is_mmd_tools_enabled() else None
