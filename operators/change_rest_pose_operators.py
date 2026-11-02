@@ -311,6 +311,8 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
         root = roots.pop()
         armature = find_pmx_armature(root)
         objs = find_pmx_objects(armature)
+        # 提前过滤掉当前姿态下顶点未变化的网格，避免执行耗时的形态键应用
+        objs = self.filter_pose_changed_objects(context, objs)
 
         for obj in objs:
             deselect_all_objects()
@@ -353,6 +355,29 @@ class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator
         armature_mod.show_render = True
         armature_mod.object = armature
         return armature_mod
+
+    def filter_pose_changed_objects(self, context, objs, epsilon=1e-6):
+        """过滤出当前姿态下顶点发生变化的网格对象"""
+        context.view_layer.update()
+        depsgraph = context.evaluated_depsgraph_get()
+
+        changed_objs = []
+        for obj in objs:
+            # 当前姿态顶点：网格已有骨架修改器，depsgraph 评估结果即为受骨骼影响后的顶点
+            obj_eval = obj.evaluated_get(depsgraph)
+            mesh = obj_eval.to_mesh()
+            changed = len(mesh.vertices) != len(obj.data.vertices)
+            if not changed:
+                for vertex_eval, vertex_rest in zip(mesh.vertices, obj.data.vertices):
+                    if (vertex_eval.co - vertex_rest.co).length > epsilon:
+                        changed = True
+                        break
+            obj_eval.to_mesh_clear()
+
+            if changed:
+                changed_objs.append(obj)
+
+        return changed_objs
 
 
 # todo 修正刚体旋转值？	xy轴向如何处理？ 关联刚体的平均值 圆形切向作为x
