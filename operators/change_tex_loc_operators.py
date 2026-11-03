@@ -25,7 +25,7 @@ def _image_path(image):
 
 
 def _keep_keywords(props):
-    value = getattr(props, "keep_names", "") or ""
+    value = props.keep_names or ""
     return [part.strip().lower() for part in re.split(r"[,，]", value) if part.strip()]
 
 
@@ -78,8 +78,8 @@ def collect_referenced_image_paths(pmx_root):
                     referenced.add(path)
 
             # 卡通纹理（双保险）
-            mmd_material = getattr(material, "mmd_material", None)
-            toon = mmd_material.toon_texture if mmd_material else ""
+            mmd_material = material.mmd_material
+            toon = mmd_material.toon_texture
             if toon and toon.strip():
                 referenced.add(_norm_path(bpy.path.abspath(toon)))
     return referenced
@@ -118,7 +118,7 @@ def change_texture_paths(pmx_root, pmx_file, props, path_map):
             if not node_tree:
                 continue
 
-            mmd_material = getattr(material, "mmd_material", None)
+            mmd_material = material.mmd_material
             for node in node_tree.nodes:
                 if node.type != 'TEX_IMAGE' or not node.image:
                     continue
@@ -135,7 +135,7 @@ def change_texture_paths(pmx_root, pmx_file, props, path_map):
                     else:
                         mmd_material.sphere_texture_rel_path = rel_path
 
-            toon = mmd_material.toon_texture if mmd_material else ""
+            toon = mmd_material.toon_texture
             if toon and toon.strip():
                 new_path = lookup(toon)
                 if new_path:
@@ -153,7 +153,7 @@ def move_textures(pmx_file, props, referenced_paths=None):
 
     image_extensions = set(IMG_TYPE_EXT_MAP.values())
     keep_keywords = _keep_keywords(props)
-    strategy = getattr(props, "texture_conflict_strategy", "AUTO")
+    strategy = props.texture_conflict_strategy
     referenced = referenced_paths or set()
     path_map = {}
     dest_referenced = {}
