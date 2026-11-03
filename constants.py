@@ -22,6 +22,10 @@ INVALID_CHARS = '<>:"/\\|?*'
 MAX_RETRIES = 5
 # 批量处理时连续失败达到该数量即停止，并提示可能是模型或 mmd_tools 版本问题
 MAX_CONSECUTIVE_FAILURES = 3
+# 批处理 modal 定时器间隔（秒）
+TIMER_INTERVAL = 0.01
+# 批处理任务标识，供面板读取对应进度
+BATCH_TASK_PRE_POST_PROCESSING = "pre_post_processing"
 # 临时集合名称
 TMP_COLLECTION_NAME = "KAFEI临时集合"
 # 默认精度

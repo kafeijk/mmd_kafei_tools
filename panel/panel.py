@@ -52,9 +52,26 @@ from ..operators.quick_operation_operators import SetMatNameByObjNameOperator
 from ..operators.quick_operation_operators import SetObjNameByMatNameOperator
 from ..operators.quick_operation_operators import DetectOverlappingFacesOperator
 from ..operators.quick_operation_operators import CleanSceneOperator
-from ..utils import find_pmx_root_with_child, is_mmd_tools_enabled
+from ..constants import BATCH_TASK_PRE_POST_PROCESSING
+from ..utils import find_pmx_root_with_child, get_batch_progress, is_mmd_tools_enabled
 import addon_utils
 import bpy
+
+
+def draw_batch_progress(layout, task):
+    progress = get_batch_progress(task)
+    if not progress["active"]:
+        return
+
+    layout.label(text=progress["text"])
+    if bpy.app.version >= (4, 0, 0):
+        layout.progress(
+            factor=progress["factor"],
+            type='BAR',
+            text=f"{progress['current']}/{progress['total']}",
+        )
+    else:
+        layout.label(text=f"{progress['current']}/{progress['total']}")
 
 
 class TransferPresetPanel(bpy.types.Panel):
@@ -788,6 +805,7 @@ class PrePostProcessingPanel(bpy.types.Panel):
         show_batch_props(col, False, True, batch, FillSuffixPrePostProcessingOperator)
 
         col.operator(PrePostProcessingOperator.bl_idname, text=PrePostProcessingOperator.bl_label)
+        draw_batch_progress(col, BATCH_TASK_PRE_POST_PROCESSING)
 
 
 class AddSsbPanel:

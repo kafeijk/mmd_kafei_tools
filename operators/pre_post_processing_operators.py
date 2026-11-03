@@ -1,24 +1,25 @@
 import bpy
 
-from ..constants import INVALID_CHARS
-from ..utils import batch_process, check_batch_props, translate
+from ..constants import BATCH_TASK_PRE_POST_PROCESSING, INVALID_CHARS
+from ..utils import BatchProcessOperatorMixin, check_batch_props, translate
 from .change_tex_loc_operators import do_change_tex_loc
 from .organize_panel_operators import organize_panel
 from .remove_uv_map_operators import do_remove_uv_maps
 
 
-class PrePostProcessingOperator(bpy.types.Operator):
+class PrePostProcessingOperator(BatchProcessOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.pre_post_processing"
     bl_label = "执行"
     bl_description = "执行勾选的预处理/后处理流程。"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+    batch_task = BATCH_TASK_PRE_POST_PROCESSING
+    batch_f_flag = True
 
     def execute(self, context):
         props = context.scene.mmd_kafei_tools_pre_post_processing
         if not self.check_props(props):
             return {'CANCELLED'}
-        batch_process(do_pre_post_processing, props, f_flag=True)
-        return {'FINISHED'}
+        return self.start_batch_process(context, props, do_pre_post_processing)
 
     def check_props(self, props):
         if not (props.change_tex_loc or props.remove_uv_map or props.organize_panel):
