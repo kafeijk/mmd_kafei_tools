@@ -51,11 +51,13 @@ def tag_redraw(context):
 class BatchProcessRunner:
     """可复用的批处理执行器：同步循环或由 modal 逐文件调用"""
 
-    def __init__(self, func, props, f_flag=False, task=None):
+    def __init__(self, func, props, f_flag=False, task=None, report=None):
         self.func = func
         self.props = props
         self.f_flag = f_flag
         self.task = task
+        # 本类本身无report方法，通过operator传入report方法
+        self.report = report
 
         batch = props.batch
         self.abs_path = bpy.path.abspath(batch.directory)
@@ -196,7 +198,14 @@ class BatchProcessRunner:
         if self.task:
             set_batch_progress(self.task, False)
             tag_redraw(bpy.context)
+        if self.report:
+            self.report({'INFO'}, self.batch_summary())
         return {'FINISHED'}
+
+    def batch_summary(self):
+        return translate("批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
+            self.total_files, self.file_count, self.skipped_files, f"{self.elapsed:.2f}"
+        )
 
     def run_sync(self):
         while not self.step():
@@ -211,26 +220,19 @@ class BatchProcessOperatorMixin:
     batch_runner_class = BatchProcessRunner
 
     def start_batch_process(self, context, props, func):
-        self.batch_runner = self.batch_runner_class(func, props, self.batch_f_flag, self.batch_task)
+        self.batch_runner = self.batch_runner_class(
+            func, props, self.batch_f_flag, self.batch_task, report=self.report)
         self.batch_runner.update_progress()
 
         # 后台模式没有事件循环，直接同步跑完
         if bpy.app.background or self.batch_runner.file_count == 0:
-            result = self.batch_runner.run_sync()
-            self.report({'INFO'}, self.batch_summary())
-            return result
+            return self.batch_runner.run_sync()
 
         self.batch_timer = context.window_manager.event_timer_add(
             TIMER_INTERVAL, window=context.window)
         context.window_manager.modal_handler_add(self)
         self.batch_flush_count = 0
         return {'RUNNING_MODAL'}
-
-    def batch_summary(self):
-        runner = self.batch_runner
-        return translate("批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
-            runner.total_files, runner.file_count, runner.skipped_files, f"{runner.elapsed:.2f}"
-        )
 
     def _end_batch(self, context):
         if getattr(self, "batch_timer", None) is not None:
@@ -258,9 +260,7 @@ class BatchProcessOperatorMixin:
         try:
             if self.batch_runner.step():
                 self._end_batch(context)
-                result = self.batch_runner.finish()
-                self.report({'INFO'}, self.batch_summary())
-                return result
+                return self.batch_runner.finish()
         except Exception as e:
             self._end_batch(context)
             traceback.print_exc()
