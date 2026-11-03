@@ -449,8 +449,8 @@ class SwapResolutionOperator(bpy.types.Operator):
 
 class ResetLightSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.reset_light_settings"
-    bl_label = "刷新"
-    bl_description = "将灯光设置中可实时调整的参数恢复为默认值"
+    bl_label = "重置"
+    bl_description = "将灯光设置中可实时调整的参数重置为默认值"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):

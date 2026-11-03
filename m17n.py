@@ -189,6 +189,9 @@ translation_dict = {
         ("*", "背光的旋转角度"): "Rotation angle of back light",
         ("*", "设置三点照明"): "Set three-point lighting",
         ("*", "重新设置时是否修改灯光颜色"): "Affect existing light color on execute",
+        ("*", "重置"): "Reset",
+        ("*", "将灯光设置中可实时调整的参数重置为默认值"):
+            "Reset the real-time adjustable parameters in the light settings to their defaults",
         ("*", "相机跟随目标的类型"): "Type of target the camera follows",
         ("*", "相机跟随的骨骼名称"): "Name of the bone the camera follows",
         ("*", "骨骼X轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置"):"Increment threshold on bone X-axis; camera updates when bone moves beyond this value",
