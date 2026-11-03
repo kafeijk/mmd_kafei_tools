@@ -15,6 +15,7 @@ from ..utils import (
 
 
 def _norm_path(path):
+    """统一路径写法，用于路径比较和字典键：abspath 规范化绝对路径/`.`/`..`，Windows 下 normcase 统一大小写与斜杠方向"""
     return os.path.normcase(os.path.abspath(path))
 
 
@@ -30,6 +31,7 @@ def _keep_keywords(props):
 
 
 def _same_file(path_a, path_b):
+    """判断两个文件内容是否完全一致；shallow=False 逐字节比较内容，避免仅凭大小/修改时间误判"""
     try:
         return filecmp.cmp(path_a, path_b, shallow=False)
     except OSError:
