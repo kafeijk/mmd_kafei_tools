@@ -790,10 +790,9 @@ def reorder_rigid_body_panel(pmx_root, props):
         if last_removed_index != -1:
             final_order_list[last_removed_index:last_removed_index] = rigid_bodies
 
-    def set_index(obj, index):
+    def set_index(obj, index, mmd_tools_version):
         m = RIGID_BODY_PREFIX_REGEXP.match(obj.name)
         name = m.group('name') if m else obj.name
-        mmd_tools_version = get_mmd_tools_version()
 
         # mmd_tools v4.5.4 对象索引前缀改为十进制 # https://github.com/MMD-Blender/blender_mmd_tools/releases/tag/v4.5.4
         if mmd_tools_version >= (4, 5, 4):
@@ -802,7 +801,7 @@ def reorder_rigid_body_panel(pmx_root, props):
             obj.name =  f"{int2base(index, 36, 3)}_{name}"
 
     for index, rigid_body in enumerate(final_order_list):
-        set_index(rigid_body, index)
+        set_index(rigid_body, index, v)
 
 
 def reorder_display_panel(pmx_root, props):
