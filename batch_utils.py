@@ -175,6 +175,9 @@ class BatchProcessRunner:
             set_batch_progress(self.task, False)
             tag_redraw(bpy.context)
 
+        # 成功、失败、跳过互斥：成功数 = 已处理数 - 失败数
+        success_count = self.file_index - len(self.failed_files)
+
         if self.failed_files:
             # 先输出失败的模型列表，再输出汇总和失败原因
             if self.report:
@@ -192,15 +195,15 @@ class BatchProcessRunner:
             else:
                 reason = translate("个别失败通常是模型文件本身的问题，请单独检查这些文件。文件详情↑↑↑")
 
-            msg = translate("批量处理结束：共 {} 个模型，实际处理 {} 个，跳过 {} 个，失败 {} 个，总耗时 {} 秒。").format(
-                self.total_files, self.file_count, self.skipped_files, len(self.failed_files), f"{total_time:.2f}"
+            msg = translate("批量处理结束：共 {} 个模型，成功 {} 个，失败 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
+                self.total_files, success_count, len(self.failed_files), self.skipped_files, f"{total_time:.2f}"
             ) + reason
             if self.report:
                 self.report({'WARNING'}, msg)
         else:
             if self.report:
-                msg = translate("批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
-                    self.total_files, self.file_count, self.skipped_files, f"{total_time:.2f}"
+                msg = translate("批量处理完成：共 {} 个模型，成功 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
+                    self.total_files, success_count, self.skipped_files, f"{total_time:.2f}"
                 )
                 self.report({'INFO'}, msg)
         return {'FINISHED'}

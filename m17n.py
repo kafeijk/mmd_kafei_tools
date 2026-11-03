@@ -442,8 +442,8 @@ translation_dict = {
         ("*", "已取消处理"): "Processing cancelled",
         ("*", "批量处理发生异常：{}"): "Batch processing error: {}",
         (
-            "*", "批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。"
-        ): "Batch processing completed: {} models found, {} processed, {} skipped, total time {} seconds.",
+            "*", "批量处理完成：共 {} 个模型，成功 {} 个，跳过 {} 个，总耗时 {} 秒。"
+        ): "Batch processing completed: {} models in total, {} succeeded, {} skipped, total {} s.",
         ("*", "保留名称"): "Keep Names",
         ("*", "自动覆盖或改名"): "Auto Overwrite or Rename",
         ("*", "跳过"): "Skip",
@@ -552,8 +552,8 @@ translation_dict = {
         ("*", "文件 \"{}\" 处理完成，进度 {}/{}，耗时 {} 秒，总耗时 {} 秒"):
             "File \"{}\" processed, progress {}/{}, elapsed {} s, total {} s",
         ("*", "文件 \"{}\" 处理失败，进度 {}/{}：{}"): "File \"{}\" failed, progress {}/{}: {}",
-        ("*", "批量处理结束：共 {} 个模型，实际处理 {} 个，跳过 {} 个，失败 {} 个，总耗时 {} 秒。"):
-            "Batch processing finished: {} models in total, {} processed, {} skipped, {} failed, total {} s. ",
+        ("*", "批量处理结束：共 {} 个模型，成功 {} 个，失败 {} 个，跳过 {} 个，总耗时 {} 秒。"):
+            "Batch processing finished: {} models in total, {} succeeded, {} failed, {} skipped, total {} s. ",
         ("*", "异常模型：{}"): "Failed models: {}",
         ("*", "全部模型处理失败，可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。文件详情↑↑↑"):
             "All models failed. This may be caused by the model files or an incompatible mmd_tools version. "
