@@ -741,6 +741,7 @@ class PrePostProcessingPanel(bpy.types.Panel):
         row.prop(props, "change_tex_loc_expanded", text="", icon=icon, emboss=False)
         if props.change_tex_loc_expanded:
             param_box = col.box()
+            param_box.enabled = props.change_tex_loc
             param_col = param_box.column()
             param_col.prop(props, "new_folder")
             param_col.prop(props, "remove_empty")
@@ -755,6 +756,7 @@ class PrePostProcessingPanel(bpy.types.Panel):
         row.prop(props, "organize_panel_expanded", text="", icon=icon, emboss=False)
         if props.organize_panel_expanded:
             param_box = col.box()
+            param_box.enabled = props.organize_panel
             param_col = param_box.column()
             param_col.prop(props, "bone_panel_flag")
             param_col.prop(props, "morph_panel_flag")
