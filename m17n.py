@@ -225,6 +225,7 @@ translation_dict = {
         ("*", "请激活网格对象！"): "Activate the mesh object!",
         ("*", "移除了 {} 个顶点"): "Removed {} vertice(s)",
         ("*", "请选择MMD模型！"): "Select MMD model!",
+        ("*", "请确保模型目录为文件夹！"): "Please make sure the model directory is a folder!",
         ("*", "未启用MMD Tools插件！"): "MMD Tools add-on is not enabled!",
         ("*", "未找到模型骨架！"): "Armature not found!",
         ("*", "请至少选择一根骨骼！"): "Select at least one bone!",

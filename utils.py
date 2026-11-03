@@ -629,6 +629,9 @@ def check_batch_props(operator, batch):
     if not os.path.exists(abs_path):
         operator.report(type={'ERROR'}, message=f'Model directory not found!')
         return False
+    if not os.path.isdir(abs_path):
+        operator.report(type={'ERROR'}, message=translate("请确保模型目录为文件夹！"))
+        return False
     # 获取目录所在盘符的根路径
     drive, tail = os.path.splitdrive(abs_path)
     drive_root = os.path.join(drive, os.sep)
