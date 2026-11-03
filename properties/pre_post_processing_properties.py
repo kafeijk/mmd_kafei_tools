@@ -4,21 +4,23 @@ from .batch_properties import BatchProperty
 
 
 class PrePostProcessingProperty(bpy.types.PropertyGroup):
-    # 勾选即执行对应处理流程
     change_tex_loc: bpy.props.BoolProperty(
         name="修改贴图路径",
         description="修改贴图路径",
-        default=True
+        default=True,
+        update=lambda self, context: self.ensure_one_selected("change_tex_loc")
     )
     remove_uv_map: bpy.props.BoolProperty(
         name="移除冗余UV",
         description="移除冗余UV",
-        default=True
+        default=True,
+        update=lambda self, context: self.ensure_one_selected("remove_uv_map")
     )
     organize_panel: bpy.props.BoolProperty(
         name="面板整理",
         description="整理面板",
-        default=True
+        default=True,
+        update=lambda self, context: self.ensure_one_selected("organize_panel")
     )
 
     # 面板展开状态（仅用于界面，不影响处理流程）
@@ -122,6 +124,11 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
     @staticmethod
     def unregister():
         del bpy.types.Scene.mmd_kafei_tools_pre_post_processing
+
+    def ensure_one_selected(self, changed_property):
+        """至少保留一项勾选：全部取消时恢复刚取消的项"""
+        if not (self.change_tex_loc or self.remove_uv_map or self.organize_panel):
+            setattr(self, changed_property, True)
 
     def check_selection(self, context, changed_property):
         """检查选项，如果都未选中则恢复原来的状态"""

@@ -22,12 +22,12 @@ class PrePostProcessingOperator(bpy.types.Operator):
         props = scene.mmd_kafei_tools_pre_post_processing
         if not self.check_props(props):
             return
-        if not (props.change_tex_loc or props.remove_uv_map or props.organize_panel):
-            self.report(type={'ERROR'}, message=translate("请至少勾选一项处理！"))
-            return
         batch_process(do_pre_post_processing, props, f_flag=True)
 
     def check_props(self, props):
+        if not (props.change_tex_loc or props.remove_uv_map or props.organize_panel):
+            self.report(type={'ERROR'}, message=translate("请至少勾选一项处理！"))
+            return False
         if not check_batch_props(self, props.batch):
             return False
         if props.change_tex_loc:
