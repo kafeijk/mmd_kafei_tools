@@ -52,6 +52,20 @@ class PrePostProcessingOperator(bpy.types.Operator):
             if any(char in new_folder for char in INVALID_CHARS):
                 self.report(type={'ERROR'}, message=translate("贴图文件夹名称无效！"))
                 return False
+            # 拒绝路径段、Windows 保留设备名与结尾的点
+            reserved_names = {
+                "CON", "PRN", "AUX", "NUL",
+                "CONIN$", "CONOUT$",
+                *(f"COM{i}" for i in range(1, 10)),
+                *(f"LPT{i}" for i in range(1, 10)),
+            }
+            if (
+                    new_folder in (".", "..")
+                    or new_folder.endswith(".")
+                    or new_folder.split(".", 1)[0].upper() in reserved_names
+            ):
+                self.report(type={'ERROR'}, message=translate("贴图文件夹名称无效！"))
+                return False
         return True
 
 
