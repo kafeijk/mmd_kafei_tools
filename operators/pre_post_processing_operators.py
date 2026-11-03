@@ -24,6 +24,24 @@ class PrePostProcessingOperator(bpy.types.Operator):
         if not (props.change_tex_loc or props.remove_uv_map or props.organize_panel):
             self.report(type={'ERROR'}, message=translate("请至少勾选一项处理！"))
             return False
+        if props.organize_panel:
+            compatibility_effective = props.compatibility_flag and any((
+                props.fix_bone_name_flag,
+                props.fix_morph_name_flag,
+                props.fix_all_materials_flag,
+                props.fix_rigid_body_size_flag,
+            ))
+            organize_effective = any((
+                props.bone_panel_flag,
+                props.morph_panel_flag,
+                props.rigid_body_panel_flag,
+                props.display_panel_flag,
+                props.translation_flag,
+                compatibility_effective,
+            ))
+            if not organize_effective:
+                self.report(type={'ERROR'}, message=translate("请至少勾选一项面板整理选项！"))
+                return False
         if not check_batch_props(self, props.batch):
             return False
         if props.change_tex_loc:

@@ -529,6 +529,7 @@ translation_dict = {
         # Preprocessing and Postprocessing operator
         ("*", "执行勾选的预处理/后处理流程。"): "Run the selected preprocessing/postprocessing operations.",
         ("*", "请至少勾选一项处理！"): "Select at least one operation!",
+        ("*", "请至少勾选一项面板整理选项！"): "Select at least one panel organization option!",
         ("*", "请填写贴图文件夹名称！"): "Texture folder name required!",
         ("*", "贴图文件夹名称无效！"): "Invalid texture folder name!",
 
