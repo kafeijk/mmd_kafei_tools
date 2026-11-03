@@ -169,43 +169,41 @@ class BatchProcessRunner:
     def finish(self):
         total_time = time.time() - self.start_time
         self.elapsed = total_time
-        processed_count = self.file_index
 
-        if self.failed_files:
-            if len(self.failed_files) >= self.file_count:
-                msg = translate(
-                    "处理结束，用时 {} 秒。{} 个模型全部处理失败。"
-                    "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"
-                ).format(f"{total_time:.2f}", self.file_count)
-            elif self.aborted:
-                msg = translate(
-                    "处理结束，用时 {} 秒。已处理 {}/{}，失败 {} 个。连续 {} 个模型处理失败，已停止处理。"
-                    "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"
-                ).format(f"{total_time:.2f}", processed_count, self.file_count,
-                         len(self.failed_files), MAX_CONSECUTIVE_FAILURES)
-            else:
-                msg = translate(
-                    "处理结束，用时 {} 秒。失败 {}/{}。个别失败通常是模型文件本身的问题，请单独检查这些文件。"
-                ).format(f"{total_time:.2f}", len(self.failed_files), self.file_count)
-            print(msg)
-            # 逐个换行输出失败的模型文件
-            for name in self.failed_files:
-                print(name)
-        else:
-            msg = translate("目录 \"{}\" 处理完成，总耗时 {} 秒").format(self.abs_path, f"{total_time:.2f}")
-            print(msg)
-
+        # 先结束进度显示，再输出提示
         if self.task:
             set_batch_progress(self.task, False)
             tag_redraw(bpy.context)
-        if self.report:
-            self.report({'INFO'}, self.batch_summary())
-        return {'FINISHED'}
 
-    def batch_summary(self):
-        return translate("批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
-            self.total_files, self.file_count, self.skipped_files, f"{self.elapsed:.2f}"
-        )
+        if self.failed_files:
+            # 先输出失败的模型列表，再输出汇总和失败原因
+            if self.report:
+                self.report({'WARNING'}, translate("异常模型：{}").format(self.failed_files))
+
+            if len(self.failed_files) >= self.file_count:
+                reason = translate(
+                    "全部模型处理失败，可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。文件详情↑↑↑"
+                )
+            elif self.aborted:
+                reason = translate(
+                    "连续 {} 个模型处理失败，已停止处理，可能是模型文件本身的问题，"
+                    "也可能是 mmd_tools 版本不兼容，请检查后重试。文件详情↑↑↑"
+                ).format(MAX_CONSECUTIVE_FAILURES)
+            else:
+                reason = translate("个别失败通常是模型文件本身的问题，请单独检查这些文件。文件详情↑↑↑")
+
+            msg = translate("批量处理结束：共 {} 个模型，实际处理 {} 个，跳过 {} 个，失败 {} 个，总耗时 {} 秒。").format(
+                self.total_files, self.file_count, self.skipped_files, len(self.failed_files), f"{total_time:.2f}"
+            ) + reason
+            if self.report:
+                self.report({'WARNING'}, msg)
+        else:
+            if self.report:
+                msg = translate("批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
+                    self.total_files, self.file_count, self.skipped_files, f"{total_time:.2f}"
+                )
+                self.report({'INFO'}, msg)
+        return {'FINISHED'}
 
     def run_sync(self):
         while not self.step():

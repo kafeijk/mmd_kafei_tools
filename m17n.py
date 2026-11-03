@@ -552,19 +552,19 @@ translation_dict = {
         ("*", "文件 \"{}\" 处理完成，进度 {}/{}，耗时 {} 秒，总耗时 {} 秒"):
             "File \"{}\" processed, progress {}/{}, elapsed {} s, total {} s",
         ("*", "文件 \"{}\" 处理失败，进度 {}/{}：{}"): "File \"{}\" failed, progress {}/{}: {}",
-        ("*", "目录 \"{}\" 处理完成，总耗时 {} 秒"): "Directory \"{}\" processed, total {} s",
-        ("*", "处理结束，用时 {} 秒。{} 个模型全部处理失败。"
-               "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"):
-            "Processing finished in {} s. All {} models failed. "
-            "This may be caused by the model files or an incompatible mmd_tools version. Please check and retry.",
-        ("*", "处理结束，用时 {} 秒。已处理 {}/{}，失败 {} 个。连续 {} 个模型处理失败，已停止处理。"
-               "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"):
-            "Processing finished in {} s. Processed {}/{}, {} failed. "
-            "Stopped after {} consecutive failures. "
-            "This may be caused by the model files or an incompatible mmd_tools version. Please check and retry.",
-        ("*", "处理结束，用时 {} 秒。失败 {}/{}。个别失败通常是模型文件本身的问题，请单独检查这些文件。"):
-            "Processing finished in {} s. Failed {}/{}. "
-            "Individual failures are usually caused by the model files; please check them separately.",
+        ("*", "批量处理结束：共 {} 个模型，实际处理 {} 个，跳过 {} 个，失败 {} 个，总耗时 {} 秒。"):
+            "Batch processing finished: {} models in total, {} processed, {} skipped, {} failed, total {} s. ",
+        ("*", "异常模型：{}"): "Failed models: {}",
+        ("*", "全部模型处理失败，可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。文件详情↑↑↑"):
+            "All models failed. This may be caused by the model files or an incompatible mmd_tools version. "
+            "Please check and retry. See file details above ↑↑↑",
+        ("*", "连续 {} 个模型处理失败，已停止处理，可能是模型文件本身的问题，"
+               "也可能是 mmd_tools 版本不兼容，请检查后重试。文件详情↑↑↑"):
+            "Stopped after {} consecutive failures. This may be caused by the model files "
+            "or an incompatible mmd_tools version. Please check and retry. See file details above ↑↑↑",
+        ("*", "个别失败通常是模型文件本身的问题，请单独检查这些文件。文件详情↑↑↑"):
+            "Individual failures are usually caused by the model files; "
+            "please check them separately. See file details above ↑↑↑",
 
 
         # Other
