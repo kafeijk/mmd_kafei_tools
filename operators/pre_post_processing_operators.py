@@ -10,7 +10,7 @@ from .remove_uv_map_operators import do_remove_uv_maps
 class PrePostProcessingOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.pre_post_processing"
     bl_label = "执行"
-    bl_description = "执行预处理/后处理流程。"
+    bl_description = "执行勾选的预处理/后处理流程。"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
