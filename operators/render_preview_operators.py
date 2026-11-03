@@ -400,9 +400,7 @@ def gen_preview_camera(camera_type):
 
     camera_data = bpy.data.cameras.new(name=camera_name)
     camera = bpy.data.objects.new(name=camera_name, object_data=camera_data)
-    # omit the setter with a given getter to make it read-only
-    bpy.types.Object.preview_camera = bpy.props.BoolProperty(get=lambda obj: obj.get('preview_camera', False))
-    camera['preview_camera'] = True
+    camera[custom_property_name] = True
 
     preview_collection.objects.link(camera)
     return camera
