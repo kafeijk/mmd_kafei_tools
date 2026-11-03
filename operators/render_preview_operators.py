@@ -101,8 +101,8 @@ class RenderPreviewOperator(bpy.types.Operator):
                 camera_to_view_selected(props)
 
                 # 隐藏可能会对渲染结果造成影响的物体
-                hide_object(pmx_root)
                 deselect_all_objects()
+                hide_object(pmx_root)
 
                 # 备份原始输出路径
                 original_output_path = bpy.context.scene.render.filepath
