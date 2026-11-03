@@ -53,7 +53,7 @@ from ..operators.quick_operation_operators import SetObjNameByMatNameOperator
 from ..operators.quick_operation_operators import DetectOverlappingFacesOperator
 from ..operators.quick_operation_operators import CleanSceneOperator
 from ..batch_utils import get_batch_progress
-from ..constants import BATCH_TASK_PRE_POST_PROCESSING
+from ..constants import BATCH_TASK_PRE_POST_PROCESSING, BATCH_TASK_RENDER_PREVIEW
 from ..utils import find_pmx_root_with_child, is_mmd_tools_enabled
 import addon_utils
 import bpy
@@ -945,6 +945,7 @@ class RenderPreviewPanel(bpy.types.Panel):
             render_row.operator(RenderPreviewOperator.bl_idname, text="批量渲染")
         else:
             render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
+        draw_batch_progress(col, BATCH_TASK_RENDER_PREVIEW)
 
 
 class AboutPanel(bpy.types.Panel):

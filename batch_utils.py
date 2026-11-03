@@ -60,19 +60,47 @@ class BatchProcessRunner:
         batch = props.batch
         self.abs_path = bpy.path.abspath(batch.directory)
         self.suffix = batch.suffix
-        self.file_list = recursive_search(
-            self.abs_path,
-            batch.suffix,
-            batch.threshold,
-            batch.search_strategy,
-            batch.conflict_strategy,
-        )
+        self.file_list = self.search_files()
         self.file_count = len(self.file_list)
         self.file_index = 0
         self.failed_files = []
         self.consecutive_failures = 0
         self.aborted = False
         self.start_time = time.time()
+
+    def search_files(self):
+        """获取待处理文件列表；子类可覆盖以支持不同的文件类型"""
+        batch = self.props.batch
+        return recursive_search(
+            self.abs_path,
+            batch.suffix,
+            batch.threshold,
+            batch.search_strategy,
+            batch.conflict_strategy,
+        )
+
+    def process_file(self, filepath):
+        """处理单个文件；子类可覆盖以支持不同的处理流程"""
+        ext = os.path.splitext(filepath)[1].lower()
+        if ".pmd" == ext:
+            ext = ".pmx"  # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
+
+        # 如果新文件名已经包含指定后缀，则对原文件进行覆盖
+        if os.path.splitext(filepath)[0].endswith(self.suffix):
+            new_filepath = os.path.splitext(filepath)[0] + ext
+        else:
+            new_filepath = os.path.splitext(filepath)[0] + self.suffix + ext
+
+        import_pmx(filepath)
+        pmx_root = bpy.context.active_object
+        if self.f_flag:
+            self.func(pmx_root, self.props, filepath)
+        else:
+            self.func(pmx_root, self.props)
+
+        deselect_all_objects()
+        select_and_activate(pmx_root)
+        export_pmx(new_filepath)
 
     def completed(self):
         return self.aborted or self.file_index >= self.file_count
@@ -103,29 +131,11 @@ class BatchProcessRunner:
         index = self.file_index
         filepath = self.file_list[index]
         file_base_name = os.path.basename(filepath)
-        ext = os.path.splitext(filepath)[1].lower()
-        if ".pmd" == ext:
-            ext = ".pmx"  # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
-
-        # 如果新文件名已经包含指定后缀，则对原文件进行覆盖
-        if os.path.splitext(filepath)[0].endswith(self.suffix):
-            new_filepath = os.path.splitext(filepath)[0] + ext
-        else:
-            new_filepath = os.path.splitext(filepath)[0] + self.suffix + ext
 
         curr_time = time.time()
         try:
             get_collection(TMP_COLLECTION_NAME)
-            import_pmx(filepath)
-            pmx_root = bpy.context.active_object
-            if self.f_flag:
-                self.func(pmx_root, self.props, filepath)
-            else:
-                self.func(pmx_root, self.props)
-
-            deselect_all_objects()
-            select_and_activate(pmx_root)
-            export_pmx(new_filepath)
+            self.process_file(filepath)
         except Exception as e:
             # 单个文件失败不影响后续文件，继续处理
             self.failed_files.append(file_base_name)
@@ -200,9 +210,10 @@ class BatchProcessOperatorMixin:
     """让算子以 modal 方式驱动 BatchProcessRunner，并在侧边栏显示进度"""
     batch_task = ""
     batch_f_flag = False
+    batch_runner_class = BatchProcessRunner
 
     def start_batch_process(self, context, props, func):
-        self.batch_runner = BatchProcessRunner(func, props, self.batch_f_flag, self.batch_task)
+        self.batch_runner = self.batch_runner_class(func, props, self.batch_f_flag, self.batch_task)
         self.batch_runner.update_progress()
 
         # 后台模式没有事件循环，直接同步跑完

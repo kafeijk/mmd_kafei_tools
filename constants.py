@@ -26,6 +26,7 @@ MAX_CONSECUTIVE_FAILURES = 3
 TIMER_INTERVAL = 0.01
 # 批处理任务标识，供面板读取对应进度
 BATCH_TASK_PRE_POST_PROCESSING = "pre_post_processing"
+BATCH_TASK_RENDER_PREVIEW = "render_preview"
 # 临时集合名称
 TMP_COLLECTION_NAME = "KAFEI临时集合"
 # 默认精度

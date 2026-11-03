@@ -1,22 +1,20 @@
 import math
 import os
-import time
 
 import bmesh
 import bpy
 import mathutils
 
-from ..constants import IMG_TYPE_EXT_MAP, TMP_COLLECTION_NAME
+from ..batch_utils import BatchProcessOperatorMixin, BatchProcessRunner
+from ..constants import BATCH_TASK_RENDER_PREVIEW, IMG_TYPE_EXT_MAP
 
 from ..utils import (
     check_batch_props,
-    clean_scene,
     deselect_all_objects,
     find_ancestor,
     find_children,
     find_pmx_armature,
     find_pmx_objects,
-    get_collection,
     hide_object,
     import_pmx,
     recursive_search_img,
@@ -49,89 +47,71 @@ class GenPreviewCameraOperator(bpy.types.Operator):
         return True
 
 
-class RenderPreviewOperator(bpy.types.Operator):
+class RenderPreviewBatchRunner(BatchProcessRunner):
+    """批量渲染执行器：按图片格式扫描模型并逐个渲染预览图"""
+
+    def search_files(self):
+        output_format = bpy.context.scene.render.image_settings.file_format
+        batch = self.props.batch
+        return recursive_search_img(
+            self.abs_path,
+            batch.suffix,
+            batch.threshold,
+            batch.search_strategy,
+            batch.conflict_strategy,
+            IMG_TYPE_EXT_MAP[output_format],
+        )
+
+    def process_file(self, filepath):
+        output_format = bpy.context.scene.render.image_settings.file_format
+        new_filepath = os.path.splitext(filepath)[0] + self.suffix + IMG_TYPE_EXT_MAP[output_format]
+        import_pmx(filepath)
+        pmx_root = bpy.context.active_object
+        pmx_armature = find_pmx_armature(pmx_root)
+        convert_materials(pmx_armature, self.props.force_center)
+
+        # 相机对准角色
+        show_object(pmx_root)
+        hide_object(pmx_armature)
+        select_and_activate(pmx_root)
+        camera_to_view_selected(self.props)
+
+        # 隐藏可能会对渲染结果造成影响的物体
+        deselect_all_objects()
+        hide_object(pmx_root)
+
+        # 渲染，完成后恢复原始输出路径
+        original_output_path = bpy.context.scene.render.filepath
+        # Blender 会将输出路径中的 {} 解析为模板表达式，路径中的大括号需转义
+        bpy.context.scene.render.filepath = new_filepath.replace("{", "{{").replace("}", "}}")
+        try:
+            render(False)
+        finally:
+            bpy.context.scene.render.filepath = original_output_path
+
+
+class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.render_preview"
     bl_label = "渲染"
     bl_description = "渲染预览图\n渲染逻辑相当于点击预览按钮并执行图像渲染\n勾选批量参数后，按钮将切换为批量渲染模式"
     bl_options = {'REGISTER', 'UNDO'}
+    batch_task = BATCH_TASK_RENDER_PREVIEW
+    batch_runner_class = RenderPreviewBatchRunner
 
     def execute(self, context):
         props = context.scene.mmd_kafei_tools_render_preview
         if not self.check_render_preview_props(props):
             return {'CANCELLED'}
-        self.main(context, props)
+        if props.batch.flag:
+            return self.start_batch_process(context, props, None)
+        self.render_single(props)
         return {'FINISHED'}
 
-    def main(self, context, props):
-        batch = props.batch
-        batch_flag = batch.flag
-        directory = batch.directory
-        abs_path = bpy.path.abspath(directory)
-        threshold = batch.threshold
-        suffix = batch.suffix
-        search_strategy = batch.search_strategy
-        conflict_strategy = batch.conflict_strategy
-
-        force_center = props.force_center
-        output_format = bpy.context.scene.render.image_settings.file_format
-        if batch_flag:
-            # 自动弹出控制台查看进度，貌似实现不了，让用户自主开启（windows外的系统不一定能自主开启）
-            # 因为脚本执行时间很长，所以进度条也没什么用，就算有进度条也会被卡顿的转圈圈代替
-
-            # 批量渲染
-            start_time = time.time()
-            file_list = recursive_search_img(abs_path, suffix, threshold, search_strategy, conflict_strategy,
-                                             IMG_TYPE_EXT_MAP[output_format])
-            file_count = len(file_list)
-            for index, filepath in enumerate(file_list):
-                # 获取临时集合
-                get_collection(TMP_COLLECTION_NAME)
-                file_base_name = os.path.basename(filepath)
-                new_filepath = os.path.splitext(filepath)[0] + suffix + IMG_TYPE_EXT_MAP[output_format]
-                curr_time = time.time()
-                import_pmx(filepath)
-                pmx_root = bpy.context.active_object
-                pmx_armature = find_pmx_armature(pmx_root)
-                convert_materials(pmx_armature, force_center)
-
-                # 相机对准角色
-                show_object(pmx_root)
-                hide_object(pmx_armature)
-                select_and_activate(pmx_root)
-                camera_to_view_selected(props)
-
-                # 隐藏可能会对渲染结果造成影响的物体
-                deselect_all_objects()
-                hide_object(pmx_root)
-
-                # 备份原始输出路径
-                original_output_path = bpy.context.scene.render.filepath
-                # 渲染
-                # Blender 会将输出路径中的 {} 解析为模板表达式，路径中的大括号需转义
-                bpy.context.scene.render.filepath = new_filepath.replace("{", "{{").replace("}", "}}")
-                render(False)
-
-                # 恢复原始输出路径
-                bpy.context.scene.render.filepath = original_output_path
-
-                clean_scene()
-                msg = bpy.app.translations.pgettext_iface(
-                    "\"{}\" rendering completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
-                ).format(
-                    file_base_name, index + 1, file_count,
-                    f"{time.time() - curr_time:.2f}", f"{time.time() - start_time:.2f}"
-                )
-                print(msg)
-
-            msg = bpy.app.translations.pgettext_iface("Directory \"{}\" rendering completed (total {} seconds)").format(
-                abs_path, f"{time.time() - start_time:.2f}",
-            )
-            print(msg)
-        else:
-            objs = bpy.context.selected_objects
-            if len(objs) != 0:
-                camera_to_view_selected(props)
-            render(True)
+    def render_single(self, props):
+        objs = bpy.context.selected_objects
+        if len(objs) != 0:
+            camera_to_view_selected(props)
+        render(True)
 
     def check_render_preview_props(self, props):
         batch = props.batch
