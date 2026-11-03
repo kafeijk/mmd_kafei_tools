@@ -327,7 +327,7 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
 
             for file in curr_list:
                 file_list.append(os.path.join(root, file))
-    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
+    msg = translate("实际待处理数量：{}。文件总数：{}，跳过数量：{}").format(
         len(file_list), pmx_count, pmx_count - len(file_list)
     )
     print(msg)
@@ -364,9 +364,8 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
                 for model_file in model_files:
                     if is_render(root, model_file, suffix, ext, conflict_strategy):
                         file_list.append(os.path.join(root, model_file))
-    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
-        len(file_list), pmx_count, pmx_count - len(file_list)
-    )
+    msg = translate("实际待处理数量：{}。文件总数：{}，跳过数量：{}").format(
+        len(file_list), pmx_count, pmx_count - len(file_list))
     print(msg)
     if stats is not None:
         stats["total"] = pmx_count
@@ -402,21 +401,15 @@ def import_pmx(filepath: str) -> bool:
     for attempt in range(MAX_RETRIES):
         try:
             bpy.ops.mmd_tools.import_model('EXEC_DEFAULT', **params)
-            print(bpy.app.translations.pgettext_iface(
-                f"Import successful, file: {filepath}, retry count: {attempt}"
-            ))
+            print(translate("导入成功，文件：{}，重试次数：{}").format(filepath, attempt))
             return True
         except Exception as e:
-            print(bpy.app.translations.pgettext_iface(
-                f"Import failed, retrying soon, file: {filepath}, error: {e}"
-            ))
+            print(translate("导入失败，即将重试，文件：{}，错误：{}").format(filepath, e))
             clean_scene()
             time.sleep(1)
 
     # 所有重试均失败。或是MMD Tools版本问题，或是pmx模型文件问题，直接抛出异常。
-    raise Exception(bpy.app.translations.pgettext_iface(
-        f"Continuous import error, please check. File path: {filepath}"
-    ))
+    raise Exception(translate("持续导入异常，请检查。文件路径：{}").format(filepath))
 
 
 def force_writable(path):
@@ -427,9 +420,7 @@ def force_writable(path):
         os.chmod(path, stat.S_IWRITE)
         return True
     except OSError as e:
-        print(bpy.app.translations.pgettext_iface(
-            f"Failed to change permissions, path: {path}, error: {e}"
-        ))
+        print(translate("修改文件权限失败，路径：{}，错误：{}").format(path, e))
         return False
 
 
@@ -443,23 +434,17 @@ def export_pmx(filepath: str) -> bool:
     for attempt in range(MAX_RETRIES):
         try:
             bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT', **params)
-            print(bpy.app.translations.pgettext_iface(
-                f"Export successful, file: {filepath}, retry count: {attempt}"
-            ))
+            print(translate("导出成功，文件：{}，重试次数：{}").format(filepath, attempt))
             return True
         except Exception as e:
             if os.path.exists(filepath) and not os.access(filepath, os.W_OK):
                 force_writable(filepath)
 
-            print(bpy.app.translations.pgettext_iface(
-                f"Export failed, retrying soon, file: {filepath}, error: {e}"
-            ))
+            print(translate("导出失败，即将重试，文件：{}，错误：{}").format(filepath, e))
             time.sleep(1)
 
     # 全部重试失败后抛出异常
-    raise Exception(bpy.app.translations.pgettext_iface(
-        f"Continuous export error, please check. File path: {filepath}"
-    ))
+    raise Exception(translate("持续导出异常，请检查。文件路径：{}").format(filepath))
 
 
 def clean_scene():

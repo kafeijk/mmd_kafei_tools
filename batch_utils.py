@@ -145,10 +145,8 @@ class BatchProcessRunner:
             # 单个文件失败不影响后续文件，继续处理
             self.failed_files.append(file_base_name)
             self.consecutive_failures += 1
-            msg = bpy.app.translations.pgettext_iface(
-                "文件 \"{}\" 处理失败，进度 {}/{}：{}").format(
-                file_base_name, index + 1, self.file_count, str(e).replace("\n", " ")[:120]
-            )
+            msg = translate("文件 \"{}\" 处理失败，进度 {}/{}：{}").format(
+                file_base_name, index + 1, self.file_count, str(e).replace("\n", " ")[:120])
             print(msg)
             if self.consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                 self.aborted = True
@@ -156,12 +154,8 @@ class BatchProcessRunner:
             self.consecutive_failures = 0
             current_time = time.time() - curr_time
             total_time = time.time() - self.start_time
-            msg = bpy.app.translations.pgettext_iface(
-                "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
-            ).format(
-                file_base_name, index + 1, self.file_count,
-                f"{current_time:.2f}", f"{total_time:.2f}"
-            )
+            msg = translate("文件 \"{}\" 处理完成，进度 {}/{}，耗时 {} 秒，总耗时 {} 秒").format(
+                file_base_name, index + 1, self.file_count, f"{current_time:.2f}", f"{total_time:.2f}")
             print(msg)
         finally:
             clean_scene()
@@ -177,18 +171,18 @@ class BatchProcessRunner:
 
         if self.failed_files:
             if len(self.failed_files) >= self.file_count:
-                msg = bpy.app.translations.pgettext_iface(
+                msg = translate(
                     "处理结束，用时 {} 秒。{} 个模型全部处理失败。"
                     "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"
                 ).format(f"{total_time:.2f}", self.file_count)
             elif self.aborted:
-                msg = bpy.app.translations.pgettext_iface(
+                msg = translate(
                     "处理结束，用时 {} 秒。已处理 {}/{}，失败 {} 个。连续 {} 个模型处理失败，已停止处理。"
                     "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"
                 ).format(f"{total_time:.2f}", processed_count, self.file_count,
                          len(self.failed_files), MAX_CONSECUTIVE_FAILURES)
             else:
-                msg = bpy.app.translations.pgettext_iface(
+                msg = translate(
                     "处理结束，用时 {} 秒。失败 {}/{}。个别失败通常是模型文件本身的问题，请单独检查这些文件。"
                 ).format(f"{total_time:.2f}", len(self.failed_files), self.file_count)
             print(msg)
@@ -196,9 +190,7 @@ class BatchProcessRunner:
             for name in self.failed_files:
                 print(name)
         else:
-            msg = bpy.app.translations.pgettext_iface(
-                "Directory \"{}\" processing completed (total {} seconds)"
-            ).format(self.abs_path, f"{total_time:.2f}")
+            msg = translate("目录 \"{}\" 处理完成，总耗时 {} 秒").format(self.abs_path, f"{total_time:.2f}")
             print(msg)
 
         if self.task:

@@ -82,15 +82,6 @@ translation_dict = {
         ("*", "Model directory not found!"): "模型目录不存在！",
         ("*", "Invalid root directory! Change to subfolder."): "模型目录为盘符根目录，请更换为其它目录！",
         ("*", "Invalid name suffix!"): "名称后缀不合法！",
-        ("*", "Import successful, file: {}, retry count: {}"): "导入成功，文件:{}，重试次数:{}",
-        ("*", "Import failed, retrying soon, file: {}, {}"): "导入失败，即将重试，文件:{}，{}",
-        ("*", "Continuous import error, please check. File path: {}"): "持续导入异常，请检查。文件路径:{}",
-        ("*", "Export successful, file: {}, retry count: {}"): "导出成功，文件:{}，重试次数:{}",
-        ("*", "Export failed, retrying soon, file: {}, {}"): "导出失败，即将重试，文件:{}，{}",
-        ("*", "Continuous export error, please check. File path: {}"): "持续导出异常，请检查。文件路径:{}",
-        ("*", "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "文件 \"{}\" 处理完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
-        ("*", "Actual files to process: {}. Total files: {}, skipped: {}"): "实际待处理数量：{}。文件总数：{}，跳过数量：{}",
-        ("*", "Directory \"{}\" processing completed (total {} seconds)"): "目录\"{}\" 处理完成，总耗时: {} 秒",
         ("*", "Specified directory not found: {}"): "未找到指定目录：{}",
         ("*", "File not found: {}"): "未找到文件：{}",
 
@@ -546,6 +537,32 @@ translation_dict = {
         ("*", "请至少勾选一项面板整理选项！"): "Select at least one panel organization option!",
         ("*", "请填写贴图文件夹名称！"): "Texture folder name required!",
         ("*", "贴图文件夹名称无效！"): "Invalid texture folder name!",
+
+        # Batch processing messages
+        ("*", "实际待处理数量：{}。文件总数：{}，跳过数量：{}"): "Files to process: {}. Total files: {}, skipped: {}",
+        ("*", "导入成功，文件：{}，重试次数：{}"): "Import successful, file: {}, retry count: {}",
+        ("*", "导入失败，即将重试，文件：{}，错误：{}"): "Import failed, retrying soon, file: {}, error: {}",
+        ("*", "持续导入异常，请检查。文件路径：{}"): "Continuous import error, please check. File path: {}",
+        ("*", "导出成功，文件：{}，重试次数：{}"): "Export successful, file: {}, retry count: {}",
+        ("*", "导出失败，即将重试，文件：{}，错误：{}"): "Export failed, retrying soon, file: {}, error: {}",
+        ("*", "持续导出异常，请检查。文件路径：{}"): "Continuous export error, please check. File path: {}",
+        ("*", "修改文件权限失败，路径：{}，错误：{}"): "Failed to change file permissions, path: {}, error: {}",
+        ("*", "文件 \"{}\" 处理完成，进度 {}/{}，耗时 {} 秒，总耗时 {} 秒"):
+            "File \"{}\" processed, progress {}/{}, elapsed {} s, total {} s",
+        ("*", "文件 \"{}\" 处理失败，进度 {}/{}：{}"): "File \"{}\" failed, progress {}/{}: {}",
+        ("*", "目录 \"{}\" 处理完成，总耗时 {} 秒"): "Directory \"{}\" processed, total {} s",
+        ("*", "处理结束，用时 {} 秒。{} 个模型全部处理失败。"
+               "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"):
+            "Processing finished in {} s. All {} models failed. "
+            "This may be caused by the model files or an incompatible mmd_tools version. Please check and retry.",
+        ("*", "处理结束，用时 {} 秒。已处理 {}/{}，失败 {} 个。连续 {} 个模型处理失败，已停止处理。"
+               "可能是模型文件本身的问题，也可能是 mmd_tools 版本不兼容，请检查后重试。"):
+            "Processing finished in {} s. Processed {}/{}, {} failed. "
+            "Stopped after {} consecutive failures. "
+            "This may be caused by the model files or an incompatible mmd_tools version. Please check and retry.",
+        ("*", "处理结束，用时 {} 秒。失败 {}/{}。个别失败通常是模型文件本身的问题，请单独检查这些文件。"):
+            "Processing finished in {} s. Failed {}/{}. "
+            "Individual failures are usually caused by the model files; please check them separately.",
 
 
         # Other
