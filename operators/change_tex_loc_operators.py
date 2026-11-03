@@ -153,7 +153,10 @@ def move_textures(pmx_file, props, referenced_paths=None):
     tex_folder = os.path.join(pmx_path, new_folder)
     os.makedirs(tex_folder, exist_ok=True)
 
-    image_extensions = set(IMG_TYPE_EXT_MAP.values())
+    # IMG_TYPE_EXT_MAP 主要对应 Blender 输出格式，补充常见但未列入的图片后缀
+    image_extensions = set(IMG_TYPE_EXT_MAP.values()) | {
+        ".jpeg", ".jpe", ".jfif", ".tiff"
+    }
     keep_keywords = _keep_keywords(props)
     strategy = props.texture_conflict_strategy
     referenced = referenced_paths or set()
