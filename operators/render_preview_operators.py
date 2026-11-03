@@ -60,6 +60,7 @@ class RenderPreviewBatchRunner(BatchProcessRunner):
             batch.search_strategy,
             batch.conflict_strategy,
             IMG_TYPE_EXT_MAP[output_format],
+            stats=self.search_stats,
         )
 
     def process_file(self, filepath):

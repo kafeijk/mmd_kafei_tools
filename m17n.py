@@ -450,6 +450,9 @@ translation_dict = {
         ("*", "正在完成处理"): "Finishing processing",
         ("*", "已取消处理"): "Processing cancelled",
         ("*", "批量处理发生异常：{}"): "Batch processing error: {}",
+        (
+            "*", "批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。"
+        ): "Batch processing completed: {} models found, {} processed, {} skipped, total time {} seconds.",
         ("*", "保留名称"): "Keep Names",
         ("*", "自动覆盖或改名"): "Auto Overwrite or Rename",
         ("*", "跳过"): "Skip",

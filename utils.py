@@ -275,7 +275,7 @@ def get_collection(collection_name):
     return collection
 
 
-def recursive_search(directory, suffix, threshold, search_strategy, conflict_strategy):
+def recursive_search(directory, suffix, threshold, search_strategy, conflict_strategy, stats=None):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型 todo 之后看看能不能更通用些"""
     file_list = []
     pmx_count = 0
@@ -331,10 +331,13 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
         len(file_list), pmx_count, pmx_count - len(file_list)
     )
     print(msg)
+    if stats is not None:
+        stats["total"] = pmx_count
+        stats["skipped"] = pmx_count - len(file_list)
     return file_list
 
 
-def recursive_search_img(directory, suffix, threshold, search_strategy, conflict_strategy, ext):
+def recursive_search_img(directory, suffix, threshold, search_strategy, conflict_strategy, ext, stats=None):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型"""
     file_list = []
     pmx_count = 0
@@ -365,6 +368,9 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
         len(file_list), pmx_count, pmx_count - len(file_list)
     )
     print(msg)
+    if stats is not None:
+        stats["total"] = pmx_count
+        stats["skipped"] = pmx_count - len(file_list)
     return file_list
 
 

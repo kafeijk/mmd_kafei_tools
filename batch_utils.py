@@ -60,13 +60,17 @@ class BatchProcessRunner:
         batch = props.batch
         self.abs_path = bpy.path.abspath(batch.directory)
         self.suffix = batch.suffix
+        self.search_stats = {}
         self.file_list = self.search_files()
         self.file_count = len(self.file_list)
+        self.total_files = self.search_stats.get("total", self.file_count)
+        self.skipped_files = self.search_stats.get("skipped", 0)
         self.file_index = 0
         self.failed_files = []
         self.consecutive_failures = 0
         self.aborted = False
         self.start_time = time.time()
+        self.elapsed = 0.0
 
     def search_files(self):
         """获取待处理文件列表；子类可覆盖以支持不同的文件类型"""
@@ -77,6 +81,7 @@ class BatchProcessRunner:
             batch.threshold,
             batch.search_strategy,
             batch.conflict_strategy,
+            stats=self.search_stats,
         )
 
     def process_file(self, filepath):
@@ -167,6 +172,7 @@ class BatchProcessRunner:
 
     def finish(self):
         total_time = time.time() - self.start_time
+        self.elapsed = total_time
         processed_count = self.file_index
 
         if self.failed_files:
@@ -218,13 +224,21 @@ class BatchProcessOperatorMixin:
 
         # 后台模式没有事件循环，直接同步跑完
         if bpy.app.background or self.batch_runner.file_count == 0:
-            return self.batch_runner.run_sync()
+            result = self.batch_runner.run_sync()
+            self.report({'INFO'}, self.batch_summary())
+            return result
 
         self.batch_timer = context.window_manager.event_timer_add(
             TIMER_INTERVAL, window=context.window)
         context.window_manager.modal_handler_add(self)
         self.batch_flush_count = 0
         return {'RUNNING_MODAL'}
+
+    def batch_summary(self):
+        runner = self.batch_runner
+        return translate("批量处理完成：共 {} 个模型，实际处理 {} 个，跳过 {} 个，总耗时 {} 秒。").format(
+            runner.total_files, runner.file_count, runner.skipped_files, f"{runner.elapsed:.2f}"
+        )
 
     def _end_batch(self, context):
         if getattr(self, "batch_timer", None) is not None:
@@ -252,7 +266,9 @@ class BatchProcessOperatorMixin:
         try:
             if self.batch_runner.step():
                 self._end_batch(context)
-                return self.batch_runner.finish()
+                result = self.batch_runner.finish()
+                self.report({'INFO'}, self.batch_summary())
+                return result
         except Exception as e:
             self._end_batch(context)
             traceback.print_exc()
