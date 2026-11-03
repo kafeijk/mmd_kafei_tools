@@ -703,8 +703,8 @@ class QuickOperationPanel(bpy.types.Panel):
         row.operator(CleanSceneOperator.bl_idname, text=CleanSceneOperator.bl_label, icon='TRASH')
 
 
-class PrePostProcessingPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_pre_post_processing"
+class BatchProcessingPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_batch_processing"
     bl_label = "批量处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
@@ -715,12 +715,12 @@ class PrePostProcessingPanel(bpy.types.Panel):
         layout = self.layout
 
 
-class PrePostProcessingOperationsPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_pre_post_processing_operations"
+class PrePostProcessingPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_pre_post_processing"
     bl_label = "预处理/后处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_parent_id = "KAFEI_PT_batch_processing"
     bl_order = 1
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -792,7 +792,7 @@ class AddSsbPanel:
     bl_label = "修复次标准骨骼"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_parent_id = "KAFEI_PT_batch_processing"
     bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -880,7 +880,7 @@ class RenderPreviewPanel(bpy.types.Panel):
     bl_label = "渲染预览图"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
+    bl_parent_id = "KAFEI_PT_batch_processing"
     bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 
