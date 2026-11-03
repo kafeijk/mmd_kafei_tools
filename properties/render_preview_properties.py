@@ -22,6 +22,15 @@ def update_rotation(scene, depsgraph):
         props.rotation_euler_z = active_camera.rotation_euler[2]
 
 
+def update_auto_follow(self, context):
+    """开启“自动”时锁定摄像机到视图方位；关闭时不解除"""
+    if not self.auto_follow:
+        return
+    space_data = context.space_data
+    if space_data and space_data.type == 'VIEW_3D':
+        space_data.lock_camera = True
+
+
 class RenderPreviewProperty(bpy.types.PropertyGroup):
     type: bpy.props.EnumProperty(
         name="类型",
@@ -63,7 +72,8 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     auto_follow: bpy.props.BoolProperty(
         name="自动",
         description="相机旋转值跟随活动相机视角",
-        default=False
+        default=False,
+        update=update_auto_follow
     )
     force_center: bpy.props.BoolProperty(
         name="强制居中",

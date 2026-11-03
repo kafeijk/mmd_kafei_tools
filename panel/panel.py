@@ -929,8 +929,6 @@ class RenderPreviewPanel(bpy.types.Panel):
         rotation_col.prop(props, "rotation_euler_z")
 
         col.prop(props, "auto_follow")
-        if props.auto_follow:
-            bpy.context.space_data.lock_camera = True
         col.prop(props, "align")
 
         batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
