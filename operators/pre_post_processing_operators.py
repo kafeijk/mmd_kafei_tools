@@ -1,7 +1,8 @@
 import bpy
 
+from ..batch_utils import BatchProcessOperatorMixin
 from ..constants import BATCH_TASK_PRE_POST_PROCESSING, INVALID_CHARS
-from ..utils import BatchProcessOperatorMixin, check_batch_props, translate
+from ..utils import check_batch_props, translate
 from .change_tex_loc_operators import do_change_tex_loc
 from .organize_panel_operators import organize_panel
 from .remove_uv_map_operators import do_remove_uv_maps

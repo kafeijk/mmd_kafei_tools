@@ -52,8 +52,9 @@ from ..operators.quick_operation_operators import SetMatNameByObjNameOperator
 from ..operators.quick_operation_operators import SetObjNameByMatNameOperator
 from ..operators.quick_operation_operators import DetectOverlappingFacesOperator
 from ..operators.quick_operation_operators import CleanSceneOperator
+from ..batch_utils import get_batch_progress
 from ..constants import BATCH_TASK_PRE_POST_PROCESSING
-from ..utils import find_pmx_root_with_child, get_batch_progress, is_mmd_tools_enabled
+from ..utils import find_pmx_root_with_child, is_mmd_tools_enabled
 import addon_utils
 import bpy
 

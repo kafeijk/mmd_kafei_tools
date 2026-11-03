@@ -19,11 +19,11 @@ from ..constants import (
     SSB_ORDER_TOP_LIST,
 )
 
+from ..batch_utils import batch_process
 from ..utils import (
     FnBone,
     add_item_after,
     add_item_before,
-    batch_process,
     check_batch_props,
     convertNameToLR,
     copy_obj,
