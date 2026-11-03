@@ -401,7 +401,10 @@ def import_pmx(filepath: str) -> bool:
     for attempt in range(MAX_RETRIES):
         try:
             bpy.ops.mmd_tools.import_model('EXEC_DEFAULT', **params)
-            print(translate("导入成功，文件：{}，重试次数：{}").format(filepath, attempt))
+            if attempt == 0:
+                print(translate("导入成功，文件：{}").format(filepath))
+            else:
+                print(translate("导入成功，文件：{}，重试次数：{}").format(filepath, attempt))
             return True
         except Exception as e:
             print(translate("导入失败，即将重试，文件：{}，错误：{}").format(filepath, e))
@@ -434,7 +437,10 @@ def export_pmx(filepath: str) -> bool:
     for attempt in range(MAX_RETRIES):
         try:
             bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT', **params)
-            print(translate("导出成功，文件：{}，重试次数：{}").format(filepath, attempt))
+            if attempt == 0:
+                print(translate("导出成功，文件：{}").format(filepath))
+            else:
+                print(translate("导出成功，文件：{}，重试次数：{}").format(filepath, attempt))
             return True
         except Exception as e:
             if os.path.exists(filepath) and not os.access(filepath, os.W_OK):

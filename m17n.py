@@ -540,9 +540,11 @@ translation_dict = {
 
         # Batch processing messages
         ("*", "实际待处理数量：{}。文件总数：{}，跳过数量：{}"): "Files to process: {}. Total files: {}, skipped: {}",
+        ("*", "导入成功，文件：{}"): "Import successful, file: {}",
         ("*", "导入成功，文件：{}，重试次数：{}"): "Import successful, file: {}, retry count: {}",
         ("*", "导入失败，即将重试，文件：{}，错误：{}"): "Import failed, retrying soon, file: {}, error: {}",
         ("*", "持续导入异常，请检查。文件路径：{}"): "Continuous import error, please check. File path: {}",
+        ("*", "导出成功，文件：{}"): "Export successful, file: {}",
         ("*", "导出成功，文件：{}，重试次数：{}"): "Export successful, file: {}, retry count: {}",
         ("*", "导出失败，即将重试，文件：{}，错误：{}"): "Export failed, retrying soon, file: {}, error: {}",
         ("*", "持续导出异常，请检查。文件路径：{}"): "Continuous export error, please check. File path: {}",
