@@ -35,7 +35,7 @@ class GenPreviewCameraOperator(bpy.types.Operator):
 
     def execute(self, context):
         if not self.check_props():
-            return {'FINISHED'}
+            return {'CANCELLED'}
         scene = context.scene
         props = scene.mmd_kafei_tools_render_preview
         camera_to_view_selected(props)
@@ -56,14 +56,13 @@ class RenderPreviewOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        self.main(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
-
-    def main(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_render_preview
+        props = context.scene.mmd_kafei_tools_render_preview
         if not self.check_render_preview_props(props):
-            return
+            return {'CANCELLED'}
+        self.main(context, props)
+        return {'FINISHED'}
+
+    def main(self, context, props):
         batch = props.batch
         batch_flag = batch.flag
         directory = batch.directory
