@@ -14,15 +14,11 @@ class PrePostProcessingOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.main(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
-
-    def main(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_pre_post_processing
+        props = context.scene.mmd_kafei_tools_pre_post_processing
         if not self.check_props(props):
-            return
+            return {'CANCELLED'}
         batch_process(do_pre_post_processing, props, f_flag=True)
+        return {'FINISHED'}
 
     def check_props(self, props):
         if not (props.change_tex_loc or props.remove_uv_map or props.organize_panel):
