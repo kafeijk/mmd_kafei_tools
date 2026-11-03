@@ -7,19 +7,21 @@ from .batch_properties import BatchProperty
 
 @persistent
 def update_rotation(scene, depsgraph):
-    active_camera = bpy.context.scene.camera
+    active_camera = scene.camera
     props = scene.mmd_kafei_tools_render_preview
-    auto_follow = props.auto_follow
-    align = props.align
-    if auto_follow and active_camera:
-        # 暂时仅支持xyz1
-        props.rotation_euler_x = active_camera.rotation_euler[0]
-        if align:
-            props.rotation_euler_y = math.radians(0)
-        else:
-            props.rotation_euler_y = active_camera.rotation_euler[1]
-
-        props.rotation_euler_z = active_camera.rotation_euler[2]
+    if not props.auto_follow or not active_camera:
+        return
+    # 暂时仅支持xyz1
+    rotation_euler_x = active_camera.rotation_euler[0]
+    rotation_euler_y = math.radians(0) if props.align else active_camera.rotation_euler[1]
+    rotation_euler_z = active_camera.rotation_euler[2]
+    # 仅在数值变化时写入，避免每次依赖图更新都触发属性写入和重绘
+    if props.rotation_euler_x != rotation_euler_x:
+        props.rotation_euler_x = rotation_euler_x
+    if props.rotation_euler_y != rotation_euler_y:
+        props.rotation_euler_y = rotation_euler_y
+    if props.rotation_euler_z != rotation_euler_z:
+        props.rotation_euler_z = rotation_euler_z
 
 
 def update_auto_follow(self, context):
