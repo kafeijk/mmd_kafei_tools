@@ -436,7 +436,9 @@ translation_dict = {
         ("*", "清除场景中的所有对象和集合，递归清理未使用的数据块并刷新场景，然后新建默认集合"): "Clear all objects and collections in the scene, recursively clean unused data blocks, refresh the scene, and create a new default collection",
 
         # Preprocessing and Postprocessing panel
+        ("*", "批量处理"): "Batch Processing",
         ("*", "预处理 / 后处理"): "Preprocessing & Postprocessing",
+        ("*", "预处理/后处理"): "Preprocessing & Postprocessing",
         # Change Texture Path panel / parameters
         ("*", "修改贴图路径"): "Texture Path Change",
         ("*", "贴图文件夹名称"): "Folder Name",
@@ -523,6 +525,12 @@ translation_dict = {
         ("*", " 修复次标准骨骼"): " FixSsb",
         ("*", " 移除冗余UV"): " RemoveRedundantUV",
         ("*", " 面板整理"): " OrganizePanel",
+        ("*", " 预处理后处理"): " PrePostProcessing",
+        # Preprocessing and Postprocessing operator
+        ("*", "执行勾选的预处理/后处理流程。勾选多项时，每个模型只导入、导出一次"): "Run the selected preprocessing/postprocessing operations. When multiple operations are selected, each model is imported and exported only once",
+        ("*", "请至少勾选一项处理！"): "Select at least one operation!",
+        ("*", "请填写贴图文件夹名称！"): "Texture folder name required!",
+        ("*", "贴图文件夹名称无效！"): "Invalid texture folder name!",
 
 
         # Other

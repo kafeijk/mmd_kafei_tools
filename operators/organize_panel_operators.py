@@ -20,8 +20,6 @@ from ..constants import (
 from ..tools.jaconv.jaconv import enlargesmallkana, h2z, kata2hira, z2h
 from ..utils import (
     ItemOp,
-    batch_process,
-    check_batch_props,
     copy_obj,
     create_tmp_obj,
     deselect_all_objects,
@@ -38,31 +36,6 @@ from ..utils import (
     show_object,
 )
 from ..mmd_utils import fix_bone_issues, fix_morph_issues, get_mmd_armature_id, unsafe_change_bone_id
-
-
-class OrganizePanelOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.organize_panel"
-    bl_label = "执行"
-    bl_description = "整理面板"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        self.main(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
-
-    def main(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_organize_panel
-
-        if not self.check_props(props):
-            return
-        batch_process(organize_panel, props, f_flag=False)
-
-    def check_props(self, props):
-        batch = props.batch
-        if not check_batch_props(self, batch):
-            return False
-        return True
 
 
 def fix_material_morphs(pmx_root, props):

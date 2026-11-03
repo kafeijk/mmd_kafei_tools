@@ -2,49 +2,14 @@ import os.path
 import shutil
 import bpy
 
-from ..constants import IMG_TYPE_EXT_MAP, INVALID_CHARS
+from ..constants import IMG_TYPE_EXT_MAP
 
 from ..utils import (
-    batch_process,
-    check_batch_props,
     find_pmx_armature,
     find_pmx_objects,
     force_writable,
     get_mmd_tools_version,
 )
-
-
-class ChangeTexLocOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.change_tex_loc"
-    bl_label = "修改"
-    bl_description = "修改贴图路径"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-
-    def execute(self, context):
-        self.main(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
-
-    def check_props(self, props):
-        batch = props.batch
-        new_folder = props.new_folder
-
-        if not new_folder:
-            self.report(type={'ERROR'}, message=f'Texture folder name required!')
-            return False
-        if any(char in new_folder for char in INVALID_CHARS):
-            self.report(type={'ERROR'}, message=f'Invalid texture folder name!')
-            return False
-
-        if not check_batch_props(self, batch):
-            return False
-        return True
-
-    def main(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_change_tex_loc
-        if not self.check_props(props):
-            return
-        batch_process(do_change_tex_loc, props, f_flag=True)
 
 
 def do_change_tex_loc(pmx_root, props, filepath):

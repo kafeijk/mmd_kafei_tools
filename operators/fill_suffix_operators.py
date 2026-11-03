@@ -1,14 +1,14 @@
 import bpy
 
 
-class FillSuffixChangeTexlocOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.fill_suffix_change_tex_loc"
+class FillSuffixPrePostProcessingOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.fill_suffix_pre_post_processing"
     bl_label = "填充"
     bl_description = "填充名称后缀"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        context.scene.mmd_kafei_tools_change_tex_loc.batch.suffix = bpy.app.translations.pgettext(" 修改贴图路径")
+        context.scene.mmd_kafei_tools_pre_post_processing.batch.suffix = bpy.app.translations.pgettext(" 预处理")
         return {'FINISHED'}
 
 
@@ -20,28 +20,6 @@ class FillSuffixSsbOperator(bpy.types.Operator):
 
     def execute(self, context):
         context.scene.mmd_kafei_tools_add_ssb.batch.suffix = bpy.app.translations.pgettext(" 修复次标准骨骼")
-        return {'FINISHED'}
-
-
-class FillSuffixRemoveUvMapOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.fill_suffix_remove_uv_map"
-    bl_label = "填充"
-    bl_description = "填充名称后缀"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        context.scene.mmd_kafei_tools_remove_uv_map.batch.suffix = bpy.app.translations.pgettext(" 移除冗余UV")
-        return {'FINISHED'}
-
-
-class FillSuffixOrganizePanelOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.fill_suffix_organize_panel"
-    bl_label = "填充"
-    bl_description = "填充名称后缀"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        context.scene.mmd_kafei_tools_organize_panel.batch.suffix = bpy.app.translations.pgettext(" 面板整理")
         return {'FINISHED'}
 
 

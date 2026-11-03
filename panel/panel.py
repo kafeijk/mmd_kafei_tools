@@ -1,9 +1,6 @@
 from ..operators.modify_specify_content_operators import ModifySpecifyContentOperator
 from ..operators.modify_specify_content_operators import ArrangeObjectOperator
-from ..operators.change_tex_loc_operators import ChangeTexLocOperator
 from ..operators.small_feature_operators import ModifyColorspaceOperator
-from ..operators.organize_panel_operators import OrganizePanelOperator
-from ..operators.remove_uv_map_operators import RemoveUvMapOperator
 from ..operators.render_preview_operators import GenPreviewCameraOperator
 from ..operators.scene_settings_operators import LoadRenderPresetOperator
 from ..operators.render_preview_operators import RenderPreviewOperator
@@ -16,6 +13,7 @@ from ..operators.small_feature_operators import (
 from ..operators.small_feature_operators import GroupObjectOperator
 from ..operators.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operators.transfer_preset_operators import TransferPresetOperator
+from ..operators.pre_post_processing_operators import PrePostProcessingOperator
 from ..operators.transfer_vg_weight_operators import TransferVgWeightOperator
 from ..operators.change_rest_pose_operators import ChangeRestPoseStartOperator
 from ..operators.change_rest_pose_operators import ChangeRestPoseEndOperator
@@ -39,10 +37,8 @@ from ..operators.bone_operators import SelectLessParentBoneOperator
 from ..operators.bone_operators import SelectLessChildrenBoneOperator
 from ..operators.bone_operators import SelectMoreBoneOperator
 from ..operators.bone_operators import SelectLessBoneOperator
-from ..operators.fill_suffix_operators import FillSuffixChangeTexlocOperator
+from ..operators.fill_suffix_operators import FillSuffixPrePostProcessingOperator
 from ..operators.fill_suffix_operators import FillSuffixSsbOperator
-from ..operators.fill_suffix_operators import FillSuffixRemoveUvMapOperator
-from ..operators.fill_suffix_operators import FillSuffixOrganizePanelOperator
 from ..operators.fill_suffix_operators import FillSuffixRenderPreviewOperator
 from ..operators.scene_settings_operators import RenderSettingsOperator
 from ..operators.scene_settings_operators import WorldSettingsOperator
@@ -709,7 +705,7 @@ class QuickOperationPanel(bpy.types.Panel):
 
 class PrePostProcessingPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_pre_post_processing"
-    bl_label = "预处理 / 后处理"
+    bl_label = "批量处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'  # N面板
     bl_category = 'KafeiTools'  # 追加到其它面板或独自一个面板
@@ -719,9 +715,9 @@ class PrePostProcessingPanel(bpy.types.Panel):
         layout = self.layout
 
 
-class ChangeTexLocPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_change_tex_loc"
-    bl_label = "修改贴图路径"
+class PrePostProcessingOperationsPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_pre_post_processing_operations"
+    bl_label = "预处理/后处理"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
@@ -730,7 +726,7 @@ class ChangeTexLocPanel(bpy.types.Panel):
 
     def draw(self, context):
         scene = context.scene
-        props = scene.mmd_kafei_tools_change_tex_loc
+        props = scene.mmd_kafei_tools_pre_post_processing
         batch = props.batch
 
         layout = self.layout
@@ -738,12 +734,56 @@ class ChangeTexLocPanel(bpy.types.Panel):
         layout.use_property_decorate = False
         col = layout.column()
 
-        col.prop(props, "new_folder")
-        col.prop(props, "remove_empty")
+        # 修改贴图路径
+        row = col.row(align=True)
+        row.prop(props, "change_tex_loc", text="修改贴图路径")
+        icon = 'DOWNARROW_HLT' if props.change_tex_loc_expanded else 'RIGHTARROW'
+        row.prop(props, "change_tex_loc_expanded", text="", icon=icon, emboss=False)
+        if props.change_tex_loc_expanded:
+            param_box = col.box()
+            param_col = param_box.column()
+            param_col.prop(props, "new_folder")
+            param_col.prop(props, "remove_empty")
 
-        show_batch_props(col, False, True, batch, FillSuffixChangeTexlocOperator)
+        # 移除冗余UV
+        col.prop(props, "remove_uv_map", text="移除冗余UV")
 
-        col.operator(ChangeTexLocOperator.bl_idname, text=ChangeTexLocOperator.bl_label)
+        # 面板整理
+        row = col.row(align=True)
+        row.prop(props, "organize_panel", text="面板整理")
+        icon = 'DOWNARROW_HLT' if props.organize_panel_expanded else 'RIGHTARROW'
+        row.prop(props, "organize_panel_expanded", text="", icon=icon, emboss=False)
+        if props.organize_panel_expanded:
+            param_box = col.box()
+            param_col = param_box.column()
+            param_col.prop(props, "bone_panel_flag")
+            param_col.prop(props, "morph_panel_flag")
+            param_col.prop(props, "rigid_body_panel_flag")
+            param_col.prop(props, "display_panel_flag")
+            param_col.prop(props, "translation_flag")
+
+            overwrite_flag_row = param_col.row()
+            overwrite_flag_row.separator()
+            overwrite_flag_row.separator()
+            overwrite_flag_row.prop(props, "overwrite_flag")
+            if props.translation_flag is False:
+                overwrite_flag_row.enabled = False
+
+            param_col.prop(props, "compatibility_flag")
+            compatibility_flag_row = param_col.row()
+            compatibility_flag_row.separator()
+            compatibility_flag_row.separator()
+            compatibility_flag_col = compatibility_flag_row.column()
+            compatibility_flag_col.prop(props, "fix_bone_name_flag")
+            compatibility_flag_col.prop(props, "fix_morph_name_flag")
+            compatibility_flag_col.prop(props, "fix_all_materials_flag")
+            compatibility_flag_col.prop(props, "fix_rigid_body_size_flag")
+            if props.compatibility_flag is False:
+                compatibility_flag_col.enabled = False
+
+        show_batch_props(col, False, True, batch, FillSuffixPrePostProcessingOperator)
+
+        col.operator(PrePostProcessingOperator.bl_idname, text=PrePostProcessingOperator.bl_label)
 
 
 class AddSsbPanel:
@@ -835,86 +875,13 @@ class AddSsbPanel:
         row.operator(AddSsbOperator.bl_idname, text=AddSsbOperator.bl_label)
 
 
-class RemoveUvMapPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_remove_uv_map"
-    bl_label = "移除冗余UV"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 3
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_remove_uv_map
-        batch = props.batch
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-        col = layout.column()
-
-        show_batch_props(col, False, False, batch, FillSuffixRemoveUvMapOperator)
-
-        col.operator(RemoveUvMapOperator.bl_idname, text=RemoveUvMapOperator.bl_label)
-
-
-class OrganizePanelPanel(bpy.types.Panel):
-    bl_idname = "KAFEI_PT_organize_panel"
-    bl_label = "面板整理"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 4
-    bl_options = {'DEFAULT_CLOSED'}
-
-    def draw(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_organize_panel
-        batch = props.batch
-
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        col = layout.column()
-        col.prop(props, "bone_panel_flag")
-        col.prop(props, "morph_panel_flag")
-        col.prop(props, "rigid_body_panel_flag")
-        col.prop(props, "display_panel_flag")
-        col.prop(props, "translation_flag")
-
-        overwrite_flag_row = col.row()
-        overwrite_flag_row.separator()
-        overwrite_flag_row.separator()
-        overwrite_flag_row.prop(props, "overwrite_flag")
-        if props.translation_flag is False:
-            overwrite_flag_row.enabled = False
-
-        col.prop(props, "compatibility_flag")
-        compatibility_flag_row = col.row()
-        compatibility_flag_row.separator()
-        compatibility_flag_row.separator()
-        compatibility_flag_col = compatibility_flag_row.column()
-        compatibility_flag_col.prop(props, "fix_bone_name_flag")
-        compatibility_flag_col.prop(props, "fix_morph_name_flag")
-        compatibility_flag_col.prop(props, "fix_all_materials_flag")
-        compatibility_flag_col.prop(props, "fix_rigid_body_size_flag")
-        if props.compatibility_flag is False:
-            compatibility_flag_col.enabled = False
-
-        show_batch_props(col, False, True, batch, FillSuffixOrganizePanelOperator)
-
-        col.operator(OrganizePanelOperator.bl_idname, text=OrganizePanelOperator.bl_label)
-
-
 class RenderPreviewPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_render_preview"
     bl_label = "渲染预览图"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_parent_id = "KAFEI_PT_pre_post_processing"
-    bl_order = 5
+    bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
