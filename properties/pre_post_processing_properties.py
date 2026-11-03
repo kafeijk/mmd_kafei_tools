@@ -132,6 +132,12 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
 
     def check_selection(self, context, changed_property):
         """检查选项，如果都未选中则恢复原来的状态"""
+        compatibility_children = (
+            self.fix_bone_name_flag,
+            self.fix_morph_name_flag,
+            self.fix_all_materials_flag,
+            self.fix_rigid_body_size_flag,
+        )
         if not any((
                 self.bone_panel_flag,
                 self.morph_panel_flag,
@@ -153,3 +159,13 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
             self.fix_morph_name_flag = state
             self.fix_all_materials_flag = state
             self.fix_rigid_body_size_flag = state
+
+        elif changed_property in (
+                "fix_bone_name_flag",
+                "fix_morph_name_flag",
+                "fix_all_materials_flag",
+                "fix_rigid_body_size_flag",
+        ):
+            # 兼容优化被勾选时，至少保留一个子项
+            if self.compatibility_flag and not any(compatibility_children):
+                setattr(self, changed_property, True)
