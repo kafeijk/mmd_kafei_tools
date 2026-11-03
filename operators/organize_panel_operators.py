@@ -14,7 +14,7 @@ from ..constants import (
     morph_name_map,
     morph_prefix_map,
     morph_suffix_map,
-    UNKNOWN_ORDER,
+    UNKNOWN_ORDER, PMX_IMPORT_SCALE,
 )
 
 from ..tools.jaconv.jaconv import enlargesmallkana, h2z, kata2hira, z2h
@@ -73,7 +73,7 @@ def delete_mesh_verts(rb):
 
 
 def fix_rigid_body_size(pmx_root, props):
-    """检测尺寸为0的受物理影响的刚体并设置默认值0.1，避免物理烘焙因尺寸为0出现异常"""
+    """检测尺寸为0的受物理影响的刚体并设置默认值0.008（对应 MMD 的 0.1），避免物理烘焙因尺寸为0出现异常"""
     if not props.compatibility_flag:
         return
     if not props.fix_rigid_body_size_flag:
@@ -90,7 +90,6 @@ def fix_rigid_body_size(pmx_root, props):
         'BOX': [0, 1, 2]
     }
 
-    names = []
     for rb in rbs:
         mmd_rigid = rb.mmd_rigid
         # 仅处理受物理影响的刚体
@@ -107,9 +106,7 @@ def fix_rigid_body_size(pmx_root, props):
             # 将小于阈值的维度设置为 0.008
             for i in dims:
                 if size[i] < 1e-3:
-                    mmd_rigid.size[i] = 0.008
-
-            names.append(rb.name.split("_", 1)[1])
+                    mmd_rigid.size[i] = 0.1 * PMX_IMPORT_SCALE
 
 
 def organize_panel(pmx_root, props):
