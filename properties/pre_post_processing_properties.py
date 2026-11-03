@@ -45,6 +45,21 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
         description="贴图路径修改后，是否删除模型目录下空文件夹",
         default=True
     )
+    texture_conflict_strategy: bpy.props.EnumProperty(
+        name="贴图重名时",
+        description="贴图文件夹存在同名文件时的处理方式",
+        items=[
+            ("AUTO", "自动覆盖或改名", "内容相同则合并，不同则按规则改名"),
+            ("SKIP", "跳过", "存在同名文件时跳过该文件的处理"),
+        ],
+        default="AUTO"
+    )
+    keep_names: bpy.props.StringProperty(
+        name="图像保留关键词",
+        description="名称含保留关键词的图像不会被处理，可按中英文逗号分隔。\n可防止预览图等图像文件被误认为贴图文件被处理",
+        default="preview",
+        maxlen=200
+    )
 
     # 面板整理
     bone_panel_flag: bpy.props.BoolProperty(

@@ -446,6 +446,13 @@ translation_dict = {
         ("*", "修改贴图路径"): "Texture Path Change",
         ("*", "贴图文件夹名称"): "Folder Name",
         ("*", "删除空文件夹"): "Delete Empty Folder",
+        ("*", "保留名称"): "Keep Names",
+        ("*", "自动覆盖或改名"): "Auto Overwrite or Rename",
+        ("*", "跳过"): "Skip",
+        ("*", "贴图目标目录存在同名文件时的处理方式"): "How to handle same-name files in the texture target directory",
+        ("*", "内容相同则合并，不同则按规则改名"): "Merge identical files; rename different files according to the rule",
+        ("*", "目标目录存在同名文件时跳过该文件"): "Skip the file when a same-name file exists in the target directory",
+        ("*", "按中英文逗号分隔的名称关键词；名称包含任一关键词的贴图不会被移动"): "Name keywords separated by Chinese/English commas; textures whose names contain any keyword will not be moved",
         # Change Texture Path description
         ("*", "新贴图文件夹名称，区分大小写，忽略首尾空格"): "New Texture Folder Name, case-sensitive and ignoring leading/trailing spaces",
         ("*", "贴图路径修改后，是否删除模型目录下空文件夹"): "After changing the texture path, should empty folders in the model directory be deleted",

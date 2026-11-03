@@ -744,6 +744,8 @@ class PrePostProcessingPanel(bpy.types.Panel):
             param_box.enabled = props.change_tex_loc
             param_col = param_box.column()
             param_col.prop(props, "new_folder")
+            param_col.prop(props, "keep_names")
+            param_col.prop(props, "texture_conflict_strategy")
             param_col.prop(props, "remove_empty")
 
         # 移除冗余UV
