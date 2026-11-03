@@ -38,6 +38,16 @@ def _same_file(path_a, path_b):
         return False
 
 
+def _contains_model_file(folder):
+    """判断目录及其子目录中是否存在其它 PMX/PMD 模型"""
+    model_extensions = {".pmx", ".pmd"}
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            if os.path.splitext(file)[1].lower() in model_extensions:
+                return True
+    return False
+
+
 def _unique_path(folder, filename):
     """按文件名末尾数字递增生成不冲突的新文件名；没有数字时从 2 开始"""
     stem, ext = os.path.splitext(filename)
@@ -170,6 +180,13 @@ def move_textures(pmx_file, props, referenced_paths=None):
         if _norm_path(root) == _norm_path(tex_folder):
             dirs[:] = []
             continue
+
+        # 子目录中若有其它模型，留给该模型自己处理，避免提前移动、重复处理
+        dirs[:] = [
+            d for d in dirs
+            if _norm_path(os.path.join(root, d)) != _norm_path(tex_folder)
+            and not _contains_model_file(os.path.join(root, d))
+        ]
 
         for file in files:
             ext = os.path.splitext(file)[1].lower()
