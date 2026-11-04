@@ -22,12 +22,16 @@ from ..utils import (
 # 眼白发黑修复：集合/顶点组名称、骨骼与旋转采样参数
 EYE_WHITE_COLLECTION_NAME = "眼白缩裹"
 EYE_WHITE_VERTEX_GROUP = "缩裹范围"
+EYE_WHITE_HEAD_GROUP = "頭"
 EYE_WHITE_SWEEP_BONE_NAME = "両目"
 EYE_WHITE_SWEEP_BONES = ("目.R", "目.L")
 EYE_WHITE_SWEEP_LIMIT = 25.0
 EYE_WHITE_SWEEP_STEP = 1.0
 # 绕世界坐标的 Z 轴旋转，避免骨骼局部轴朝向不同导致变成上下翻转
 EYE_WHITE_SWEEP_AXIS = Vector((0.0, 0.0, 1.0))
+# 除绕世界 Z 轴外，还需要绕世界 X 轴扫过
+EYE_WHITE_SWEEP_AXIS_X = Vector((1.0, 0.0, 0.0))
+EYE_WHITE_SWEEP_LIMIT_X = 20.0
 EYE_WHITE_WELD_THRESHOLD = 1e-6
 EYE_WHITE_SHRINKWRAP_OFFSET = 0.002
 EYE_WHITE_SMOOTH_FACTOR = 1.0
@@ -241,42 +245,75 @@ def bake_evaluated_mesh(source, collection, name):
     return obj
 
 
-def build_swept_eye(context, armature, sources, collection, name):
-    """逐个旋转姿态烘焙眼睛网格，合并为眼睛扫过的区域"""
-    if not sources:
-        return None
+def get_sweep_samples():
+    """旋转采样：绕世界 Z 轴 ±25°、绕世界 X 轴 ±20°，均按 1° 步进"""
+    samples = []
+    for axis, limit in (
+            (EYE_WHITE_SWEEP_AXIS, EYE_WHITE_SWEEP_LIMIT),
+            (EYE_WHITE_SWEEP_AXIS_X, EYE_WHITE_SWEEP_LIMIT_X),
+    ):
+        count = int(round(2 * limit / EYE_WHITE_SWEEP_STEP)) + 1
+        samples.extend(
+            (axis, math.radians(-limit + index * EYE_WHITE_SWEEP_STEP))
+            for index in range(count)
+        )
+    return samples
+
+
+def build_swept_eyes(context, armature, left_sources, right_sources, collection, left_name, right_name):
+    """同时生成左右扫过区域：每档姿态只刷新一次视图层"""
+    if not left_sources and not right_sources:
+        return None, None
 
     bones = get_sweep_bones(armature)
     if not bones:
-        return None
-
-    count = int(round(2 * EYE_WHITE_SWEEP_LIMIT / EYE_WHITE_SWEEP_STEP)) + 1
-    angles = [
-        math.radians(-EYE_WHITE_SWEEP_LIMIT + index * EYE_WHITE_SWEEP_STEP)
-        for index in range(count)
-    ]
+        return None, None
 
     states = [(bone, bone.rotation_mode, bone.matrix_basis.copy()) for bone in bones]
-    parts = []
+    left_parts, right_parts = [], []
     try:
         for bone in bones:
             bone.rotation_mode = 'QUATERNION'
 
-        for index, angle in enumerate(angles):
+        for index, (axis, angle) in enumerate(get_sweep_samples()):
             for bone in bones:
                 bone.rotation_quaternion = get_world_axis_quaternion(
-                    armature, bone, EYE_WHITE_SWEEP_AXIS, angle)
+                    armature, bone, axis, angle)
             context.view_layer.update()
 
-            for source in sources:
-                parts.append(bake_evaluated_mesh(source, collection, f"{source.name}_b{index}"))
+            for source in left_sources:
+                left_parts.append(bake_evaluated_mesh(source, collection, f"{left_name}_b{index}"))
+            for source in right_sources:
+                right_parts.append(bake_evaluated_mesh(source, collection, f"{right_name}_b{index}"))
     finally:
         for bone, rotation_mode, matrix_basis in states:
             bone.rotation_mode = rotation_mode
             bone.matrix_basis = matrix_basis
         context.view_layer.update()
 
-    return join_objects(parts, name)
+    left_target = join_objects(left_parts, left_name) if left_parts else None
+    right_target = join_objects(right_parts, right_name) if right_parts else None
+    return left_target, right_target
+
+
+def setup_target_vertex_groups(obj):
+    """扫过区域对象：移除除“缩裹范围”外的顶点组，并在首位新建“頭”顶点组（全部权重为 1）"""
+    scope_indices = []
+    scope = obj.vertex_groups.get(EYE_WHITE_VERTEX_GROUP)
+    if scope is not None:
+        scope_indices = [
+            vertex.index for vertex in obj.data.vertices
+            if any(group.group == scope.index for group in vertex.groups)
+        ]
+    for group in list(obj.vertex_groups):
+        obj.vertex_groups.remove(group)
+
+    head = obj.vertex_groups.new(name=EYE_WHITE_HEAD_GROUP)
+    head.add([vertex.index for vertex in obj.data.vertices], 1.0, 'REPLACE')
+
+    if scope_indices:
+        scope = obj.vertex_groups.new(name=EYE_WHITE_VERTEX_GROUP)
+        scope.add(scope_indices, 1.0, 'REPLACE')
 
 
 def get_boundary_indices(obj):
@@ -416,11 +453,14 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         if right_eye is None:
             right_eye = select_eye_object(right_eyes)
 
-        # 构建缩裹对象：根据左右眼沿両目全局 Z 轴扫过的区域生成
-        left_target = build_swept_eye(context, armature, [left_eye] if left_eye else [], collection, "左眼c")
-        right_target = build_swept_eye(context, armature, [right_eye] if right_eye else [], collection, "右眼c")
+        # 构建缩裹对象：根据左右眼沿全局 Z、全局 X 扫过的区域生成
+        left_target, right_target = build_swept_eyes(
+            context, armature,
+            [left_eye] if left_eye else [], [right_eye] if right_eye else [],
+            collection, "左眼c", "右眼c")
         for target in (left_target, right_target):
             if target is not None:
+                setup_target_vertex_groups(target)
                 set_visibility(target, (False, True, False, True))
 
         # 眼睛拷贝仅用于生成扫过区域，之后统一删除
