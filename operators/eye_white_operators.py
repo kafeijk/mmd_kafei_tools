@@ -480,7 +480,7 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             merge_vertices_by_distance(obj, EYE_WHITE_WELD_THRESHOLD)
 
         # 拆分左右眼白、左右眼
-        left_whites, right_whites = split_objects_by_side(eye_white_copies, armature, "左眼白代理", "右眼白代理")
+        left_whites, right_whites = split_objects_by_side(eye_white_copies, armature, "眼白代理_左", "眼白代理_右")
         eye_counterparts = {}
         left_eyes, right_eyes = split_objects_by_side(eye_copies, armature, "左眼a", "右眼a", eye_counterparts)
 
@@ -494,7 +494,7 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         left_target, right_target = build_swept_eyes(
             context, armature,
             [left_eye] if left_eye else [], [right_eye] if right_eye else [],
-            collection, "左眼白目标缩裹", "右眼白目标缩裹",
+            collection, "眼白目标缩裹_左", "眼白目标缩裹_右",
             props.sweep_limit, props.sweep_limit_x, props.sweep_step)
         for target, whites in ((left_target, left_whites), (right_target, right_whites)):
             if target is None or not whites:
