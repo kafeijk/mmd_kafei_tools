@@ -12,6 +12,7 @@ class SmallFeatureProperty(bpy.types.PropertyGroup):
             ("SUBSURFACE_CY", "修复Cycles显示模糊", "将原理化BSDF节点的次表面值归零"),
             ("MODIFY_COLORSPACE", "修改贴图色彩空间", "修改贴图色彩空间"),
             ("GROUP_OBJECT", "网格对象分组", "为网格对象分组"),
+            ("FIX_EYE_WHITE", "修复眼白发黑", "将眼白缩裹到眼睛的旋转扫过区域，修复眼白发黑的问题"),
         ],
         default="SCENE_ROOT"
     )

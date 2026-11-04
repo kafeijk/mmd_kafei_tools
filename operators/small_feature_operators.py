@@ -335,7 +335,8 @@ class RepairSSSOperator(bpy.types.Operator):
             result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
             if result:
                 self.report(type={'WARNING'},
-                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(", ".join(result)))
+                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(
+                                ", ".join(result)))
                 self.report(type={'WARNING'},
                             message=bpy.app.translations.pgettext_iface(
                                 "Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑"))

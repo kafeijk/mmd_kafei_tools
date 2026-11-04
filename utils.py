@@ -718,12 +718,17 @@ def create_tmp_obj(armature, collection):
     return tmp_obj
 
 
-def copy_obj(obj):
+def copy_obj(obj, name=None, collection=None):
+    """复制物体（含独立网格数据）；可选设置名称、移动到目标集合"""
     new_mesh = obj.data.copy()
     new_obj = obj.copy()
     new_obj.data = new_mesh
     col = obj.users_collection[0]
     col.objects.link(new_obj)
+    if name:
+        new_obj.name = name
+    if collection:
+        move_to_target_collection_recursive(new_obj, collection)
     return new_obj
 
 

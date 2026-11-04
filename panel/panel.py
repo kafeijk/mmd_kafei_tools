@@ -11,6 +11,7 @@ from ..operators.small_feature_operators import (
     split_keywords,
 )
 from ..operators.small_feature_operators import GroupObjectOperator
+from ..operators.eye_white_operators import FixEyeWhiteOperator, AddEyeWhiteObjectNameOperator
 from ..operators.ssb_operators import AddSsbOperator, SelectAllSsbOperator
 from ..operators.transfer_preset_operators import TransferPresetOperator
 from ..operators.pre_post_processing_operators import PrePostProcessingOperator
@@ -365,6 +366,21 @@ class SmallFeaturePanel(bpy.types.Panel):
                 col.prop(group_props, "img_keywords", icon="FILE_IMAGE")
             col.prop(group_props, "recursive")
             col.operator(GroupObjectOperator.bl_idname, text=GroupObjectOperator.bl_label)
+
+        elif option == "FIX_EYE_WHITE":
+            eye_white_props = scene.mmd_kafei_tools_fix_eye_white
+
+            row = col.row(align=True)
+            row.prop(eye_white_props, "eye_white")
+            eye_white_add = row.operator(AddEyeWhiteObjectNameOperator.bl_idname, text="", icon="ADD")
+            eye_white_add.target = "EYE_WHITE"
+
+            row = col.row(align=True)
+            row.prop(eye_white_props, "eye")
+            eye_add = row.operator(AddEyeWhiteObjectNameOperator.bl_idname, text="", icon="ADD")
+            eye_add.target = "EYE"
+
+            col.operator(FixEyeWhiteOperator.bl_idname, text=FixEyeWhiteOperator.bl_label)
 
         elif option == "SCENE_ROOT":
             col.operator(SceneRootOperator.bl_idname, text=SceneRootOperator.bl_label)

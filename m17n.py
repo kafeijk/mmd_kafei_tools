@@ -247,6 +247,28 @@ translation_dict = {
         ("*", "修复Eevee显示泛蓝 / 修复Cycles显示模糊"): "Fix Eevee Blue Tint / Fix Cycles Blurry Display",
         ("*", "修改贴图色彩空间"): "Adjust Texture Color Space",
         ("*", "网格对象分组"): "Group Mesh Objects",
+        ("*", "修复眼白发黑"): "Fix Dark Eye Whites",
+        ("*", "眼白"): "Eye White",
+        ("*", "眼睛"): "Eye",
+        ("*", "眼白对象名称，可用中英文逗号分隔多个名称"):
+            "Eye white object names, separate multiple names with English or Chinese commas",
+        ("*", "眼睛对象名称，可用中英文逗号分隔多个名称"):
+            "Eye object names, separate multiple names with English or Chinese commas",
+        ("*", "将眼白缩裹到眼睛的旋转扫过区域，修复眼睛转动时眼白发黑"):
+            "Shrinkwrap the eye white onto the swept area of the rotating eye to fix dark eye whites",
+        ("*", "添加选中对象名称"): "Add Selected Object Names",
+        ("*", "将选中对象的名称添加到输入框"): "Add the selected object names to the input field",
+        ("*", "要添加到的输入框"): "Input field to add to",
+        ("*", "添加到眼白输入框"): "Add to the eye white input",
+        ("*", "添加到眼睛输入框"): "Add to the eye input",
+        ("*", "请填写眼白对象名称！"): "Enter the eye white object names!",
+        ("*", "请填写眼睛对象名称！"): "Enter the eye object names!",
+        ("*", "未找到任何眼白对象！"): "No eye white object found!",
+        ("*", "未找到任何眼睛对象！"): "No eye object found!",
+        ("*", "未找到眼睛所属的骨架！"): "Armature of the eye object not found!",
+        ("*", "眼白与眼睛必须属于同一个模型！"): "Eye white and eye must belong to the same model!",
+        ("*", "未找到名为「{}」的骨骼！"): "Bone \"{}\" not found!",
+        ("*", "已修复眼白发黑"): "Dark eye whites fixed",
         # Small Features description
         ("*", "在游标位置创建一个空物体，并通过将其设置为其他对象的父级，实现对整个场景的统一控制\n若场景控制器已存在（不仅限于空物体类型），则不再重复创建，并自动选中该场景控制器\n集合类型实例所使用的源集合内对象不在设置范围内"): "Create an empty object at the cursor position and set it as the parent of other objects to enable unified control over the entire scene.\nIf the scene controller already exists(not limited to the empty object), it will not be created again, and the existing scene controller will be selected automatically.\nObjects inside the source collections used by instance collections are not included in this setup.",
         ("*", "移除丢失的外部数据，以解决无法打包文件，找不到资源路径的问题"):"Remove missing external data to fix 'Unable to pack file, source path not found' error",

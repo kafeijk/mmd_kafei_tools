@@ -1,0 +1,442 @@
+import math
+import re
+
+import bmesh
+import bpy
+from mathutils import Quaternion, Vector
+
+from ..utils import (
+    copy_obj,
+    deselect_all_objects,
+    find_pmx_armature,
+    find_pmx_root_with_child,
+    get_collection,
+    hide_object,
+    is_mmd_tools_enabled,
+    select_and_activate,
+    show_object,
+    translate, set_visibility,
+)
+
+
+# 眼白发黑修复：集合/顶点组名称、骨骼与旋转采样参数
+EYE_WHITE_COLLECTION_NAME = "眼白缩裹"
+EYE_WHITE_VERTEX_GROUP = "缩裹范围"
+EYE_WHITE_SWEEP_BONE_NAME = "両目"
+EYE_WHITE_SWEEP_BONES = ("目.R", "目.L")
+EYE_WHITE_SWEEP_LIMIT = 25.0
+EYE_WHITE_SWEEP_STEP = 1.0
+# 绕世界坐标的 Z 轴旋转，避免骨骼局部轴朝向不同导致变成上下翻转
+EYE_WHITE_SWEEP_AXIS = Vector((0.0, 0.0, 1.0))
+EYE_WHITE_WELD_THRESHOLD = 1e-6
+EYE_WHITE_SHRINKWRAP_OFFSET = 0.002
+EYE_WHITE_SMOOTH_FACTOR = 1.0
+EYE_WHITE_SMOOTH_ITERATIONS = 5
+
+
+def split_object_names(text):
+    """拆分对象名称：中英文逗号均可作为分隔符"""
+    return [name.strip() for name in re.split(r"[,，]", text) if name.strip()]
+
+
+def get_mesh_objects(text):
+    """按名称获取网格对象：不存在或不是网格对象的名称直接跳过"""
+    objs = []
+    for name in dict.fromkeys(split_object_names(text)):
+        obj = bpy.data.objects.get(name)
+        if obj is None or obj.type != 'MESH':
+            continue
+        objs.append(obj)
+    return objs
+
+
+def clear_parent_keep_transform(obj):
+    """取消父子级关系，保留世界变换"""
+    if obj.parent is None:
+        return
+    matrix_world = obj.matrix_world.copy()
+    obj.parent = None
+    obj.matrix_world = matrix_world
+
+
+def merge_vertices_by_distance(obj, threshold):
+    """按距离合并顶点（bmesh 直接修改基础网格）"""
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(obj.data)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=threshold)
+        bm.to_mesh(obj.data)
+    finally:
+        bm.free()
+    obj.data.update()
+
+
+def strip_modifiers(obj, keep_type):
+    """移除除指定类型以外的修改器（复制体只保留骨架修改器，避免旧修改器叠加干扰）"""
+    for modifier in list(obj.modifiers):
+        if modifier.type != keep_type:
+            obj.modifiers.remove(modifier)
+
+
+def get_side_indices(obj, armature, positive):
+    """按骨骼静置姿态下的 x 值筛选顶点索引"""
+    inverse_armature = armature.matrix_world.inverted()
+    matrix_world = obj.matrix_world
+    return [
+        vertex.index for vertex in obj.data.vertices
+        if ((inverse_armature @ (matrix_world @ vertex.co)).x > 0) == positive
+    ]
+
+
+def delete_vertices(obj, indices):
+    """删除指定顶点（bmesh 直接修改基础网格）"""
+    if not indices:
+        return
+
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(obj.data)
+        bm.verts.ensure_lookup_table()
+        bmesh.ops.delete(bm, geom=[bm.verts[index] for index in indices], context='VERTS')
+        bm.to_mesh(obj.data)
+    finally:
+        bm.free()
+    obj.data.update()
+
+
+def split_by_side(obj, armature):
+    """按静置姿态 x 的正负拆分物体，返回 (左侧物体, 右侧物体)；某一侧没有顶点时返回 None"""
+    left_indices = get_side_indices(obj, armature, positive=True)
+    if not left_indices:
+        return None, obj
+    if len(left_indices) == len(obj.data.vertices):
+        return obj, None
+
+    left_obj = copy_obj(obj)
+    delete_vertices(left_obj, get_side_indices(obj, armature, positive=False))
+    delete_vertices(obj, left_indices)
+    return left_obj, obj
+
+
+def split_objects_by_side(objs, armature, left_name, right_name):
+    """批量左右拆分并重命名，无顶点的网格对象直接移除"""
+    left_objs, right_objs = [], []
+    for obj in objs:
+        left_obj, right_obj = split_by_side(obj, armature)
+        if left_obj is not None:
+            if not left_obj.data.vertices:
+                bpy.data.objects.remove(left_obj, do_unlink=True)
+            else:
+                left_obj.name = left_name
+                left_objs.append(left_obj)
+        if right_obj is not None:
+            if not right_obj.data.vertices:
+                bpy.data.objects.remove(right_obj, do_unlink=True)
+            else:
+                right_obj.name = right_name
+                right_objs.append(right_obj)
+    return left_objs, right_objs
+
+
+def apply_armature_modifier(obj):
+    """应用物体的骨架修改器"""
+    modifier = next((modifier for modifier in obj.modifiers if modifier.type == 'ARMATURE'), None)
+    if modifier is None:
+        return
+
+    deselect_all_objects()
+    select_and_activate(obj)
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+
+def join_objects(objs, name):
+    """合并物体并重命名"""
+    if len(objs) == 1:
+        objs[0].name = name
+        return objs[0]
+
+    deselect_all_objects()
+    for obj in objs:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+
+    result = bpy.context.view_layer.objects.active
+    result.name = name
+    return result
+
+
+def get_sweep_bones(armature):
+    """获取用于旋转采样的骨骼：优先“両目”，否则“目.R”与“目.L”"""
+    if EYE_WHITE_SWEEP_BONE_NAME in armature.pose.bones:
+        return [armature.pose.bones[EYE_WHITE_SWEEP_BONE_NAME]]
+
+    bones = [armature.pose.bones.get(name) for name in EYE_WHITE_SWEEP_BONES]
+    if all(bones):
+        return bones
+    return []
+
+
+def get_world_axis_quaternion(armature, pose_bone, axis, angle):
+    """绕过世界坐标轴旋转：把世界坐标轴换算到骨骼局部空间，再构造四元数"""
+    # 骨骼在未施加自身旋转时的朝向（叠加父骨骼当前姿态）
+    matrix = pose_bone.bone.matrix_local.to_3x3()
+    parent = pose_bone.parent
+    if parent is not None:
+        matrix = (parent.matrix.to_3x3()
+                  @ parent.bone.matrix_local.to_3x3().inverted()
+                  @ matrix)
+
+    axis_in_armature = armature.matrix_world.to_3x3().inverted() @ axis
+    axis_in_bone = matrix.inverted() @ axis_in_armature
+    axis_in_bone.normalize()
+    return Quaternion(axis_in_bone, angle)
+
+
+def get_eye_armatures(objs):
+    """通过任意眼白或眼睛对象收集所属骨架，按骨架去重"""
+    armatures = []
+    for obj in objs:
+        pmx_root = find_pmx_root_with_child(obj)
+        if pmx_root is None:
+            continue
+        armature = find_pmx_armature(pmx_root)
+        if armature is not None and armature not in armatures:
+            armatures.append(armature)
+    return armatures
+
+
+def build_swept_eye(context, armature, sources, collection, name):
+    """逐个旋转姿态复制眼睛并应用骨架修改器，合并为眼睛扫过的区域"""
+    if not sources:
+        return None
+
+    bones = get_sweep_bones(armature)
+    if not bones:
+        return None
+
+    count = int(round(2 * EYE_WHITE_SWEEP_LIMIT / EYE_WHITE_SWEEP_STEP)) + 1
+    angles = [
+        math.radians(-EYE_WHITE_SWEEP_LIMIT + index * EYE_WHITE_SWEEP_STEP)
+        for index in range(count)
+    ]
+
+    states = [(bone, bone.rotation_mode, bone.matrix_basis.copy()) for bone in bones]
+    parts = []
+    try:
+        for bone in bones:
+            bone.rotation_mode = 'QUATERNION'
+
+        for index, angle in enumerate(angles):
+            for bone in bones:
+                bone.rotation_quaternion = get_world_axis_quaternion(
+                    armature, bone, EYE_WHITE_SWEEP_AXIS, angle)
+            context.view_layer.update()
+
+            parts_of_angle = [
+                copy_obj(source, f"{source.name}_b{index}", collection)
+                for source in sources
+            ]
+            # 复制体先进入视图层，再统一恢复可见、可选（源对象可能已被隐藏）
+            context.view_layer.update()
+            for part in parts_of_angle:
+                show_object(part)
+                # 含形态键时先清除，否则骨架修改器无法应用
+                if part.data.shape_keys:
+                    part.shape_key_clear()
+                apply_armature_modifier(part)
+                parts.append(part)
+    finally:
+        for bone, rotation_mode, matrix_basis in states:
+            bone.rotation_mode = rotation_mode
+            bone.matrix_basis = matrix_basis
+        context.view_layer.update()
+
+    return join_objects(parts, name)
+
+
+def get_boundary_indices(obj):
+    """获取边界顶点索引（骨架修改器只变形、不改变拓扑，直接读基础网格即可）"""
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(obj.data)
+        return {
+            vert.index
+            for edge in bm.edges if edge.is_boundary
+            for vert in edge.verts
+        }
+    finally:
+        bm.free()
+
+
+def add_shrinkwrap_vertex_group(obj):
+    """创建“眼白缩裹”顶点组，成员为边界以外的所有顶点"""
+    boundary_indices = get_boundary_indices(obj)
+    indices = [
+        vertex.index for vertex in obj.data.vertices
+        if vertex.index not in boundary_indices
+    ]
+
+    group = obj.vertex_groups.get(EYE_WHITE_VERTEX_GROUP)
+    if group is None:
+        group = obj.vertex_groups.new(name=EYE_WHITE_VERTEX_GROUP)
+    group.add(indices, 1.0, 'REPLACE')
+    return group
+
+
+def add_eye_white_modifiers(obj, target):
+    """为眼白添加缩裹、平滑、加权法向修改器"""
+    shrinkwrap = obj.modifiers.new(name="眼白缩裹", type='SHRINKWRAP')
+    shrinkwrap.target = target
+    shrinkwrap.offset = EYE_WHITE_SHRINKWRAP_OFFSET
+    shrinkwrap.vertex_group = EYE_WHITE_VERTEX_GROUP
+    #
+    # smooth = obj.modifiers.new(name="平滑", type='SMOOTH')
+    # smooth.factor = EYE_WHITE_SMOOTH_FACTOR
+    # smooth.iterations = EYE_WHITE_SMOOTH_ITERATIONS
+    # smooth.use_x = True
+    # smooth.use_y = True
+    # smooth.use_z = False
+    # smooth.vertex_group = EYE_WHITE_VERTEX_GROUP
+
+    obj.modifiers.new(name="加权法向", type='WEIGHTED_NORMAL')
+
+
+class FixEyeWhiteOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.fix_eye_white"
+    bl_label = "执行"
+    bl_description = "修复眼白发黑"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
+
+        self.repair(context)
+        self.report(type={'INFO'}, message=translate("已修复眼白发黑"))
+        return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def check_props(self, context):
+        """校验参数：MMD Tools、名称、对象、骨架与骨骼"""
+        if not is_mmd_tools_enabled():
+            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            return False
+
+        props = context.scene.mmd_kafei_tools_fix_eye_white
+        if not split_object_names(props.eye_white):
+            self.report(type={'ERROR'}, message=translate("请填写眼白对象名称！"))
+            return False
+        if not split_object_names(props.eye):
+            self.report(type={'ERROR'}, message=translate("请填写眼睛对象名称！"))
+            return False
+
+        eye_white_objs = get_mesh_objects(props.eye_white)
+        eye_objs = get_mesh_objects(props.eye)
+        if not eye_white_objs:
+            self.report(type={'ERROR'}, message=translate("未找到任何眼白对象！"))
+            return False
+        if not eye_objs:
+            self.report(type={'ERROR'}, message=translate("未找到任何眼睛对象！"))
+            return False
+
+        armatures = get_eye_armatures(eye_objs + eye_white_objs)
+        if not armatures:
+            self.report(type={'ERROR'}, message=translate("未找到眼睛所属的骨架！"))
+            return False
+        if len(armatures) != 1:
+            self.report(type={'ERROR'}, message=translate("眼白与眼睛必须属于同一个骨架！"))
+            return False
+        if not get_sweep_bones(armatures[0]):
+            self.report(type={'ERROR'}, message=translate("未找到名为「{}」的骨骼！").format(
+                EYE_WHITE_SWEEP_BONE_NAME))
+            return False
+        return True
+
+    def repair(self, context):
+        """复制眼白与眼睛，按左右拆分后把眼白缩裹到眼睛旋转扫过的区域"""
+        props = context.scene.mmd_kafei_tools_fix_eye_white
+        eye_objs = get_mesh_objects(props.eye)
+        eye_white_objs = get_mesh_objects(props.eye_white)
+
+        armature = get_eye_armatures(eye_objs + eye_white_objs)[0]
+        collection = get_collection(EYE_WHITE_COLLECTION_NAME)
+
+        # 拷贝眼白对象、眼睛对象
+        eye_white_copies = [copy_obj(obj, "眼白a", collection) for obj in eye_white_objs]
+        eye_copies = [copy_obj(obj, "眼睛a", collection) for obj in eye_objs]
+        for obj in eye_white_copies + eye_copies:
+            show_object(obj)
+
+        # 隐藏源眼白对象、源眼睛对象
+        for obj in list(eye_objs) + list(eye_white_objs):
+            set_visibility(obj, (False, True, False, True))
+
+        # 移除拷贝对象的父级，避免导出等操作时，被当成MMD模型，导致结果异常
+        # 移除拷贝对象的骨架之外修改器，避免影响后续操作
+        for obj in eye_white_copies + eye_copies:
+            clear_parent_keep_transform(obj)
+            strip_modifiers(obj, 'ARMATURE')
+
+        # 眼白按距离合并，避免重合点干扰边界顶点的选取
+        for obj in eye_white_copies:
+            merge_vertices_by_distance(obj, EYE_WHITE_WELD_THRESHOLD)
+
+        # 拆分左右眼白、左右眼
+        left_whites, right_whites = split_objects_by_side(
+            eye_white_copies, armature, "左眼白a", "右眼白a")
+        left_eyes, right_eyes = split_objects_by_side(
+            eye_copies, armature, "左眼a", "右眼a")
+
+        # 构建缩裹对象：根据左右眼沿両目全局 Z 轴扫过的区域生成
+        left_target = build_swept_eye(context, armature, left_eyes, collection, "左眼c")
+        right_target = build_swept_eye(context, armature, right_eyes, collection, "右眼c")
+
+        for obj in left_whites:
+            if left_target is None:
+                break
+            add_shrinkwrap_vertex_group(obj)
+            add_eye_white_modifiers(obj, left_target)
+
+        for obj in right_whites:
+            if right_target is None:
+                break
+            add_shrinkwrap_vertex_group(obj)
+            add_eye_white_modifiers(obj, right_target)
+
+
+class AddEyeWhiteObjectNameOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.add_eye_white_name"
+    bl_label = "添加选中对象名称"
+    bl_description = "将选中对象的名称添加到输入框"
+    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+
+    target: bpy.props.EnumProperty(
+        name="目标",
+        description="要添加到的输入框",
+        items=[
+            ("EYE_WHITE", "眼白", "添加到眼白输入框"),
+            ("EYE", "眼睛", "添加到眼睛输入框"),
+        ],
+        default="EYE_WHITE",
+    )
+
+    def execute(self, context):
+        names = [obj.name for obj in context.selected_objects]
+        if not names:
+            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
+            return {'CANCELLED'}
+
+        def append_names(text):
+            """把选中对象名称追加到已有的名称串中，已存在的不重复添加"""
+            current = split_object_names(text)
+            for name in names:
+                if name not in current:
+                    current.append(name)
+            return ",".join(current)
+
+        props = context.scene.mmd_kafei_tools_fix_eye_white
+        if self.target == "EYE_WHITE":
+            props.eye_white = append_names(props.eye_white)
+        else:
+            props.eye = append_names(props.eye)
+        return {'FINISHED'}
