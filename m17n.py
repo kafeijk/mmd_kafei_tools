@@ -277,8 +277,11 @@ translation_dict = {
         ("*", "请填写眼睛对象名称！"): "Enter the eye object names!",
         ("*", "未找到任何眼白对象！"): "No eye white object found!",
         ("*", "未找到任何眼睛对象！"): "No eye object found!",
+        ("*", "未找到眼白所属的骨架！"): "Armature of the eye white object not found!",
+        ("*", "眼白之间必须属于同一个骨架！"): "Eye white objects must belong to the same armature!",
         ("*", "未找到眼睛所属的骨架！"): "Armature of the eye object not found!",
-        ("*", "眼白与眼睛必须属于同一个模型！"): "Eye white and eye must belong to the same model!",
+        ("*", "眼睛之间必须属于同一个骨架！"): "Eye objects must belong to the same armature!",
+        ("*", "眼白与眼睛之间必须属于同一个骨架！"): "Eye white and eye must belong to the same armature!",
         ("*", "未找到名为「{}」的骨骼！"): "Bone \"{}\" not found!",
         ("*", "已修复眼白发黑"): "Dark eye whites fixed",
         # Small Features description

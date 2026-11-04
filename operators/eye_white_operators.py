@@ -477,14 +477,27 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             self.report(type={'ERROR'}, message=translate("未找到任何眼睛对象！"))
             return False
 
-        armatures = get_eye_armatures(eye_objs + eye_white_objs)
-        if not armatures:
+        eye_white_armatures = get_eye_armatures(eye_white_objs)
+        if not eye_white_armatures:
+            self.report(type={'ERROR'}, message=translate("未找到眼白所属的骨架！"))
+            return False
+        if len(eye_white_armatures) != 1:
+            self.report(type={'ERROR'}, message=translate("眼白之间必须属于同一个骨架！"))
+            return False
+
+        eye_armatures = get_eye_armatures(eye_objs)
+        if not eye_armatures:
             self.report(type={'ERROR'}, message=translate("未找到眼睛所属的骨架！"))
             return False
-        if len(armatures) != 1:
-            self.report(type={'ERROR'}, message=translate("眼白与眼睛必须属于同一个骨架！"))
+        if len(eye_armatures) != 1:
+            self.report(type={'ERROR'}, message=translate("眼睛之间必须属于同一个骨架！"))
             return False
-        if not get_sweep_bones(armatures[0]):
+
+        if eye_white_armatures[0] != eye_armatures[0]:
+            self.report(type={'ERROR'}, message=translate("眼白与眼睛之间必须属于同一个骨架！"))
+            return False
+
+        if not get_sweep_bones(eye_armatures[0]):
             self.report(type={'ERROR'}, message=translate("未找到名为「{}」的骨骼！").format(
                 EYE_WHITE_SWEEP_BONE_NAME))
             return False
