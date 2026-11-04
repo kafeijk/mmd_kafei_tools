@@ -12,13 +12,12 @@ from ..utils import (
     find_pmx_armature,
     find_pmx_root_with_child,
     get_collection,
-    hide_object,
     is_mmd_tools_enabled,
-    select_and_activate,
+    purge_new_orphan_data,
     show_object,
+    snapshot_data_blocks,
     translate, set_visibility,
 )
-
 
 # 眼白发黑修复：集合/顶点组名称、骨骼与旋转采样参数
 EYE_WHITE_COLLECTION_NAME = "眼白代理集合"
@@ -241,10 +240,19 @@ def get_eye_armatures(objs):
 
 
 def remove_previous_objects(root_name):
-    """删除全场景中记录为当前模型根对象的旧对象"""
+    """删除全场景中记录为当前模型根对象的旧对象，返回其遗留的数据块指针"""
+    removed_pointers = set()
     for obj in list(bpy.context.scene.objects):
-        if obj.get(EYE_WHITE_ROOT_PROPERTY) == root_name:
-            bpy.data.objects.remove(obj, do_unlink=True)
+        if obj.get(EYE_WHITE_ROOT_PROPERTY) != root_name:
+            continue
+        mesh = obj.data
+        if mesh is not None:
+            removed_pointers.add(mesh.as_pointer())
+            shape_keys = getattr(mesh, "shape_keys", None)
+            if shape_keys is not None:
+                removed_pointers.add(shape_keys.as_pointer())
+        bpy.data.objects.remove(obj, do_unlink=True)
+    return removed_pointers
 
 
 def has_other_model_objects(root_name):
@@ -506,6 +514,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
     def repair(self, context):
         """复制眼白与眼睛，按左右拆分后把眼白缩裹到眼睛旋转扫过的区域"""
         start_time = time.time()
+        # 记录执行前的网格与形态键，执行后清理残留的孤儿数据
+        data_snapshot = snapshot_data_blocks()
 
         props = context.scene.mmd_kafei_tools_fix_eye_white
         eye_objs = get_mesh_objects(props.eye)
@@ -515,8 +525,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         root_name = find_pmx_root_with_child(armature).name
         collection = get_collection(EYE_WHITE_COLLECTION_NAME)
 
-        # 删除同一模型上次生成的旧对象
-        remove_previous_objects(root_name)
+        # 删除同一模型上次生成的旧对象，记录其遗留的数据块以便一并清理
+        removed_pointers = remove_previous_objects(root_name)
 
         # 全场景存在其他模型的旧对象时，生成对象名添加 root 前缀以便区分
         prefix = root_name if has_other_model_objects(root_name) else ""
@@ -615,6 +625,9 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         for target in (left_target, right_target):
             if target is not None:
                 set_object_material(target, material)
+
+        # 清理执行期间新增或旧对象遗留的网格与形态键，避免孤儿数据残留
+        purge_new_orphan_data(data_snapshot, removed_pointers)
 
         print(f"修复眼白发黑总耗时：{time.time() - start_time:.2f}s")
 

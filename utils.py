@@ -486,6 +486,72 @@ def clean_scene():
     bpy.ops.outliner.orphans_purge(do_recursive=True)
 
 
+# 需要跟踪孤儿数据的数据块类型，网格需先于形态键清理
+TRACKED_DATA_BLOCK_TYPES = ("meshes", "shape_keys")
+
+
+def snapshot_data_blocks():
+    """记录当前已存在的数据块，供后续只清理本次新增的无用户数据"""
+    data_pointers = {}
+
+    for name in TRACKED_DATA_BLOCK_TYPES:
+        if not hasattr(bpy.data, name):
+            continue
+
+        data_blocks = getattr(bpy.data, name)
+        pointers = {block.as_pointer() for block in data_blocks}
+        data_pointers[name] = pointers
+
+    return data_pointers
+
+
+def purge_new_orphan_data(snapshot, extra_pointers=None):
+    """只删除快照之后新增的数据块，避免误删用户已有数据
+
+    extra_pointers 用于传入执行期间主动删除对象后遗留的数据块指针，
+    这些数据块虽然存在于快照中，但也需要一并清理。
+    """
+    if not snapshot:
+        return
+
+    extra_pointers = set(extra_pointers or ())
+    shape_key_owners = None
+
+    for name, before in snapshot.items():
+        blocks = getattr(bpy.data, name)
+        for block in list(blocks):
+            pointer = block.as_pointer()
+            if pointer in before and pointer not in extra_pointers:
+                continue
+            # 形态键集合没有 remove()（4.5 等版本），且失去网格后 users 仍可能为 1，
+            # 因此按“是否仍被网格/曲线/晶格引用”判断，用 batch_remove 清理
+            if name == "shape_keys":
+                if shape_key_owners is None:
+                    shape_key_owners = set()
+                    for owner_type in ("meshes", "curves", "lattices"):
+                        if not hasattr(bpy.data, owner_type):
+                            continue
+                        for owner in getattr(bpy.data, owner_type):
+                            shape_keys = getattr(owner, "shape_keys", None)
+                            if shape_keys is not None:
+                                shape_key_owners.add(shape_keys.as_pointer())
+                if pointer in shape_key_owners:
+                    continue
+                try:
+                    bpy.data.batch_remove([block])
+                except Exception:
+                    pass
+                continue
+            if block.users != 0:
+                continue
+            if getattr(block, "use_fake_user", False):
+                continue
+            try:
+                blocks.remove(block)
+            except Exception:
+                pass
+
+
 def find_ancestor(obj):
     ancestor = obj
     while ancestor.parent is not None:
