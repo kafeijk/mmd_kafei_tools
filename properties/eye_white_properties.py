@@ -30,7 +30,7 @@ class FixEyeWhiteProperty(bpy.types.PropertyGroup):
     )
     sweep_limit_x: bpy.props.FloatProperty(
         name="竖向采样区域",
-        description="眼白竖向上下扫过的角度范围，输入值即正负范围",
+        description="眼睛竖向上下扫过的角度范围，输入值即正负范围",
         subtype='ANGLE',
         default=math.radians(25),
         min=0,

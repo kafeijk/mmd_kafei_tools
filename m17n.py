@@ -261,8 +261,8 @@ translation_dict = {
         ("*", "眼睛横向左右扫过的角度范围，输入值即正负范围"):
             "Angular range swept horizontally by the eye; the input value is the plus/minus range",
         ("*", "竖向采样区域"): "Vertical Sampling Range",
-        ("*", "眼白竖向上下扫过的角度范围，输入值即正负范围"):
-            "Angular range swept vertically by the eye white; the input value is the plus/minus range",
+        ("*", "眼睛竖向上下扫过的角度范围，输入值即正负范围"):
+            "Angular range swept vertically by the eye; the input value is the plus/minus range",
         ("*", "采样步长"): "Sampling Step",
         ("*", "采样步长，值越小扫过区域越精细"):
             "Sampling step; smaller values make the swept area finer",
