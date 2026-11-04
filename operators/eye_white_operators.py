@@ -550,6 +550,9 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             eye_white_copies, armature, white_left_name, white_right_name)
         eye_counterparts = {}
         left_eyes, right_eyes = split_objects_by_side(eye_copies, armature, "左眼a", "右眼a", eye_counterparts)
+        # 确保左右眼白代理可见
+        for obj in left_whites + right_whites:
+            show_object(obj)
 
         # 每侧只取顶点数最多的眼睛对象；另一侧优先用同源拆分的对象
         left_eye = select_eye_object(left_eyes)
