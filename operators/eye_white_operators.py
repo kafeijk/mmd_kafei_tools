@@ -118,24 +118,37 @@ def split_by_side(obj, armature):
     return left_obj, obj
 
 
-def split_objects_by_side(objs, armature, left_name, right_name):
-    """批量左右拆分并重命名，无顶点的网格对象直接移除"""
+def split_objects_by_side(objs, armature, left_name, right_name, counterparts=None):
+    """批量左右拆分并重命名，无顶点的网格对象直接移除；counterparts 记录左右配对关系"""
     left_objs, right_objs = [], []
     for obj in objs:
         left_obj, right_obj = split_by_side(obj, armature)
         if left_obj is not None:
             if not left_obj.data.vertices:
                 bpy.data.objects.remove(left_obj, do_unlink=True)
+                left_obj = None
             else:
                 left_obj.name = left_name
                 left_objs.append(left_obj)
         if right_obj is not None:
             if not right_obj.data.vertices:
                 bpy.data.objects.remove(right_obj, do_unlink=True)
+                right_obj = None
             else:
                 right_obj.name = right_name
                 right_objs.append(right_obj)
+
+        if counterparts is not None and left_obj is not None and right_obj is not None:
+            counterparts[left_obj] = right_obj
+            counterparts[right_obj] = left_obj
     return left_objs, right_objs
+
+
+def select_eye_object(objs):
+    """选择顶点数最多的眼睛对象"""
+    if not objs:
+        return None
+    return max(objs, key=lambda obj: len(obj.data.vertices))
 
 
 def apply_armature_modifier(obj):
@@ -367,8 +380,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         for obj in eye_white_copies + eye_copies:
             show_object(obj)
 
-        # 隐藏源眼白对象、源眼睛对象
-        for obj in list(eye_objs) + list(eye_white_objs):
+        # 隐藏源眼白对象
+        for obj in list(eye_white_objs):
             set_visibility(obj, (False, True, False, True))
 
         # 移除拷贝对象的父级，避免导出等操作时，被当成MMD模型，导致结果异常
@@ -382,14 +395,28 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             merge_vertices_by_distance(obj, EYE_WHITE_WELD_THRESHOLD)
 
         # 拆分左右眼白、左右眼
-        left_whites, right_whites = split_objects_by_side(
-            eye_white_copies, armature, "左眼白a", "右眼白a")
-        left_eyes, right_eyes = split_objects_by_side(
-            eye_copies, armature, "左眼a", "右眼a")
+        left_whites, right_whites = split_objects_by_side(eye_white_copies, armature, "左眼白a", "右眼白a")
+        eye_counterparts = {}
+        left_eyes, right_eyes = split_objects_by_side(eye_copies, armature, "左眼a", "右眼a", eye_counterparts)
+
+        # 每侧只取顶点数最多的眼睛对象；另一侧优先用同源拆分的对象
+        left_eye = select_eye_object(left_eyes)
+        right_eye = eye_counterparts.get(left_eye)
+        if right_eye is None:
+            right_eye = select_eye_object(right_eyes)
 
         # 构建缩裹对象：根据左右眼沿両目全局 Z 轴扫过的区域生成
-        left_target = build_swept_eye(context, armature, left_eyes, collection, "左眼c")
-        right_target = build_swept_eye(context, armature, right_eyes, collection, "右眼c")
+        left_target = build_swept_eye(context, armature, [left_eye] if left_eye else [], collection, "左眼c")
+        right_target = build_swept_eye(context, armature, [right_eye] if right_eye else [], collection, "右眼c")
+        for target in (left_target, right_target):
+            if target is not None:
+                set_visibility(target, (False, True, False, True))
+
+        # 眼睛拷贝仅用于生成扫过区域，之后统一删除
+        for obj in left_eyes + right_eyes:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        left_eyes.clear()
+        right_eyes.clear()
 
         for obj in left_whites:
             if left_target is None:
@@ -403,8 +430,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             add_shrinkwrap_vertex_group(obj)
             add_eye_white_modifiers(obj, right_target)
 
-        # 关闭阴影射线可见性：源眼白/眼睛、对应的拷贝对象与扫过区域都不再投射阴影
-        shadow_objs = list(eye_objs) + list(eye_white_objs) + left_whites + right_whites + left_eyes + right_eyes
+        # 关闭阴影射线可见性：源眼白/眼睛、眼白拷贝与扫过区域都不再投射阴影
+        shadow_objs = list(eye_objs) + list(eye_white_objs) + left_whites + right_whites
         shadow_objs += [target for target in (left_target, right_target) if target is not None]
         for obj in shadow_objs:
             obj.visible_shadow = False
