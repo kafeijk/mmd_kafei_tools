@@ -4,6 +4,7 @@ import bpy
 
 
 class FixEyeWhiteProperty(bpy.types.PropertyGroup):
+    # 支持多个眼白对象，可能原生就是一左一右
     eye_white: bpy.props.StringProperty(
         name="眼白",
         description="眼白对象名称，可用中英文逗号分隔多个名称",
