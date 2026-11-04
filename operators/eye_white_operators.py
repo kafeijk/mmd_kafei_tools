@@ -166,7 +166,9 @@ def get_eye_white_material():
     node_tree = material.node_tree
     node_tree.nodes.clear()
     output = node_tree.nodes.new(type='ShaderNodeOutputMaterial')
+    output.location = (0.0, 0.0)
     bsdf = node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
+    bsdf.location = (-300.0, 0.0)
     node_tree.links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
     return material
 
