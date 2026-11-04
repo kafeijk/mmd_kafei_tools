@@ -1,5 +1,6 @@
 import math
 import re
+import time
 
 import bmesh
 import bpy
@@ -26,7 +27,7 @@ EYE_WHITE_HEAD_GROUP = "頭"
 EYE_WHITE_SWEEP_BONE_NAME = "両目"
 EYE_WHITE_SWEEP_BONES = ("目.R", "目.L")
 EYE_WHITE_SWEEP_LIMIT = 25.0
-EYE_WHITE_SWEEP_STEP = 1.0
+EYE_WHITE_SWEEP_STEP = 2.0
 # 绕世界坐标的 Z 轴旋转，避免骨骼局部轴朝向不同导致变成上下翻转
 EYE_WHITE_SWEEP_AXIS = Vector((0.0, 0.0, 1.0))
 # 除绕世界 Z 轴外，还需要绕世界 X 轴扫过
@@ -34,6 +35,8 @@ EYE_WHITE_SWEEP_AXIS_X = Vector((1.0, 0.0, 0.0))
 EYE_WHITE_SWEEP_LIMIT_X = 20.0
 EYE_WHITE_WELD_THRESHOLD = 1e-6
 EYE_WHITE_SHRINKWRAP_OFFSET = 0.002
+EYE_WHITE_DISPLACE_STRENGTH = 1.0
+EYE_WHITE_DISPLACE_MID_LEVEL = 0.99
 EYE_WHITE_SMOOTH_FACTOR = 1.0
 EYE_WHITE_SMOOTH_ITERATIONS = 5
 EYE_WHITE_MATERIAL_NAME = "默认眼白"
@@ -316,6 +319,30 @@ def setup_target_vertex_groups(obj):
         scope.add(scope_indices, 1.0, 'REPLACE')
 
 
+def copy_armature_modifier(obj, source):
+    """为物体添加与源物体一致的骨架修改器：按 RNA 属性逐个复制"""
+    for modifier in source.modifiers:
+        if modifier.type != 'ARMATURE':
+            continue
+
+        armature_modifier = obj.modifiers.new(name=modifier.name, type='ARMATURE')
+        for prop in modifier.bl_rna.properties:
+            if prop.identifier in ("rna_type", "name", "type") or prop.is_readonly:
+                continue
+            setattr(armature_modifier, prop.identifier, getattr(modifier, prop.identifier))
+        return armature_modifier
+    return None
+
+
+def show_armature_modifiers(objs):
+    """统一确保骨架修改器在视图与渲染中都可见"""
+    for obj in objs:
+        for modifier in obj.modifiers:
+            if modifier.type == 'ARMATURE':
+                modifier.show_viewport = True
+                modifier.show_render = True
+
+
 def get_boundary_indices(obj):
     """获取边界顶点索引（骨架修改器只变形、不改变拓扑，直接读基础网格即可）"""
     bm = bmesh.new()
@@ -346,7 +373,14 @@ def add_shrinkwrap_vertex_group(obj):
 
 
 def add_eye_white_modifiers(obj, target):
-    """为眼白添加缩裹、平滑、加权法向修改器"""
+    """为眼白添加置换、缩裹、加权法向修改器"""
+    displace = obj.modifiers.new(name="置换", type='DISPLACE')
+    displace.direction = 'Y'
+    displace.texture_coords = 'LOCAL'
+    displace.strength = EYE_WHITE_DISPLACE_STRENGTH
+    displace.mid_level = EYE_WHITE_DISPLACE_MID_LEVEL
+    displace.vertex_group = EYE_WHITE_VERTEX_GROUP
+
     shrinkwrap = obj.modifiers.new(name="眼白缩裹", type='SHRINKWRAP')
     shrinkwrap.target = target
     shrinkwrap.offset = EYE_WHITE_SHRINKWRAP_OFFSET
@@ -415,6 +449,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
 
     def repair(self, context):
         """复制眼白与眼睛，按左右拆分后把眼白缩裹到眼睛旋转扫过的区域"""
+        start_time = time.time()
+
         props = context.scene.mmd_kafei_tools_fix_eye_white
         eye_objs = get_mesh_objects(props.eye)
         eye_white_objs = get_mesh_objects(props.eye_white)
@@ -458,10 +494,12 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             context, armature,
             [left_eye] if left_eye else [], [right_eye] if right_eye else [],
             collection, "左眼c", "右眼c")
-        for target in (left_target, right_target):
-            if target is not None:
-                setup_target_vertex_groups(target)
-                set_visibility(target, (False, True, False, True))
+        for target, whites in ((left_target, left_whites), (right_target, right_whites)):
+            if target is None or not whites:
+                continue
+            setup_target_vertex_groups(target)
+            copy_armature_modifier(target, whites[0])
+            set_visibility(target, (False, True, False, True))
 
         # 眼睛拷贝仅用于生成扫过区域，之后统一删除
         for obj in left_eyes + right_eyes:
@@ -481,6 +519,11 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             add_shrinkwrap_vertex_group(obj)
             add_eye_white_modifiers(obj, right_target)
 
+        # 统一确保眼白与扫过区域的骨架修改器在视图与渲染中可见
+        show_armature_modifiers(
+            left_whites + right_whites
+            + [target for target in (left_target, right_target) if target is not None])
+
         # 关闭阴影射线可见性：源眼白/眼睛、眼白拷贝与扫过区域都不再投射阴影
         shadow_objs = list(eye_objs) + list(eye_white_objs) + left_whites + right_whites
         shadow_objs += [target for target in (left_target, right_target) if target is not None]
@@ -494,6 +537,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         for target in (left_target, right_target):
             if target is not None:
                 set_object_material(target, material)
+
+        print(f"修复眼白发黑总耗时：{time.time() - start_time:.2f}s")
 
 
 class AddEyeWhiteObjectNameOperator(bpy.types.Operator):
