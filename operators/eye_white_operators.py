@@ -26,13 +26,10 @@ EYE_WHITE_VERTEX_GROUP = "缩裹范围"
 EYE_WHITE_HEAD_GROUP = "頭"
 EYE_WHITE_SWEEP_BONE_NAME = "両目"
 EYE_WHITE_SWEEP_BONES = ("目.R", "目.L")
-EYE_WHITE_SWEEP_LIMIT = 25.0
-EYE_WHITE_SWEEP_STEP = 2.0
 # 绕世界坐标的 Z 轴旋转，避免骨骼局部轴朝向不同导致变成上下翻转
 EYE_WHITE_SWEEP_AXIS = Vector((0.0, 0.0, 1.0))
 # 除绕世界 Z 轴外，还需要绕世界 X 轴扫过
 EYE_WHITE_SWEEP_AXIS_X = Vector((1.0, 0.0, 0.0))
-EYE_WHITE_SWEEP_LIMIT_X = 20.0
 EYE_WHITE_WELD_THRESHOLD = 1e-6
 EYE_WHITE_SHRINKWRAP_OFFSET = 0.002
 EYE_WHITE_DISPLACE_STRENGTH = 1.0
@@ -248,22 +245,24 @@ def bake_evaluated_mesh(source, collection, name):
     return obj
 
 
-def get_sweep_samples():
-    """旋转采样：绕世界 Z 轴 ±25°、绕世界 X 轴 ±20°，均按 1° 步进"""
+def get_sweep_samples(limit, limit_x, step):
+    """旋转采样：绕世界 Z 轴 ±横向采样区域、绕世界 X 轴 ±竖向采样区域，按采样精度步进"""
     samples = []
-    for axis, limit in (
-            (EYE_WHITE_SWEEP_AXIS, EYE_WHITE_SWEEP_LIMIT),
-            (EYE_WHITE_SWEEP_AXIS_X, EYE_WHITE_SWEEP_LIMIT_X),
+    step_degrees = math.degrees(step)
+    for axis, axis_limit in (
+            (EYE_WHITE_SWEEP_AXIS, math.degrees(limit)),
+            (EYE_WHITE_SWEEP_AXIS_X, math.degrees(limit_x)),
     ):
-        count = int(round(2 * limit / EYE_WHITE_SWEEP_STEP)) + 1
+        count = int(round(2 * axis_limit / step_degrees)) + 1
         samples.extend(
-            (axis, math.radians(-limit + index * EYE_WHITE_SWEEP_STEP))
+            (axis, math.radians(-axis_limit + index * step_degrees))
             for index in range(count)
         )
     return samples
 
 
-def build_swept_eyes(context, armature, left_sources, right_sources, collection, left_name, right_name):
+def build_swept_eyes(context, armature, left_sources, right_sources, collection, left_name, right_name,
+                     limit, limit_x, step):
     """同时生成左右扫过区域：每档姿态只刷新一次视图层"""
     if not left_sources and not right_sources:
         return None, None
@@ -278,7 +277,7 @@ def build_swept_eyes(context, armature, left_sources, right_sources, collection,
         for bone in bones:
             bone.rotation_mode = 'QUATERNION'
 
-        for index, (axis, angle) in enumerate(get_sweep_samples()):
+        for index, (axis, angle) in enumerate(get_sweep_samples(limit, limit_x, step)):
             for bone in bones:
                 bone.rotation_quaternion = get_world_axis_quaternion(
                     armature, bone, axis, angle)
@@ -493,7 +492,7 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         left_target, right_target = build_swept_eyes(
             context, armature,
             [left_eye] if left_eye else [], [right_eye] if right_eye else [],
-            collection, "左眼c", "右眼c")
+            collection, "左眼c", "右眼c", props.sweep_limit, props.sweep_limit_x, props.sweep_step)
         for target, whites in ((left_target, left_whites), (right_target, right_whites)):
             if target is None or not whites:
                 continue

@@ -254,6 +254,18 @@ translation_dict = {
             "Eye white object names, separate multiple names with English or Chinese commas",
         ("*", "眼睛对象名称，可用中英文逗号分隔多个名称"):
             "Eye object names, separate multiple names with English or Chinese commas",
+        ("*", "显示采样参数"): "Show Sampling Parameters",
+        ("*", "勾选后显示具体采样参数"):
+            "Show the specific sampling parameters when checked",
+        ("*", "横向采样区域"): "Horizontal Sampling Range",
+        ("*", "眼睛横向左右扫过的角度范围，输入值即正负范围"):
+            "Angular range swept horizontally by the eye; the input value is the plus/minus range",
+        ("*", "竖向采样区域"): "Vertical Sampling Range",
+        ("*", "眼白竖向上下扫过的角度范围，输入值即正负范围"):
+            "Angular range swept vertically by the eye white; the input value is the plus/minus range",
+        ("*", "采样步长"): "Sampling Step",
+        ("*", "采样步长，值越小扫过区域越精细"):
+            "Sampling step; smaller values make the swept area finer",
         ("*", "将眼白缩裹到眼睛的旋转扫过区域，修复眼睛转动时眼白发黑"):
             "Shrinkwrap the eye white onto the swept area of the rotating eye to fix dark eye whites",
         ("*", "添加选中对象名称"): "Add Selected Object Names",

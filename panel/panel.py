@@ -380,6 +380,12 @@ class SmallFeaturePanel(bpy.types.Panel):
             eye_add = row.operator(AddEyeWhiteObjectNameOperator.bl_idname, text="", icon="ADD")
             eye_add.target = "EYE"
 
+            col.prop(eye_white_props, "show_sweep_params")
+            if eye_white_props.show_sweep_params:
+                col.prop(eye_white_props, "sweep_limit")
+                col.prop(eye_white_props, "sweep_limit_x")
+                col.prop(eye_white_props, "sweep_step")
+
             col.operator(FixEyeWhiteOperator.bl_idname, text=FixEyeWhiteOperator.bl_label)
 
         elif option == "SCENE_ROOT":
