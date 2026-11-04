@@ -21,7 +21,7 @@ from ..utils import (
 
 
 # 眼白发黑修复：集合/顶点组名称、骨骼与旋转采样参数
-EYE_WHITE_COLLECTION_NAME = "眼白缩裹"
+EYE_WHITE_COLLECTION_NAME = "眼白代理集合"
 EYE_WHITE_VERTEX_GROUP = "缩裹范围"
 EYE_WHITE_HEAD_GROUP = "頭"
 EYE_WHITE_SWEEP_BONE_NAME = "両目"
@@ -37,6 +37,10 @@ EYE_WHITE_DISPLACE_MID_LEVEL = 0.99
 EYE_WHITE_SMOOTH_FACTOR = 1.0
 EYE_WHITE_SMOOTH_ITERATIONS = 5
 EYE_WHITE_MATERIAL_NAME = "默认眼白"
+# 生成对象记录所属模型根对象名称的自定义属性
+EYE_WHITE_ROOT_PROPERTY = "mmd_kafei_tools_fix_eye_white"
+# 对象名称字节数上限
+EYE_WHITE_NAME_MAX_BYTES = 63
 
 
 def split_object_names(text):
@@ -234,6 +238,44 @@ def get_eye_armatures(objs):
         if armature is not None and armature not in armatures:
             armatures.append(armature)
     return armatures
+
+
+def remove_previous_objects(root_name):
+    """删除全场景中记录为当前模型根对象的旧对象"""
+    for obj in list(bpy.context.scene.objects):
+        if obj.get(EYE_WHITE_ROOT_PROPERTY) == root_name:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+
+def has_other_model_objects(root_name):
+    """全场景中是否存在其他模型生成的旧对象"""
+    return any(
+        obj.get(EYE_WHITE_ROOT_PROPERTY) not in (None, root_name)
+        for obj in bpy.context.scene.objects
+    )
+
+
+def truncate_utf8(text, max_bytes):
+    """按 UTF-8 字节数截断字符串，不切断字符"""
+    result = []
+    total = 0
+    for char in text:
+        length = len(char.encode('utf-8'))
+        if total + length > max_bytes:
+            break
+        result.append(char)
+        total += length
+    return "".join(result)
+
+
+def prefix_object_name(name, root_name):
+    """为对象名添加模型 root 前缀；超出名称长度时截断 root 前缀而不是对象名"""
+    if not root_name:
+        return name
+    available = EYE_WHITE_NAME_MAX_BYTES - len(name.encode('utf-8')) - 1
+    if available <= 0:
+        return name
+    return f"{truncate_utf8(root_name, available)}_{name}"
 
 
 def bake_evaluated_mesh(source, collection, name):
@@ -457,7 +499,18 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         eye_white_objs = get_mesh_objects(props.eye_white)
 
         armature = get_eye_armatures(eye_objs + eye_white_objs)[0]
+        root_name = find_pmx_root_with_child(armature).name
         collection = get_collection(EYE_WHITE_COLLECTION_NAME)
+
+        # 删除同一模型上次生成的旧对象
+        remove_previous_objects(root_name)
+
+        # 全场景存在其他模型的旧对象时，生成对象名添加 root 前缀以便区分
+        prefix = root_name if has_other_model_objects(root_name) else ""
+        white_left_name = prefix_object_name("眼白代理_左", prefix)
+        white_right_name = prefix_object_name("眼白代理_右", prefix)
+        target_left_name = prefix_object_name("眼白目标缩裹_左", prefix)
+        target_right_name = prefix_object_name("眼白目标缩裹_右", prefix)
 
         # 拷贝眼白对象、眼睛对象
         eye_white_copies = [copy_obj(obj, "眼白代理", collection) for obj in eye_white_objs]
@@ -480,7 +533,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             merge_vertices_by_distance(obj, EYE_WHITE_WELD_THRESHOLD)
 
         # 拆分左右眼白、左右眼
-        left_whites, right_whites = split_objects_by_side(eye_white_copies, armature, "眼白代理_左", "眼白代理_右")
+        left_whites, right_whites = split_objects_by_side(
+            eye_white_copies, armature, white_left_name, white_right_name)
         eye_counterparts = {}
         left_eyes, right_eyes = split_objects_by_side(eye_copies, armature, "左眼a", "右眼a", eye_counterparts)
 
@@ -494,7 +548,7 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         left_target, right_target = build_swept_eyes(
             context, armature,
             [left_eye] if left_eye else [], [right_eye] if right_eye else [],
-            collection, "眼白目标缩裹_左", "眼白目标缩裹_右",
+            collection, target_left_name, target_right_name,
             props.sweep_limit, props.sweep_limit_x, props.sweep_step)
         for target, whites in ((left_target, left_whites), (right_target, right_whites)):
             if target is None or not whites:
@@ -502,6 +556,12 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             setup_target_vertex_groups(target)
             copy_armature_modifier(target, whites[0])
             set_visibility(target, (False, True, False, True))
+
+        # 生成对象记录所属模型根对象名称，便于下次执行时清理
+        generated_objs = left_whites + right_whites + [
+            target for target in (left_target, right_target) if target is not None]
+        for obj in generated_objs:
+            obj[EYE_WHITE_ROOT_PROPERTY] = root_name
 
         # 眼睛拷贝仅用于生成扫过区域，之后统一删除
         for obj in left_eyes + right_eyes:
