@@ -32,6 +32,7 @@ EYE_WHITE_WELD_THRESHOLD = 1e-6
 EYE_WHITE_SHRINKWRAP_OFFSET = 0.002
 EYE_WHITE_SMOOTH_FACTOR = 1.0
 EYE_WHITE_SMOOTH_ITERATIONS = 5
+EYE_WHITE_MATERIAL_NAME = "默认眼白"
 
 
 def split_object_names(text):
@@ -151,15 +152,25 @@ def select_eye_object(objs):
     return max(objs, key=lambda obj: len(obj.data.vertices))
 
 
-def apply_armature_modifier(obj):
-    """应用物体的骨架修改器"""
-    modifier = next((modifier for modifier in obj.modifiers if modifier.type == 'ARMATURE'), None)
-    if modifier is None:
-        return
+def get_eye_white_material():
+    """获取/创建“默认眼白”材质：仅原理化BSDF（默认参数）连接材质输出"""
+    material = bpy.data.materials.get(EYE_WHITE_MATERIAL_NAME)
+    if material is None:
+        material = bpy.data.materials.new(EYE_WHITE_MATERIAL_NAME)
 
-    deselect_all_objects()
-    select_and_activate(obj)
-    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    material.use_nodes = True
+    node_tree = material.node_tree
+    node_tree.nodes.clear()
+    output = node_tree.nodes.new(type='ShaderNodeOutputMaterial')
+    bsdf = node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
+    node_tree.links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+    return material
+
+
+def set_object_material(obj, material):
+    """把物体材质替换为指定材质"""
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
 
 
 def join_objects(objs, name):
@@ -219,8 +230,19 @@ def get_eye_armatures(objs):
     return armatures
 
 
+def bake_evaluated_mesh(source, collection, name):
+    """把物体当前求值结果（含骨架变形）烘焙为新的网格对象"""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    mesh = bpy.data.meshes.new_from_object(source.evaluated_get(depsgraph))
+    mesh.name = name
+    obj = bpy.data.objects.new(name, mesh)
+    obj.matrix_world = source.matrix_world
+    collection.objects.link(obj)
+    return obj
+
+
 def build_swept_eye(context, armature, sources, collection, name):
-    """逐个旋转姿态复制眼睛并应用骨架修改器，合并为眼睛扫过的区域"""
+    """逐个旋转姿态烘焙眼睛网格，合并为眼睛扫过的区域"""
     if not sources:
         return None
 
@@ -246,19 +268,8 @@ def build_swept_eye(context, armature, sources, collection, name):
                     armature, bone, EYE_WHITE_SWEEP_AXIS, angle)
             context.view_layer.update()
 
-            parts_of_angle = [
-                copy_obj(source, f"{source.name}_b{index}", collection)
-                for source in sources
-            ]
-            # 复制体先进入视图层，再统一恢复可见、可选（源对象可能已被隐藏）
-            context.view_layer.update()
-            for part in parts_of_angle:
-                show_object(part)
-                # 含形态键时先清除，否则骨架修改器无法应用
-                if part.data.shape_keys:
-                    part.shape_key_clear()
-                apply_armature_modifier(part)
-                parts.append(part)
+            for source in sources:
+                parts.append(bake_evaluated_mesh(source, collection, f"{source.name}_b{index}"))
     finally:
         for bone, rotation_mode, matrix_basis in states:
             bone.rotation_mode = rotation_mode
@@ -435,6 +446,14 @@ class FixEyeWhiteOperator(bpy.types.Operator):
         shadow_objs += [target for target in (left_target, right_target) if target is not None]
         for obj in shadow_objs:
             obj.visible_shadow = False
+
+        # 左右眼白与扫过区域统一使用“默认眼白”材质
+        material = get_eye_white_material()
+        for obj in left_whites + right_whites:
+            set_object_material(obj, material)
+        for target in (left_target, right_target):
+            if target is not None:
+                set_object_material(target, material)
 
 
 class AddEyeWhiteObjectNameOperator(bpy.types.Operator):
