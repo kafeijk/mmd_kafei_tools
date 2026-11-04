@@ -403,6 +403,12 @@ class FixEyeWhiteOperator(bpy.types.Operator):
             add_shrinkwrap_vertex_group(obj)
             add_eye_white_modifiers(obj, right_target)
 
+        # 关闭阴影射线可见性：源眼白/眼睛、对应的拷贝对象与扫过区域都不再投射阴影
+        shadow_objs = list(eye_objs) + list(eye_white_objs) + left_whites + right_whites + left_eyes + right_eyes
+        shadow_objs += [target for target in (left_target, right_target) if target is not None]
+        for obj in shadow_objs:
+            obj.visible_shadow = False
+
 
 class AddEyeWhiteObjectNameOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.add_eye_white_name"
