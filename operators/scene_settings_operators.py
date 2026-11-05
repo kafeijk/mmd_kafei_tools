@@ -497,11 +497,11 @@ def set_cons(obj, target, subtarget=None):
 
 
 def get_light_controllers():
-    """按记录的 root 名称来分组插件生成的灯光控制器"""
+    """按记录的 root 名称来获取灯光控制器，每个 root 只有一个控制器"""
     controllers = {}
     for obj in bpy.data.objects:
         if obj.get(LIGHT_MARKER) == LIGHT_CONTROLLER_ATTR:
-            controllers.setdefault(obj.get(LIGHT_ROOT_PROPERTY), []).append(obj)
+            controllers.setdefault(obj.get(LIGHT_ROOT_PROPERTY), obj)
     return controllers
 
 
@@ -681,7 +681,8 @@ def arrange_light_groups(props):
             move_to_collection(obj, collection)
             obj.name = f"{root_name}_{light_name}" if prefixed else light_name
 
-        for controller in controllers.get(root_name, []):
+        controller = controllers.get(root_name)
+        if controller is not None:
             move_to_collection(controller, collection)
             controller.name = (f"{root_name}_{controller_name}" if prefixed
                                else controller_name)
@@ -815,8 +816,7 @@ class LightSettingsOperator(bpy.types.Operator):
             # 否则整个场景只保留一组灯光
             rebuild_root_names = set(groups) | set(controllers)
         for root_name in rebuild_root_names:
-            for controller in controllers.get(root_name) or [None]:
-                remove_light_group(groups.get(root_name, {}), controller, root_name)
+            remove_light_group(groups.get(root_name, {}), controllers.get(root_name), root_name)
 
         # ---------- 创建三盏灯 ----------
         lights = []
