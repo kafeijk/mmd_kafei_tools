@@ -130,6 +130,14 @@ def update_light_transforms(self, context):
         apply_light_transforms([group[light_role] for light_role in LIGHT_ROLES], self)
 
 
+def update_light_linking(self, context):
+    """“目标间互不影响”变化时，实时更新所有插件灯光的链接排除"""
+    if self.light_type != "AREA":
+        return
+    from ..operators.scene_settings_operators import sync_light_linking
+    sync_light_linking(self.independent)
+
+
 def update_preset(self, context):
     """颜色预设变化时，若三盏灯齐全则实时更新颜色"""
     colors = LIGHT_COLOR_PRESETS.get(self.preset, LIGHT_COLOR_PRESETS["DEFAULT"])
@@ -177,10 +185,21 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     )
 
     # ---------------------- 灯光参数 ----------------------
-    mutex: bpy.props.BoolProperty(
-        name="按角色生成",
-        description="为每个角色独立创建一组灯光，并通过灯光链接排除其它角色；不勾选时整个场景只使用一组灯光",
-        default=True
+    light_type: bpy.props.EnumProperty(
+        name="灯光类型",
+        description="面光可为每个目标创建一组灯光；面光（复用）整个场景只保留一组灯光",
+        items=[
+            ("AREA", "面光", "为每个目标创建一组灯光"),
+            ("AREA_REUSE", "面光（复用）", "整个场景只保留一组灯光"),
+        ],
+        default="AREA"
+    )
+
+    independent: bpy.props.BoolProperty(
+        name="目标间互不影响",
+        description="通过灯光链接排除其它目标的网格，使各目标的灯光互不影响",
+        default=True,
+        update=update_light_linking
     )
 
     preset: bpy.props.EnumProperty(
@@ -231,7 +250,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
 
     show_advanced: bpy.props.BoolProperty(
         name="显示更多参数",
-        description="勾选后显示距离、旋转与按角色生成参数",
+        description="勾选后显示距离与灯光类型参数",
         default=False
     )
 

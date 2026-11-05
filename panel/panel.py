@@ -274,6 +274,9 @@ class LightSettingsPanel(bpy.types.Panel):
         if props.show_advanced:
             box = col.box()
             box_col = box.column()
+            box_col.prop(props, "light_type")
+            if props.light_type == "AREA":
+                box_col.prop(props, "independent")
             box_col.prop(props, "key_energy")
             box_col.prop(props, "fill_energy")
             box_col.prop(props, "back_energy")
@@ -281,7 +284,6 @@ class LightSettingsPanel(bpy.types.Panel):
             box_col.prop(props, "key_distance")
             box_col.prop(props, "fill_distance")
             box_col.prop(props, "back_distance")
-            box_col.prop(props, "mutex")
 
         row = col.row(align=True)
         row.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)

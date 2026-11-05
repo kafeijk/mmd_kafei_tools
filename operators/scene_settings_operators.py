@@ -627,6 +627,27 @@ def apply_light_linking(lights, root_name, other_root_names):
         entry.light_linking.link_state = 'EXCLUDE'
 
 
+def sync_light_linking(independent):
+    """按目标间互不影响开关，实时更新所有插件灯光的链接排除"""
+    all_groups = get_light_groups(bpy.context.scene)
+    if independent:
+        # 所有灯光组都排除其它目标的网格，但依然可以照亮场景
+        all_root_names = {root_name for root_name in all_groups if root_name is not None}
+        for root_name, root_group in all_groups.items():
+            if root_name is None or not is_complete_light_group(root_group):
+                continue
+            apply_light_linking([root_group[light_role] for light_role in LIGHT_ROLES],
+                                root_name, all_root_names - {root_name})
+        return
+
+    # 不需要互不影响时清理已有的灯光排除集合
+    for root_group in all_groups.values():
+        if not is_complete_light_group(root_group):
+            continue
+        apply_light_linking([root_group[light_role] for light_role in LIGHT_ROLES],
+                            root_group[LIGHT_ROLES[0]].get(LIGHT_ROOT_PROPERTY), set())
+
+
 def move_to_collection(obj, collection):
     """把对象移动到指定集合"""
     for other in list(obj.users_collection):
@@ -649,7 +670,7 @@ def link_collection(parent, collection):
 
 
 def arrange_light_groups(props):
-    """按互斥与灯光组数整理灯光所属集合及对象命名"""
+    """按灯光类型与灯光组数整理灯光所属集合及对象命名"""
     scene = bpy.context.scene
     light_coll = get_collection(translate("灯光"))
     groups = get_light_groups(scene)
@@ -657,8 +678,8 @@ def arrange_light_groups(props):
 
     root_names = [root_name for root_name, group in groups.items()
                   if root_name is not None and is_complete_light_group(group)]
-    # 互斥且存在多组时，按 root 分组到子集合并使用 root 前缀命名
-    prefixed = props.mutex and len(root_names) > 1
+    # 面光且存在多组时，按 root 分组到子集合并使用 root 前缀命名
+    prefixed = props.light_type == "AREA" and len(root_names) > 1
     sub_suffix = f"_{translate('灯光')}"
     light_names = (translate("主光"), translate("辅光"), translate("背光"))
     controller_name = translate("灯光控制器")
@@ -814,8 +835,10 @@ class LightSettingsOperator(bpy.types.Operator):
         colors = LIGHT_COLOR_PRESETS.get(props.preset, LIGHT_COLOR_PRESETS["DEFAULT"])
 
         # ---------- 目标与 root ----------
-        # 按角色生成时，选中的多个角色一并生成灯光
-        selected_objects = list(context.selected_objects) if props.mutex else []
+        # 面光为每个选中目标生成一组灯光，面光（复用）只保留一组
+        multi_group = props.light_type == "AREA"
+        exclude_targets = multi_group and props.independent
+        selected_objects = list(context.selected_objects) if multi_group else []
         target_list = []
         used_root_names = set()
         for obj in [active_obj, *selected_objects]:
@@ -837,8 +860,8 @@ class LightSettingsOperator(bpy.types.Operator):
         # 每次执行都按当前选中对象重建灯光，不再复用已有灯光
         groups = get_light_groups(scene)
         controllers = get_light_controllers()
-        if props.mutex:
-            # 按角色生成时重建选中角色的灯光和旧版（无 root 记录）的灯光，其它模型的灯光组保留
+        if multi_group:
+            # 面光时重建选中目标的灯光和旧版（无 root 记录）的灯光，其它目标的灯光组保留
             rebuild_root_names = used_root_names | {None}
             # 对应 root 对象已不存在的灯光组一并移除
             for root_name in set(groups) | set(controllers):
@@ -882,20 +905,7 @@ class LightSettingsOperator(bpy.types.Operator):
                 set_cons(light, light_root)
 
         # ---------- 灯光链接 ----------
-        if props.mutex:
-            # 所有灯光组都排除其它 root 的网格，保证模型之间互不影响，但是依然可以照亮场景
-            all_groups = get_light_groups(scene)
-            all_root_names = {root_name for root_name in all_groups if root_name is not None}
-            for root_name, root_group in all_groups.items():
-                if root_name is None or not is_complete_light_group(root_group):
-                    continue
-                apply_light_linking([root_group[light_role] for light_role in LIGHT_ROLES],
-                                    root_name, all_root_names - {root_name})
-        else:
-            root_name = target_list[0][0]
-            root_group = get_light_groups(scene).get(root_name, {})
-            apply_light_linking([root_group[light_role] for light_role in LIGHT_ROLES],
-                                root_name, set())
+        sync_light_linking(exclude_targets)
 
         # ---------- 集合与命名 ----------
         arrange_light_groups(props)

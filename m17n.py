@@ -147,8 +147,8 @@ translation_dict = {
         ("*", "左"): "Left",
         ("*", "右"): "Right",
         ("*", "显示更多参数"): "Show More Parameters",
-        ("*", "勾选后显示距离、旋转与按角色生成参数"):
-            "Show distance, rotation and generate by character options",
+        ("*", "勾选后显示距离、旋转与灯光类型参数"):
+            "Show distance, rotation and light type options",
         ("*", "主光功率"): "Key Light Power",
         ("*", "辅光功率"): "Fill Light Power",
         ("*", "背光功率"): "Back Light Power",
@@ -160,10 +160,16 @@ translation_dict = {
         ("*", "辅光"): "FillLight",
         ("*", "背光"): "BackLight",
         ("*", "灯光控制器"): "LightController",
-        ("*", "按角色生成"): "Generate Per Character",
-        ("*", "为每个角色独立创建一组灯光，并通过灯光链接排除其它角色；不勾选时整个场景只使用一组灯光"):
-            "Create an independent light set for each character and exclude other characters via light linking; "
-            "use a single light set for the whole scene when unchecked",
+        ("*", "灯光类型"): "Light Type",
+        ("*", "面光"): "Area Light",
+        ("*", "面光（复用）"): "Area Light (Reuse)",
+        ("*", "面光可为每个目标创建一组灯光；面光（复用）整个场景只保留一组灯光"):
+            "Area Light creates a light set for each target; Area Light (Reuse) keeps a single light set for the scene",
+        ("*", "为每个目标创建一组灯光"): "Create a light set for each target",
+        ("*", "整个场景只保留一组灯光"): "Keep a single light set for the scene",
+        ("*", "目标间互不影响"): "Targets Independent",
+        ("*", "通过灯光链接排除其它目标的网格，使各目标的灯光互不影响"):
+            "Exclude other targets' meshes via light linking so their lights do not affect each other",
         ("*", "灯光排除"): "Light Exclusion",
         ("*", "色彩空间调整"): "Color Space Change",
         ("*", "源色彩空间"): "Source Color Space",
