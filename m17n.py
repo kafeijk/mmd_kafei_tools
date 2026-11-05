@@ -146,13 +146,19 @@ translation_dict = {
         ("*", "左"): "Left",
         ("*", "右"): "Right",
         ("*", "背光角度"): "Back Light Angle",
-        ("*", "距离和旋转"): "Distance & Rotation",
-        ("*", "勾选后显示距离与旋转参数"): "Show distance and rotation parameters",
+        ("*", "显示更多参数"): "Show More Parameters",
+        ("*", "勾选后显示距离、旋转与按角色生成参数"):
+            "Show distance, rotation and generate by character options",
         ("*", "灯光"): "Light",
         ("*", "主光"): "KeyLight",
         ("*", "辅光"): "FillLight",
         ("*", "背光"): "BackLight",
         ("*", "灯光控制器"): "LightController",
+        ("*", "按角色生成"): "Generate Per Character",
+        ("*", "为每个角色独立创建一组灯光，并通过灯光链接排除其它角色；不勾选时整个场景只使用一组灯光"):
+            "Create an independent light set for each character and exclude other characters via light linking; "
+            "use a single light set for the whole scene when unchecked",
+        ("*", "灯光排除"): "Light Exclusion",
         ("*", "色彩空间调整"): "Color Space Change",
         ("*", "源色彩空间"): "Source Color Space",
         ("*", "目标色彩空间"): "Target Color Space",

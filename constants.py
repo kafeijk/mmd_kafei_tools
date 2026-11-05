@@ -46,6 +46,15 @@ FILL_LIGHT_ANGLE = 60
 LIGHT_ROTATION_X = 75
 LIGHT_HEIGHT_ANGLE = 15
 LIGHT_SIZE = 1
+# 插件生成灯光的标识、记录的模型 root 属性与三盏灯的角色标识
+LIGHT_MARKER = "Tri-Lighting"
+LIGHT_ROOT_PROPERTY = "mmd_kafei_tools_light_root"
+LIGHT_ROLES = ("KeyLight", "FillLight", "BackLight")
+# 兼容旧版本的灯光角色标识
+LIGHT_ROLE_ALIASES = {"MainLight": "KeyLight"}
+# 灯光控制器标识与灯光链接排除集合名称
+LIGHT_CONTROLLER_ATTR = "LightRoot"
+LIGHT_EXCLUDE_COLLECTION = "灯光排除"
 # 三点照明颜色预设：#RRGGBB（主光, 辅光, 背光）
 LIGHT_COLOR_PRESETS = {
     "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),

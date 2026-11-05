@@ -6,10 +6,12 @@ import bpy
 from mathutils import Vector
 
 from ..constants import (BACK_LIGHT_ENERGY, CAMERA_Z_FACTOR, FILL_LIGHT_ANGLE, FILL_LIGHT_ENERGY,
-                         KEY_LIGHT_ANGLE, KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS, LIGHT_HEIGHT_ANGLE,
-                         LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
+                         KEY_LIGHT_ANGLE, KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS, LIGHT_CONTROLLER_ATTR,
+                         LIGHT_EXCLUDE_COLLECTION, LIGHT_HEIGHT_ANGLE, LIGHT_MARKER, LIGHT_ROLES,
+                         LIGHT_ROOT_PROPERTY, LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
 
-from ..properties.scene_settings_properties import apply_resolution_preset
+from ..properties.scene_settings_properties import (apply_resolution_preset, get_light_groups,
+                                                    is_complete_light_group)
 
 from .render_preview_operators import do_camera_to_view_selected, switch_to_camera_view
 from ..utils import (
@@ -17,10 +19,12 @@ from ..utils import (
     copy_obj,
     deselect_all_objects,
     find_ancestor,
+    find_rigid_body_parent,
     get_action_fcurves,
     get_collection,
     get_fcurve_frames,
     hex_to_rgb,
+    is_mmd_tools_enabled,
     restore_selection,
     safe_set,
     select_and_activate,
@@ -484,16 +488,206 @@ def set_cons(obj, target, subtarget=None):
     if subtarget:
         cons.subtarget = subtarget
 
-    with bpy.context.temp_override(object=obj, active_object=obj):
+    # 用 Blender 自带的「清除反向」
+    bpy.context.view_layer.update()
+    with bpy.context.temp_override(object=obj, active_object=obj,
+                                   selected_objects=[obj], selected_editable_objects=[obj]):
         bpy.ops.constraint.childof_clear_inverse(constraint=cons.name, owner='OBJECT')
 
 
-def get_obj_by_attr_value(attr_name, value):
+def get_light_controllers():
+    """按记录的 root 名称来分组插件生成的灯光控制器"""
+    controllers = {}
     for obj in bpy.data.objects:
-        if attr_name in obj.keys():  # keys() 返回对象的所有自定义属性名
-            if value == obj.get(attr_name):
-                return obj
-    return None
+        if obj.get(LIGHT_MARKER) == LIGHT_CONTROLLER_ATTR:
+            controllers.setdefault(obj.get(LIGHT_ROOT_PROPERTY), []).append(obj)
+    return controllers
+
+
+def remove_light_exclude_collection(root_name):
+    """删除该 root 对应的灯光链接排除集合"""
+    collection = bpy.data.collections.get(f"{translate(LIGHT_EXCLUDE_COLLECTION)}_{root_name}")
+    if collection is None:
+        return
+    for obj in list(collection.objects):
+        collection.objects.unlink(obj)
+    unlink(collection)
+    bpy.data.collections.remove(collection)
+
+
+def remove_light_group(group, controller=None, root_name=None):
+    """删除一组插件生成的灯光及其控制器"""
+    for obj in group.values():
+        light = obj.data
+        bpy.data.objects.remove(obj, do_unlink=True)
+        if light is not None and light.users == 0:
+            bpy.data.lights.remove(light)
+    if controller is not None:
+        bpy.data.objects.remove(controller, do_unlink=True)
+    if root_name is not None:
+        remove_light_exclude_collection(root_name)
+
+
+def is_rigid_body_object(obj, rigid_groups):
+    """对象是否位于 MMD 刚体分组下"""
+    ancestor = obj
+    while ancestor is not None:
+        if ancestor in rigid_groups:
+            return True
+        ancestor = ancestor.parent
+    return False
+
+
+def get_root_meshes(root_names):
+    """收集指定 root 下的网格，以及指向这些 root 骨架的修改器持有者"""
+    scene_objects = list(bpy.context.scene.objects)
+    # 缓存每个对象的最外层祖先，避免重复向上遍历
+    object_root_names = {obj: find_ancestor(obj).name for obj in scene_objects}
+
+    # 每个根对象只查找一次刚体分组，避免逐对象反复扫描子级
+    rigid_groups = set()
+    if is_mmd_tools_enabled():
+        for root in {find_ancestor(obj) for obj in scene_objects}:
+            rigid_group = find_rigid_body_parent(root)
+            if rigid_group is not None:
+                rigid_groups.add(rigid_group)
+
+    objects = []
+    for obj in scene_objects:
+        # 不收集刚体
+        if is_rigid_body_object(obj, rigid_groups):
+            continue
+        if obj.type == 'MESH' and object_root_names[obj] in root_names:
+            objects.append(obj)
+            continue
+        # 如果骨架修改器关联的骨架的root，在root_names中，则也会被收集
+        for modifier in obj.modifiers:
+            if modifier.type != 'ARMATURE':
+                continue
+            armature = modifier.object
+            if armature is None:
+                continue
+            armature_root_name = (object_root_names.get(armature)
+                                  or find_ancestor(armature).name)
+            if armature_root_name in root_names:
+                objects.append(obj)
+                break
+    return objects
+
+
+def supports_light_linking(light):
+    """当前 Blender 版本是否支持灯光链接与阴影链接"""
+    linking = getattr(light, "light_linking", None)
+    return (linking is not None
+            and hasattr(linking, "receiver_collection")
+            and hasattr(linking, "blocker_collection"))
+
+
+def apply_light_linking(lights, root_name, other_root_names):
+    """把其它 root 下的网格加入灯光链接与阴影链接并排除"""
+    if not all(supports_light_linking(light) for light in lights):
+        return
+
+    collection_name = f"{translate(LIGHT_EXCLUDE_COLLECTION)}_{root_name}"
+    collection = bpy.data.collections.get(collection_name)
+    meshes = get_root_meshes(other_root_names)
+
+    if not meshes:
+        for light in lights:
+            light.light_linking.receiver_collection = None
+            light.light_linking.blocker_collection = None
+        if collection is not None:
+            for obj in list(collection.objects):
+                collection.objects.unlink(obj)
+            unlink(collection)
+            bpy.data.collections.remove(collection)
+        return
+
+    if collection is None:
+        # 仅作为灯光链接的接收集合使用，不链接到大纲中，避免污染场景层级
+        collection = bpy.data.collections.new(collection_name)
+    else:
+        for obj in list(collection.objects):
+            collection.objects.unlink(obj)
+    for obj in meshes:
+        collection.objects.link(obj)
+
+    for light in lights:
+        light.light_linking.receiver_collection = collection
+        light.light_linking.blocker_collection = collection
+
+    # 集合内全部网格设为排除，仅照亮本 root
+    for entry in collection.collection_objects:
+        entry.light_linking.link_state = 'EXCLUDE'
+
+
+def move_to_collection(obj, collection):
+    """把对象移动到指定集合"""
+    for other in list(obj.users_collection):
+        if other != collection:
+            other.objects.unlink(obj)
+    if collection not in obj.users_collection:
+        collection.objects.link(obj)
+
+
+def link_collection(parent, collection):
+    """把集合挂到指定父级集合下"""
+    for other in bpy.data.collections:
+        entry = other.children.get(collection.name)
+        if entry is None:
+            continue
+        if other == parent:
+            return
+        other.children.unlink(collection)
+    parent.children.link(collection)
+
+
+def arrange_light_groups(props):
+    """按互斥与灯光组数整理灯光所属集合及对象命名"""
+    scene = bpy.context.scene
+    light_coll = get_collection(translate("灯光"))
+    groups = get_light_groups(scene)
+    controllers = get_light_controllers()
+
+    root_names = [root_name for root_name, group in groups.items()
+                  if root_name is not None and is_complete_light_group(group)]
+    # 互斥且存在多组时，按 root 分组到子集合并使用 root 前缀命名
+    prefixed = props.mutex and len(root_names) > 1
+    sub_suffix = f"_{translate('灯光')}"
+    light_names = (translate("主光"), translate("辅光"), translate("背光"))
+    controller_name = translate("灯光控制器")
+
+    used_collections = set()
+    for root_name in root_names:
+        group = groups[root_name]
+        if prefixed:
+            collection = bpy.data.collections.get(f"{root_name}{sub_suffix}")
+            if collection is None:
+                collection = bpy.data.collections.new(f"{root_name}{sub_suffix}")
+            link_collection(light_coll, collection)
+        else:
+            collection = light_coll
+        used_collections.add(collection)
+
+        for light_role, light_name in zip(LIGHT_ROLES, light_names):
+            obj = group.get(light_role)
+            if obj is None:
+                continue
+            move_to_collection(obj, collection)
+            obj.name = f"{root_name}_{light_name}" if prefixed else light_name
+
+        for controller in controllers.get(root_name, []):
+            move_to_collection(controller, collection)
+            controller.name = (f"{root_name}_{controller_name}" if prefixed
+                               else controller_name)
+
+    # 清理不再使用的空子集合
+    for child in list(light_coll.children):
+        if child in used_collections or child.objects:
+            continue
+        if child.name.endswith(sub_suffix):
+            unlink(child)
+            bpy.data.collections.remove(child)
 
 
 class LightSettingsOperator(bpy.types.Operator):
@@ -510,33 +704,17 @@ class LightSettingsOperator(bpy.types.Operator):
     # ------------------------------------------------------------------ #
     #  内部工具方法
     # ------------------------------------------------------------------ #
-    def _get_or_create_light(self, old_name: str, attr_value: str, energy: float, color_hex: str,
-                             new_name: str) -> bpy.types.Object:
+    def _create_light(self, attr_value: str, new_name: str) -> bpy.types.Object:
         """
-        查找已有灯光（兼容旧名和新名），不存在则新建
+        新建灯光
         Tri-Lighting 名称取自 https://docs.blender.org/manual/nb/3.6/addons/lighting/trilighting.html
         """
-        obj = get_obj_by_attr_value("Tri-Lighting", attr_value)
-        if not obj:
-            obj = get_obj_by_attr_value("Tri-Lighting", old_name)  # 兼容旧属性写法
-
-        if not obj:
-            light_data = bpy.data.lights.new(f"{attr_value}Data", type='AREA')
-            light_data.size = LIGHT_SIZE
-            light_data.energy = energy
-            light_data.volume_factor = 0
-            light_data.color = hex_to_rgb(color_hex)
-            obj = bpy.data.objects.new(new_name, light_data)
-            obj["Tri-Lighting"] = attr_value
-
-        # 兼容旧属性
-        if obj.name == old_name:
-            obj["Tri-Lighting"] = attr_value
-        # 兼容旧命名
-        obj.name = new_name
-
-        obj.data.color = hex_to_rgb(color_hex)
-
+        light_data = bpy.data.lights.new(f"{attr_value}Data", type='AREA')
+        light_data.size = LIGHT_SIZE
+        # todo 设为0的必要性？
+        light_data.volume_factor = 0
+        obj = bpy.data.objects.new(new_name, light_data)
+        obj[LIGHT_MARKER] = attr_value
         return obj
 
     # ------------------------------------------------------------------ #
@@ -595,75 +773,90 @@ class LightSettingsOperator(bpy.types.Operator):
             return False
 
         new_light_names = ["主光", "辅光", "背光"]
-        # 灯光定义：(旧名, 属性值, 能量, 位置索引)
+        # 灯光定义：(属性值, 能量)
         light_defs = [
-            ("MainLight", "KeyLight", KEY_LIGHT_ENERGY, 0),
-            ("FillLight", "FillLight", FILL_LIGHT_ENERGY, 1),
-            ("BackLight", "BackLight", BACK_LIGHT_ENERGY, 2),
+            ("KeyLight", KEY_LIGHT_ENERGY),
+            ("FillLight", FILL_LIGHT_ENERGY),
+            ("BackLight", BACK_LIGHT_ENERGY),
         ]
-
-        # ---------- 集合 ----------
-        new_coll_name = translate("灯光")
-        light_coll = get_collection(new_coll_name)
 
         # ---------- 灯光颜色 ----------
         colors = LIGHT_COLOR_PRESETS.get(props.preset, LIGHT_COLOR_PRESETS["DEFAULT"])
 
-        # ---------- 创建/获取三盏灯 ----------
-        lights = [
-            self._get_or_create_light(
-                old_name=old,
-                attr_value=attr,
-                energy=energy * props.intensity / 100,
-                color_hex=colors[i],
-                new_name=translate(new_light_names[i]),
-            )
-            for i, (old, attr, energy, _) in enumerate(light_defs)
-        ]
+        # ---------- 目标与 root ----------
+        target_type = props.target_type
+        if target_type == "ARMATURE":
+            target = (active_obj if active_obj.type == "ARMATURE"
+                      else find_armature(find_ancestor(active_obj)))
+            subtarget = props.bone_name
+        else:
+            target = active_obj
+            subtarget = props.vg_name
+        # 记录对应骨架/网格的最外层祖先 root 名称
+        current_root_name = find_ancestor(target).name
+
+        # ---------- 清理旧灯光 ----------
+        # 每次执行都按当前选中对象重建灯光，不再复用已有灯光
+        groups = get_light_groups(scene)
+        controllers = get_light_controllers()
+        if props.mutex:
+            # 按角色生成时重建当前 root 和旧版（无 root 记录）的灯光，其它模型的灯光组保留
+            rebuild_root_names = {current_root_name, None}
+            # 对应 root 对象已不存在的灯光组一并移除
+            for root_name in set(groups) | set(controllers):
+                if root_name is not None and bpy.data.objects.get(root_name) is None:
+                    rebuild_root_names.add(root_name)
+        else:
+            # 否则整个场景只保留一组灯光
+            rebuild_root_names = set(groups) | set(controllers)
+        for root_name in rebuild_root_names:
+            for controller in controllers.get(root_name) or [None]:
+                remove_light_group(groups.get(root_name, {}), controller, root_name)
+
+        # ---------- 创建三盏灯 ----------
+        lights = []
+        for i, (attr, energy) in enumerate(light_defs):
+            obj = self._create_light(attr, translate(new_light_names[i]))
+            obj.data.energy = energy * props.intensity / 100
+            obj.data.color = hex_to_rgb(colors[i])
+            obj[LIGHT_ROOT_PROPERTY] = current_root_name
+            lights.append(obj)
 
         # ---------- 位置旋转 ----------
         self._apply_transforms(lights, props)
 
         # ---------- 灯光控制器 ----------
         new_root_name = translate("灯光控制器")
-        light_root = get_obj_by_attr_value("Tri-Lighting", "LightRoot")
-        if not light_root:
-            light_root = bpy.data.objects.new(new_root_name, None)
-            light_root["Tri-Lighting"] = "LightRoot"
-        # 兼容旧命名
-        light_root.name = new_root_name
+        light_root = bpy.data.objects.new(new_root_name, None)
+        light_root[LIGHT_MARKER] = LIGHT_CONTROLLER_ATTR
+        light_root[LIGHT_ROOT_PROPERTY] = current_root_name
 
-        # ---------- 链接到集合 ----------
+        # 新建对象必须先挂到灯光集合：否则约束的清除反向会不生效
+        light_coll = get_collection(translate("灯光"))
         for obj in (*lights, light_root):
-            # 从原集合中移除
-            uc_set = set()
-            if obj.users_collection:
-                for uc in obj.users_collection:
-                    uc.objects.unlink(obj)
-                    uc_set.add(uc)
-                for uc in uc_set:
-                    if uc == light_coll:
-                        continue
-                    if uc.objects:
-                        continue
-                    unlink(uc)
-
-            # 链接到新集合
-            if obj.name in light_coll.objects:
-                continue
-            light_coll.objects.link(obj)
+            if not obj.users_collection:
+                light_coll.objects.link(obj)
 
         # ---------- 约束设置 ----------
-        target_type = props.target_type
-        if target_type == "ARMATURE":
-            armature = (active_obj if active_obj.type == "ARMATURE"
-                        else find_armature(find_ancestor(active_obj)))
-            set_cons(light_root, armature, subtarget=props.bone_name)
-        elif target_type == "MESH":
-            set_cons(light_root, active_obj, subtarget=props.vg_name)
-
+        set_cons(light_root, target, subtarget=subtarget)
         for light in lights:
             set_cons(light, light_root)
+
+        # ---------- 灯光链接 ----------
+        if props.mutex:
+            # 所有灯光组都排除其它 root 的网格，保证模型之间互不影响，但是依然可以照亮场景
+            all_groups = get_light_groups(scene)
+            all_root_names = {root_name for root_name in all_groups if root_name is not None}
+            for root_name, root_group in all_groups.items():
+                if root_name is None or not is_complete_light_group(root_group):
+                    continue
+                apply_light_linking([root_group[light_role] for light_role in LIGHT_ROLES],
+                                    root_name, all_root_names - {root_name})
+        else:
+            apply_light_linking(lights, current_root_name, set())
+
+        # ---------- 集合与命名 ----------
+        arrange_light_groups(props)
 
         return True
 

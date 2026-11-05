@@ -270,13 +270,15 @@ class LightSettingsPanel(bpy.types.Panel):
         col.prop(props, "key_position")
         col.prop(props, "preset")
         col.prop(props, "intensity")
-
         col.prop(props, "show_advanced")
         if props.show_advanced:
-            col.prop(props, "key_distance")
-            col.prop(props, "fill_distance")
-            col.prop(props, "back_distance")
-            col.prop(props, "back_angle")
+            box = col.box()
+            box_col = box.column()
+            box_col.prop(props, "key_distance")
+            box_col.prop(props, "fill_distance")
+            box_col.prop(props, "back_distance")
+            box_col.prop(props, "back_angle")
+            box_col.prop(props, "mutex")
 
         row = col.row(align=True)
         row.operator(LightSettingsOperator.bl_idname, text=LightSettingsOperator.bl_label)

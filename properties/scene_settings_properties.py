@@ -3,6 +3,7 @@ import math
 import bpy
 
 from ..constants import (BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS,
+                         LIGHT_MARKER, LIGHT_ROLES, LIGHT_ROLE_ALIASES, LIGHT_ROOT_PROPERTY,
                          RESOLUTION_PRESETS)
 from ..utils import hex_to_rgb
 
@@ -99,50 +100,54 @@ class OutputSettingsProperty(bpy.types.PropertyGroup):
         del bpy.types.Scene.mmd_kafei_tools_output_settings
 
 
-def get_existing_lights(scene):
-    """返回场景中已存在的三盏灯；任一缺失则返回 None"""
-    # 先按类型过滤，避免对大量非灯光对象做自定义属性查询；且只遍历一遍
-    found = {}
+def get_light_groups(scene=None):
+    """按记录的 root 名称来分组插件生成的灯光，返回 {root: {灯光角色: 灯光对象}}"""
+    scene = scene or bpy.context.scene
+    groups = {}
     for obj in scene.objects:
         if obj.type != 'LIGHT':
             continue
-        attr = obj.get("Tri-Lighting")
-        if attr is not None and attr not in found:
-            found[attr] = obj
+        light_role = obj.get(LIGHT_MARKER)
+        if light_role in LIGHT_ROLE_ALIASES:
+            light_role = LIGHT_ROLE_ALIASES[light_role]
+        if light_role not in LIGHT_ROLES:
+            continue
+        groups.setdefault(obj.get(LIGHT_ROOT_PROPERTY), {})[light_role] = obj
+    return groups
 
-    lights = [found.get(attr) for attr in ("KeyLight", "FillLight", "BackLight")]
-    if any(obj is None for obj in lights):
-        return None
-    return lights
+
+def is_complete_light_group(group):
+    """三盏灯是否齐全"""
+    return all(light_role in group for light_role in LIGHT_ROLES)
 
 
 def update_light_transforms(self, context):
     """位置/距离/角度变化时，若三盏灯齐全则实时更新三盏灯"""
-    lights = get_existing_lights(context.scene)
-    if lights is None:
-        return
     from ..operators.scene_settings_operators import apply_light_transforms
-    apply_light_transforms(lights, self)
+    for group in get_light_groups(context.scene).values():
+        if not is_complete_light_group(group):
+            continue
+        apply_light_transforms([group[light_role] for light_role in LIGHT_ROLES], self)
 
 
 def update_preset(self, context):
     """颜色预设变化时，若三盏灯齐全则实时更新颜色"""
-    lights = get_existing_lights(context.scene)
-    if lights is None:
-        return
     colors = LIGHT_COLOR_PRESETS.get(self.preset, LIGHT_COLOR_PRESETS["DEFAULT"])
-    for obj, color_hex in zip(lights, colors):
-        obj.data.color = hex_to_rgb(color_hex)
+    for group in get_light_groups(context.scene).values():
+        if not is_complete_light_group(group):
+            continue
+        for light_role, color_hex in zip(LIGHT_ROLES, colors):
+            group[light_role].data.color = hex_to_rgb(color_hex)
 
 
 def update_light_intensity(self, context):
     """光强变化时，若三盏灯齐全则按默认能量的倍数同步"""
-    lights = get_existing_lights(context.scene)
-    if lights is None:
-        return
     energies = (KEY_LIGHT_ENERGY, FILL_LIGHT_ENERGY, BACK_LIGHT_ENERGY)
-    for obj, energy in zip(lights, energies):
-        obj.data.energy = energy * self.intensity / 100
+    for group in get_light_groups(context.scene).values():
+        if not is_complete_light_group(group):
+            continue
+        for light_role, energy in zip(LIGHT_ROLES, energies):
+            group[light_role].data.energy = energy * self.intensity / 100
 
 
 class LightSettingsProperty(bpy.types.PropertyGroup):
@@ -170,6 +175,12 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     )
 
     # ---------------------- 灯光参数 ----------------------
+    mutex: bpy.props.BoolProperty(
+        name="按角色生成",
+        description="为每个角色独立创建一组灯光，并通过灯光链接排除其它角色；不勾选时整个场景只使用一组灯光",
+        default=True
+    )
+
     preset: bpy.props.EnumProperty(
         name="颜色预设",
         description="灯光颜色预设",
@@ -194,8 +205,8 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     )
 
     show_advanced: bpy.props.BoolProperty(
-        name="距离和旋转",
-        description="勾选后显示距离与旋转参数",
+        name="显示更多参数",
+        description="勾选后显示距离、旋转与按角色生成参数",
         default=False
     )
 
