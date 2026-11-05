@@ -461,6 +461,7 @@ class ResetLightSettingsOperator(bpy.types.Operator):
     def execute(self, context):
         props = context.scene.mmd_kafei_tools_light_settings
         for name in ("key_position", "preset", "exposure",
+                     "key_energy", "fill_energy", "back_energy",
                      "key_distance", "fill_distance", "back_distance", "back_angle"):
             rna_prop = props.bl_rna.properties[name]
             setattr(props, name, rna_prop.default)
