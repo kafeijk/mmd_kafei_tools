@@ -584,7 +584,10 @@ def supports_light_linking(light):
 
 
 def apply_light_linking(lights, root_name, other_root_names):
-    """把其它 root 下的网格加入灯光链接与阴影链接并排除"""
+    """
+    把其它 root 下的网格加入灯光链接与阴影链接并排除
+    light_linking 在概念上同时涵盖灯光链接与阴影链接
+    """
     if not all(supports_light_linking(light) for light in lights):
         return
 
