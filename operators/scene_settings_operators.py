@@ -5,8 +5,8 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import (BACK_LIGHT_ENERGY, CAMERA_Z_FACTOR, FILL_LIGHT_ANGLE, FILL_LIGHT_ENERGY,
-                         KEY_LIGHT_ANGLE, KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS, LIGHT_CONTROLLER_ATTR,
+from ..constants import (CAMERA_Z_FACTOR, FILL_LIGHT_ANGLE,
+                         KEY_LIGHT_ANGLE, LIGHT_COLOR_PRESETS, LIGHT_CONTROLLER_ATTR,
                          LIGHT_EXCLUDE_COLLECTION, LIGHT_HEIGHT_ANGLE, LIGHT_MARKER, LIGHT_ROLES,
                          LIGHT_ROOT_PROPERTY, LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
 
@@ -460,7 +460,7 @@ class ResetLightSettingsOperator(bpy.types.Operator):
 
     def execute(self, context):
         props = context.scene.mmd_kafei_tools_light_settings
-        for name in ("key_position", "preset", "intensity",
+        for name in ("key_position", "preset", "exposure",
                      "key_distance", "fill_distance", "back_distance", "back_angle"):
             rna_prop = props.bl_rna.properties[name]
             setattr(props, name, rna_prop.default)
@@ -799,9 +799,9 @@ class LightSettingsOperator(bpy.types.Operator):
         new_light_names = ["主光", "辅光", "背光"]
         # 灯光定义：(属性值, 能量)
         light_defs = [
-            ("KeyLight", KEY_LIGHT_ENERGY),
-            ("FillLight", FILL_LIGHT_ENERGY),
-            ("BackLight", BACK_LIGHT_ENERGY),
+            ("KeyLight", props.key_energy),
+            ("FillLight", props.fill_energy),
+            ("BackLight", props.back_energy),
         ]
 
         # ---------- 灯光颜色 ----------
@@ -852,7 +852,8 @@ class LightSettingsOperator(bpy.types.Operator):
             lights = []
             for i, (attr, energy) in enumerate(light_defs):
                 obj = self._create_light(attr, translate(new_light_names[i]))
-                obj.data.energy = energy * props.intensity / 100
+                obj.data.energy = energy
+                obj.data.exposure = props.exposure
                 obj.data.color = hex_to_rgb(colors[i])
                 obj[LIGHT_ROOT_PROPERTY] = root_name
                 lights.append(obj)

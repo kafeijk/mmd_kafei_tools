@@ -269,11 +269,15 @@ class LightSettingsPanel(bpy.types.Panel):
 
         col.prop(props, "key_position")
         col.prop(props, "preset")
-        col.prop(props, "intensity")
+        col.prop(props, "exposure")
         col.prop(props, "show_advanced")
         if props.show_advanced:
             box = col.box()
             box_col = box.column()
+            box_col.prop(props, "key_energy")
+            box_col.prop(props, "fill_energy")
+            box_col.prop(props, "back_energy")
+            box_col.separator()
             box_col.prop(props, "key_distance")
             box_col.prop(props, "fill_distance")
             box_col.prop(props, "back_distance")

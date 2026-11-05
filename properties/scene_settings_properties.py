@@ -2,7 +2,7 @@ import math
 
 import bpy
 
-from ..constants import (BACK_LIGHT_ENERGY, FILL_LIGHT_ENERGY, KEY_LIGHT_ENERGY, LIGHT_COLOR_PRESETS,
+from ..constants import (LIGHT_COLOR_PRESETS,
                          LIGHT_MARKER, LIGHT_ROLES, LIGHT_ROLE_ALIASES, LIGHT_ROOT_PROPERTY,
                          RESOLUTION_PRESETS)
 from ..utils import hex_to_rgb
@@ -140,14 +140,16 @@ def update_preset(self, context):
             group[light_role].data.color = hex_to_rgb(color_hex)
 
 
-def update_light_intensity(self, context):
-    """光强变化时，若三盏灯齐全则按默认能量的倍数同步"""
-    energies = (KEY_LIGHT_ENERGY, FILL_LIGHT_ENERGY, BACK_LIGHT_ENERGY)
+def update_light_energy(self, context):
+    """功率或曝光度变化时，若三盏灯齐全则同步功率与曝光度"""
+    energies = (self.key_energy, self.fill_energy, self.back_energy)
     for group in get_light_groups(context.scene).values():
         if not is_complete_light_group(group):
             continue
         for light_role, energy in zip(LIGHT_ROLES, energies):
-            group[light_role].data.energy = energy * self.intensity / 100
+            light = group[light_role].data
+            light.energy = energy
+            light.exposure = self.exposure
 
 
 class LightSettingsProperty(bpy.types.PropertyGroup):
@@ -194,14 +196,37 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         update=update_preset
     )
 
-    intensity: bpy.props.IntProperty(
-        name="光强",
-        description="三盏灯的能量系数，100 为 100%，最大 200%",
-        subtype='PERCENTAGE',
-        default=100,
+    exposure: bpy.props.FloatProperty(
+        name="曝光度",
+        description="将光强乘以 2^曝光度，以指数形式对灯光功率进行缩放",
+        default=0,
+        soft_min=-10,
+        soft_max=10,
+        update=update_light_energy
+    )
+
+    key_energy: bpy.props.IntProperty(
+        name="主光功率",
+        description="主光的功率",
+        default=150,
         min=0,
-        max=200,
-        update=update_light_intensity
+        update=update_light_energy
+    )
+
+    fill_energy: bpy.props.IntProperty(
+        name="辅光功率",
+        description="辅光的功率",
+        default=30,
+        min=0,
+        update=update_light_energy
+    )
+
+    back_energy: bpy.props.IntProperty(
+        name="背光功率",
+        description="背光的功率",
+        default=250,
+        min=0,
+        update=update_light_energy
     )
 
     show_advanced: bpy.props.BoolProperty(
