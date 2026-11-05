@@ -19,6 +19,7 @@ from ..utils import (
     copy_obj,
     deselect_all_objects,
     find_ancestor,
+    find_pmx_root_with_child,
     find_rigid_body_parent,
     get_action_fcurves,
     get_collection,
@@ -528,11 +529,11 @@ def remove_light_group(group, controller=None, root_name=None):
         remove_light_exclude_collection(root_name)
 
 
-def is_rigid_body_object(obj, rigid_groups):
+def is_rigid_body_object(obj, rigid_body_parents):
     """对象是否位于 MMD 刚体分组下"""
     ancestor = obj
     while ancestor is not None:
-        if ancestor in rigid_groups:
+        if ancestor in rigid_body_parents:
             return True
         ancestor = ancestor.parent
     return False
@@ -544,18 +545,19 @@ def get_root_meshes(root_names):
     # 缓存每个对象的最外层祖先，避免重复向上遍历
     object_root_names = {obj: find_ancestor(obj).name for obj in scene_objects}
 
-    # 每个根对象只查找一次刚体分组，避免逐对象反复扫描子级
-    rigid_groups = set()
+    # 每个 pmx root 只查找一次刚体分组，避免逐对象反复扫描子级
+    rigid_body_parents = set()
     if is_mmd_tools_enabled():
-        for root in {find_ancestor(obj) for obj in scene_objects}:
-            rigid_group = find_rigid_body_parent(root)
-            if rigid_group is not None:
-                rigid_groups.add(rigid_group)
+        pmx_roots = {find_pmx_root_with_child(obj) for obj in scene_objects} - {None}
+        for pmx_root in pmx_roots:
+            rigid_body_parent = find_rigid_body_parent(pmx_root)
+            if rigid_body_parent is not None:
+                rigid_body_parents.add(rigid_body_parent)
 
     objects = []
     for obj in scene_objects:
         # 不收集刚体
-        if is_rigid_body_object(obj, rigid_groups):
+        if is_rigid_body_object(obj, rigid_body_parents):
             continue
         if obj.type == 'MESH' and object_root_names[obj] in root_names:
             objects.append(obj)
