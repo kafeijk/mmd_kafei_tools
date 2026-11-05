@@ -284,7 +284,7 @@ class LightSettingsPanel(bpy.types.Panel):
                     warning_row = box_col.row()
                     warning_split = warning_row.split(factor=0.4)
                     warning_split.label(text="")
-                    warning_split.label(text="当前Blender版本不支持灯光链接", icon='ERROR')
+                    warning_split.label(text="当前Blender版本的引擎不支持灯光链接", icon='ERROR')
             box_col.prop(props, "key_energy")
             box_col.prop(props, "fill_energy")
             box_col.prop(props, "back_energy")

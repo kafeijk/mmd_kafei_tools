@@ -122,12 +122,21 @@ def is_complete_light_group(group):
 
 
 def is_light_linking_supported():
-    """当前 Blender 版本是否支持灯光链接"""
+    """灯光链接是否可用：Cycles 4.0+ 生效；其他引擎需 4.3+；Workbench 始终不支持"""
     properties = bpy.types.Object.bl_rna.properties
     linking = properties.get("light_linking")
     if linking is None:
         return False
-    return {"receiver_collection", "blocker_collection"} <= set(linking.fixed_type.properties.keys())
+    if not {"receiver_collection", "blocker_collection"} <= set(linking.fixed_type.properties.keys()):
+        return False
+    scene = getattr(bpy.context, "scene", None)
+    engine = scene.render.engine if scene else "CYCLES"
+    # Workbench 实际不受灯光影响
+    if engine == "BLENDER_WORKBENCH":
+        return False
+    if engine != "CYCLES" and bpy.app.version < (4, 3, 0):
+        return False
+    return True
 
 
 def update_light_transforms(self, context):
