@@ -260,7 +260,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     back_energy: bpy.props.IntProperty(
         name="背光功率",
         description="背光的功率",
-        default=250,
+        default=100,
         min=0,
         update=update_light_energy
     )
