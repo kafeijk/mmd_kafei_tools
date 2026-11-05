@@ -121,6 +121,15 @@ def is_complete_light_group(group):
     return all(light_role in group for light_role in LIGHT_ROLES)
 
 
+def is_light_linking_supported():
+    """当前 Blender 版本是否支持灯光链接"""
+    properties = bpy.types.Object.bl_rna.properties
+    linking = properties.get("light_linking")
+    if linking is None:
+        return False
+    return {"receiver_collection", "blocker_collection"} <= set(linking.fixed_type.properties.keys())
+
+
 def update_light_transforms(self, context):
     """位置/距离/角度变化时，若三盏灯齐全则实时更新三盏灯"""
     from ..operators.scene_settings_operators import apply_light_transforms
@@ -132,7 +141,7 @@ def update_light_transforms(self, context):
 
 def update_light_linking(self, context):
     """“目标间互不影响”变化时，实时更新所有插件灯光的链接排除"""
-    if self.light_type != "AREA":
+    if self.light_type != "AREA" or not is_light_linking_supported():
         return
     from ..operators.scene_settings_operators import sync_light_linking
     sync_light_linking(self.independent)
@@ -150,14 +159,13 @@ def update_preset(self, context):
 
 def update_light_energy(self, context):
     """功率或曝光度变化时，若三盏灯齐全则同步功率与曝光度"""
+    from ..operators.scene_settings_operators import apply_light_exposure
     energies = (self.key_energy, self.fill_energy, self.back_energy)
     for group in get_light_groups(context.scene).values():
         if not is_complete_light_group(group):
             continue
         for light_role, energy in zip(LIGHT_ROLES, energies):
-            light = group[light_role].data
-            light.energy = energy
-            light.exposure = self.exposure
+            apply_light_exposure(group[light_role].data, energy, self.exposure)
 
 
 class LightSettingsProperty(bpy.types.PropertyGroup):

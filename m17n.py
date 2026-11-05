@@ -168,6 +168,7 @@ translation_dict = {
         ("*", "为每个目标创建一组灯光"): "Create a light set for each target",
         ("*", "整个场景只保留一组灯光"): "Keep a single light set for the scene",
         ("*", "目标间互不影响"): "Targets Independent",
+        ("*", "当前Blender版本不支持灯光链接"): "Light linking is not supported in this Blender version",
         ("*", "通过灯光链接排除其它目标的网格，使各目标的灯光互不影响"):
             "Exclude other targets' meshes via light linking so their lights do not affect each other",
         ("*", "灯光排除"): "Light Exclusion",

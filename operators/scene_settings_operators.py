@@ -11,7 +11,7 @@ from ..constants import (CAMERA_Z_FACTOR, FILL_LIGHT_ANGLE,
                          LIGHT_ROOT_PROPERTY, LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
 
 from ..properties.scene_settings_properties import (apply_resolution_preset, get_light_groups,
-                                                    is_complete_light_group)
+                                                    is_complete_light_group, is_light_linking_supported)
 
 from .render_preview_operators import do_camera_to_view_selected, switch_to_camera_view
 from ..utils import (
@@ -578,12 +578,20 @@ def get_root_meshes(root_names):
     return objects
 
 
+def apply_light_exposure(light, energy, exposure):
+    """应用功率与曝光度：没有 exposure 属性的版本按 2^曝光度 折算进功率"""
+    if hasattr(light, "exposure"):
+        light.energy = energy
+        light.exposure = exposure
+    else:
+        light.energy = energy * 2.0 ** exposure
+
+
 def supports_light_linking(light):
-    """当前 Blender 版本是否支持灯光链接与阴影链接"""
-    linking = getattr(light, "light_linking", None)
-    return (linking is not None
-            and hasattr(linking, "receiver_collection")
-            and hasattr(linking, "blocker_collection"))
+    """灯光的对象是否具备灯光链接与阴影链接"""
+    if not is_light_linking_supported():
+        return False
+    return getattr(light, "light_linking", None) is not None
 
 
 def apply_light_linking(lights, root_name, other_root_names):
@@ -837,7 +845,7 @@ class LightSettingsOperator(bpy.types.Operator):
         # ---------- 目标与 root ----------
         # 面光为每个选中目标生成一组灯光，面光（复用）只保留一组
         multi_group = props.light_type == "AREA"
-        exclude_targets = multi_group and props.independent
+        exclude_targets = multi_group and props.independent and is_light_linking_supported()
         selected_objects = list(context.selected_objects) if multi_group else []
         target_list = []
         used_root_names = set()
@@ -881,8 +889,7 @@ class LightSettingsOperator(bpy.types.Operator):
             lights = []
             for i, (attr, energy) in enumerate(light_defs):
                 obj = self._create_light(attr, translate(new_light_names[i]))
-                obj.data.energy = energy
-                obj.data.exposure = props.exposure
+                apply_light_exposure(obj.data, energy, props.exposure)
                 obj.data.color = hex_to_rgb(colors[i])
                 obj[LIGHT_ROOT_PROPERTY] = root_name
                 lights.append(obj)

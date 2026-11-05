@@ -46,6 +46,7 @@ from ..operators.scene_settings_operators import WorldSettingsOperator
 from ..operators.scene_settings_operators import SwapResolutionOperator
 from ..operators.scene_settings_operators import LightSettingsOperator
 from ..operators.scene_settings_operators import ResetLightSettingsOperator
+from ..properties.scene_settings_properties import is_light_linking_supported
 from ..operators.scene_settings_operators import CameraSettingsOperator, CameraSettingsMeshOperator
 from ..operators.quick_operation_operators import MergeVerticesOperator
 from ..operators.quick_operation_operators import DummyOperator
@@ -276,7 +277,14 @@ class LightSettingsPanel(bpy.types.Panel):
             box_col = box.column()
             box_col.prop(props, "light_type")
             if props.light_type == "AREA":
-                box_col.prop(props, "independent")
+                if is_light_linking_supported():
+                    box_col.prop(props, "independent")
+                else:
+                    # 不支持灯光链接时隐藏该参数，仅在原位置提示
+                    warning_row = box_col.row()
+                    warning_split = warning_row.split(factor=0.4)
+                    warning_split.label(text="")
+                    warning_split.label(text="当前Blender版本不支持灯光链接", icon='ERROR')
             box_col.prop(props, "key_energy")
             box_col.prop(props, "fill_energy")
             box_col.prop(props, "back_energy")
