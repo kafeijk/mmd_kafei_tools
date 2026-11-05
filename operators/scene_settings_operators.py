@@ -739,6 +739,10 @@ class LightSettingsOperator(bpy.types.Operator):
         key_factor = 1 if props.key_position == "RIGHT" else -1
         fill_factor = -key_factor
 
+        # 距离为到目标的直线距离，按当前俯角折算水平投影
+        cos_z = math.cos(z_angle)
+        sin_z = math.sin(z_angle)
+
         d_key = props.key_distance
         d_fill = props.fill_distance
         d_back = props.back_distance
@@ -747,17 +751,17 @@ class LightSettingsOperator(bpy.types.Operator):
         # 主光
         key_light.rotation_euler = (rotation_x, 0, key_y * key_factor)
         key_light.location = (
-            d_key * math.sin(key_y) * key_factor,
-            -d_key * math.cos(key_y),
-            d_key * math.tan(z_angle),
+            d_key * cos_z * math.sin(key_y) * key_factor,
+            -d_key * cos_z * math.cos(key_y),
+            d_key * sin_z,
         )
 
         # 辅光
         fill_light.rotation_euler = (rotation_x, 0, fill_y * fill_factor)
         fill_light.location = (
-            d_fill * math.sin(fill_y) * fill_factor,
-            -d_fill * math.cos(fill_y),
-            d_fill * math.tan(z_angle),
+            d_fill * cos_z * math.sin(fill_y) * fill_factor,
+            -d_fill * cos_z * math.cos(fill_y),
+            d_fill * sin_z,
         )
 
         # 背光
