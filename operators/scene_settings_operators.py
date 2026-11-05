@@ -768,6 +768,24 @@ class LightSettingsOperator(bpy.types.Operator):
         )
 
     # ------------------------------------------------------------------ #
+    #  目标解析
+    # ------------------------------------------------------------------ #
+    def _resolve_target(self, obj, props):
+        """解析对象对应的约束目标，返回 (目标对象, 子级名称)，无法解析时返回 None"""
+        if obj is None:
+            return None
+
+        if props.target_type == "ARMATURE":
+            target = obj if obj.type == "ARMATURE" else find_armature(find_ancestor(obj))
+            if target is None or props.bone_name not in target.pose.bones:
+                return None
+            return target, props.bone_name
+
+        if obj.type != 'MESH' or props.vg_name not in obj.vertex_groups:
+            return None
+        return obj, props.vg_name
+
+    # ------------------------------------------------------------------ #
     #  主流程
     # ------------------------------------------------------------------ #
     def gen_light(self, context):
@@ -790,24 +808,32 @@ class LightSettingsOperator(bpy.types.Operator):
         colors = LIGHT_COLOR_PRESETS.get(props.preset, LIGHT_COLOR_PRESETS["DEFAULT"])
 
         # ---------- 目标与 root ----------
-        target_type = props.target_type
-        if target_type == "ARMATURE":
-            target = (active_obj if active_obj.type == "ARMATURE"
-                      else find_armature(find_ancestor(active_obj)))
-            subtarget = props.bone_name
-        else:
-            target = active_obj
-            subtarget = props.vg_name
-        # 记录对应骨架/网格的最外层祖先 root 名称
-        current_root_name = find_ancestor(target).name
+        # 按角色生成时，选中的多个角色一并生成灯光
+        selected_objects = list(context.selected_objects) if props.mutex else []
+        target_list = []
+        used_root_names = set()
+        for obj in [active_obj, *selected_objects]:
+            resolved = self._resolve_target(obj, props)
+            if resolved is None:
+                continue
+            root_name = find_ancestor(resolved[0]).name
+            # 同一角色的多个对象只生成一组灯光
+            if root_name in used_root_names:
+                continue
+            used_root_names.add(root_name)
+            target_list.append((root_name, resolved[0], resolved[1]))
+
+        if not target_list:
+            self.report(type={'ERROR'}, message="Target not found!")
+            return False
 
         # ---------- 清理旧灯光 ----------
         # 每次执行都按当前选中对象重建灯光，不再复用已有灯光
         groups = get_light_groups(scene)
         controllers = get_light_controllers()
         if props.mutex:
-            # 按角色生成时重建当前 root 和旧版（无 root 记录）的灯光，其它模型的灯光组保留
-            rebuild_root_names = {current_root_name, None}
+            # 按角色生成时重建选中角色的灯光和旧版（无 root 记录）的灯光，其它模型的灯光组保留
+            rebuild_root_names = used_root_names | {None}
             # 对应 root 对象已不存在的灯光组一并移除
             for root_name in set(groups) | set(controllers):
                 if root_name is not None and bpy.data.objects.get(root_name) is None:
@@ -818,34 +844,35 @@ class LightSettingsOperator(bpy.types.Operator):
         for root_name in rebuild_root_names:
             remove_light_group(groups.get(root_name, {}), controllers.get(root_name), root_name)
 
-        # ---------- 创建三盏灯 ----------
-        lights = []
-        for i, (attr, energy) in enumerate(light_defs):
-            obj = self._create_light(attr, translate(new_light_names[i]))
-            obj.data.energy = energy * props.intensity / 100
-            obj.data.color = hex_to_rgb(colors[i])
-            obj[LIGHT_ROOT_PROPERTY] = current_root_name
-            lights.append(obj)
-
-        # ---------- 位置旋转 ----------
-        self._apply_transforms(lights, props)
-
-        # ---------- 灯光控制器 ----------
-        new_root_name = translate("灯光控制器")
-        light_root = bpy.data.objects.new(new_root_name, None)
-        light_root[LIGHT_MARKER] = LIGHT_CONTROLLER_ATTR
-        light_root[LIGHT_ROOT_PROPERTY] = current_root_name
-
         # 新建对象必须先挂到灯光集合：否则约束的清除反向会不生效
         light_coll = get_collection(translate("灯光"))
-        for obj in (*lights, light_root):
-            if not obj.users_collection:
-                light_coll.objects.link(obj)
 
-        # ---------- 约束设置 ----------
-        set_cons(light_root, target, subtarget=subtarget)
-        for light in lights:
-            set_cons(light, light_root)
+        # ---------- 创建三盏灯与控制器 ----------
+        for root_name, target, subtarget in target_list:
+            lights = []
+            for i, (attr, energy) in enumerate(light_defs):
+                obj = self._create_light(attr, translate(new_light_names[i]))
+                obj.data.energy = energy * props.intensity / 100
+                obj.data.color = hex_to_rgb(colors[i])
+                obj[LIGHT_ROOT_PROPERTY] = root_name
+                lights.append(obj)
+
+            # 位置旋转
+            self._apply_transforms(lights, props)
+
+            # 灯光控制器
+            light_root = bpy.data.objects.new(translate("灯光控制器"), None)
+            light_root[LIGHT_MARKER] = LIGHT_CONTROLLER_ATTR
+            light_root[LIGHT_ROOT_PROPERTY] = root_name
+
+            for obj in (*lights, light_root):
+                if not obj.users_collection:
+                    light_coll.objects.link(obj)
+
+            # 约束设置
+            set_cons(light_root, target, subtarget=subtarget)
+            for light in lights:
+                set_cons(light, light_root)
 
         # ---------- 灯光链接 ----------
         if props.mutex:
@@ -858,7 +885,10 @@ class LightSettingsOperator(bpy.types.Operator):
                 apply_light_linking([root_group[light_role] for light_role in LIGHT_ROLES],
                                     root_name, all_root_names - {root_name})
         else:
-            apply_light_linking(lights, current_root_name, set())
+            root_name = target_list[0][0]
+            root_group = get_light_groups(scene).get(root_name, {})
+            apply_light_linking([root_group[light_role] for light_role in LIGHT_ROLES],
+                                root_name, set())
 
         # ---------- 集合与命名 ----------
         arrange_light_groups(props)
