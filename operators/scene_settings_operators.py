@@ -462,7 +462,7 @@ class ResetLightSettingsOperator(bpy.types.Operator):
         props = context.scene.mmd_kafei_tools_light_settings
         for name in ("key_position", "preset", "exposure",
                      "key_energy", "fill_energy", "back_energy",
-                     "key_distance", "fill_distance", "back_distance", "back_angle"):
+                     "key_distance", "fill_distance", "back_distance"):
             rna_prop = props.bl_rna.properties[name]
             setattr(props, name, rna_prop.default)
         return {'FINISHED'}
@@ -746,7 +746,8 @@ class LightSettingsOperator(bpy.types.Operator):
         d_key = props.key_distance
         d_fill = props.fill_distance
         d_back = props.back_distance
-        back_z = props.back_angle
+        # 背光朝向固定为 -45 度
+        back_z = math.radians(-45)
 
         # 主光
         key_light.rotation_euler = (rotation_x, 0, key_y * key_factor)

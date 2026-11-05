@@ -146,7 +146,6 @@ translation_dict = {
         ("*", "主光位置"): "Key Light Position",
         ("*", "左"): "Left",
         ("*", "右"): "Right",
-        ("*", "背光角度"): "Back Light Angle",
         ("*", "显示更多参数"): "Show More Parameters",
         ("*", "勾选后显示距离、旋转与按角色生成参数"):
             "Show distance, rotation and generate by character options",
@@ -199,7 +198,6 @@ translation_dict = {
         ("*", "主光到目标的直线距离"): "Direct distance of key light to target",
         ("*", "辅光到目标的直线距离"): "Direct distance of fill light to target",
         ("*", "背光到目标的直线距离"): "Direct distance of back light to target",
-        ("*", "背光的旋转角度"): "Rotation angle of back light",
         ("*", "设置三点照明"): "Set three-point lighting",
         ("*", "重新设置时是否修改灯光颜色"): "Affect existing light color on execute",
         ("*", "重置"): "Reset",

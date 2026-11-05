@@ -274,14 +274,6 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         update=update_light_transforms
     )
 
-    back_angle: bpy.props.FloatProperty(
-        name="背光角度",
-        description="背光的旋转角度",
-        subtype="ANGLE",
-        default=math.radians(-45),
-        update=update_light_transforms
-    )
-
     @staticmethod
     def register():
         bpy.types.Scene.mmd_kafei_tools_light_settings = bpy.props.PointerProperty(type=LightSettingsProperty)
