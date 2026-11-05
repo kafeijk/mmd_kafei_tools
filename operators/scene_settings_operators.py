@@ -747,8 +747,6 @@ class LightSettingsOperator(bpy.types.Operator):
         """
         light_data = bpy.data.lights.new(f"{attr_value}Data", type='AREA')
         light_data.size = LIGHT_SIZE
-        # todo 设为0的必要性？
-        light_data.volume_factor = 0
         obj = bpy.data.objects.new(new_name, light_data)
         obj[LIGHT_MARKER] = attr_value
         return obj
