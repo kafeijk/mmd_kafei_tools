@@ -945,8 +945,6 @@ def link_uv(operator, source_target_map, props):
                 target.data.uv_layers.remove(layer)
 
         for uv_layer in source.data.uv_layers:
-            # 复制UV时，复制的是活动状态的UV
-            uv_layer.active = True
             # 新建uv
             # blender 3.0以下（如2.93）导入abc，uv命名是"uv"，而不是"UVMap"
             # 所以除非刻意进行额外操作，否则出现"UV名称已存在（或者说UV命名冲突，不过实际名称会自动修改并不会冲突）"的问题的可能性很低，这里对此种情况暂不处理。
@@ -959,13 +957,10 @@ def link_uv(operator, source_target_map, props):
                                     "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}").format(
                                     target.name, len(target.data.uv_layers), uv_layer.name))
                 continue
-            target_mesh.uv_layers[uv_layer.name].active = True
-
-            deselect_all_objects()
-            select_and_activate(target)
-            select_and_activate(source)
-            # 复制UV贴图
-            bpy.ops.object.join_uvs()
+            # 前面已校验loop数一致，直接按loop顺序拷贝UV坐标
+            uv_data = [0.0] * (len(uv_layer.data) * 2)
+            uv_layer.data.foreach_get("uv", uv_data)
+            new_uv.data.foreach_set("uv", uv_data)
 
         # 恢复uv的激活状态
         source_mesh.uv_layers[source_uv_active_index].active = True
