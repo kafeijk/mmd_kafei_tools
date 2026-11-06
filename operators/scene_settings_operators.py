@@ -1418,7 +1418,7 @@ def create_follow_camera(context, props):
     # 设置相机初始位置
     context.scene.frame_set(0)
 
-    do_camera_to_view_selected('PERSPECTIVE', True,
+    do_camera_to_view_selected('PERSPECTIVE',
                                props.rotation_euler_x, math.radians(0), math.radians(0),
                                1, camera=camera)
     camera.keyframe_insert(data_path="location", frame=0)

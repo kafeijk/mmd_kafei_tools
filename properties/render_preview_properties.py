@@ -13,7 +13,7 @@ def update_rotation(scene, depsgraph):
         return
     # 暂时仅支持xyz1
     rotation_euler_x = active_camera.rotation_euler[0]
-    rotation_euler_y = math.radians(0) if props.align else active_camera.rotation_euler[1]
+    rotation_euler_y = active_camera.rotation_euler[1]
     rotation_euler_z = active_camera.rotation_euler[2]
     # 仅在数值变化时写入，避免每次依赖图更新都触发属性写入和重绘
     if props.rotation_euler_x != rotation_euler_x:
@@ -102,11 +102,6 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     # 方案4
     # 通过向量计算来获取z轴和视角中心的偏差（模拟测量工具），然后在相机视图坐标下移动偏差值的距离使视角中心对齐z轴（未实现）
     # 该目的可由方案3的约束实现，且同样无法调节相机y旋转
-    align: bpy.props.BoolProperty(
-        name="对齐角色",
-        description="尽可能使角色处于画面中心。\n（重要）该参数在角色处于初始状态时效果良好，如果出现意料外的情况请手动关闭\n开启时Y轴旋转失效，不适用于多角色共同被选择的情况",
-        default=True,
-    )
     batch: bpy.props.PointerProperty(type=BatchProperty)
 
     def update_rotation_x(self, context):

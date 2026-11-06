@@ -947,7 +947,6 @@ class RenderPreviewPanel(bpy.types.Panel):
     def draw(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_render_preview
-        align = props.align
         batch = props.batch
 
         layout = self.layout
@@ -960,13 +959,10 @@ class RenderPreviewPanel(bpy.types.Panel):
 
         rotation_col = col.column(align=True)
         rotation_col.prop(props, "rotation_euler_x")
-        rotation_col_y = rotation_col.column(align=True)
-        rotation_col_y.prop(props, "rotation_euler_y")
-        rotation_col_y.enabled = not align
+        rotation_col.prop(props, "rotation_euler_y")
         rotation_col.prop(props, "rotation_euler_z")
 
         col.prop(props, "auto_follow")
-        col.prop(props, "align")
 
         batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
 

@@ -550,7 +550,6 @@ translation_dict = {
         ("*", "旋转 X"): "Rotation X",
         ("*", "自动"): "Auto Follow",
         ("*", "强制居中"): "Force Center",
-        ("*", "对齐角色"): "Alignment",
         ("*", "预览相机"): "Preview Camera",
         ("Operator", "加载渲染预设"): "Load Render Preset",
         ("*", "加载渲染预设"): "Load Render Preset",
@@ -564,7 +563,6 @@ translation_dict = {
         ("*", "欧拉旋转"): "Rotation in Eulers",
         ("*", "相机旋转值跟随活动相机视角"): "Camera rotation values follow the active camera's view",
         ("*", "受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中"): "Due to hidden parts, some characters may not render centered. This option forces the character to be centered.",
-        ("*", "尽可能使角色处于画面中心。\n（重要）该参数在角色处于初始状态时效果良好，如果出现意料外的情况请手动关闭\n开启时Y轴旋转失效，不适用于多角色共同被选择的情况"): "Attempt to keep the character at the center of the screen.\n(Important) This parameter works well when the character is in its initial state. If unexpected issues occur, please disable it manually.\nWhen enabled, Y-axis rotation will not function and it is not suitable for situations where multiple characters are selected together",
         ("*", "根据当前设置的参数生成预览相机并切换到摄像机视角，重复点击时会更新预览相机参数"): "Generate a preview camera based on the current settings and switch to its view. Clicking again updates the preview camera parameters.",
         # Batch parameter
         ("*", "批量"): "Batch",

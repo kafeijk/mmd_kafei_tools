@@ -241,7 +241,7 @@ def remove_alpha_zero_mesh(obj):
 
 
 def camera_to_view_selected(props, camera=None):
-    do_camera_to_view_selected(props.type, props.align,
+    do_camera_to_view_selected(props.type,
                                props.rotation_euler_x, props.rotation_euler_y, props.rotation_euler_z,
                                props.scale, camera)
 
@@ -256,7 +256,7 @@ def switch_to_camera_view():
     bpy.ops.view3d.view_center_camera()
 
 
-def do_camera_to_view_selected(camera_type, align,
+def do_camera_to_view_selected(camera_type,
                                rotation_euler_x, rotation_euler_y, rotation_euler_z,
                                scale, camera=None):
     if not camera:
@@ -277,8 +277,9 @@ def do_camera_to_view_selected(camera_type, align,
     for child in children:
         select_and_activate(child)
 
-    # 对齐仅适用于单个角色；多角色直接由 camera_to_view_selected 取景，无需自行移动角色
-    align = align and len(ancestors) == 1
+    # 仅单个角色且Y轴旋转为0时才能对齐；多角色或Y轴有值时无法对齐，直接由 camera_to_view_selected 取景
+    # 开启自动参数后会存在一定误差，所以用 1e-3 而不是 1e-6
+    align = len(ancestors) == 1 and abs(rotation_euler_y) < 1e-3
 
     # 随便选择一个ancestor
     ancestor = next(iter(ancestors))
@@ -294,10 +295,7 @@ def do_camera_to_view_selected(camera_type, align,
     camera.rotation_mode = 'XYZ'
 
     camera.rotation_euler[0] = rotation_euler_x
-    if align:
-        camera.rotation_euler[1] = math.radians(0)
-    else:
-        camera.rotation_euler[1] = rotation_euler_y
+    camera.rotation_euler[1] = rotation_euler_y
     camera.rotation_euler[2] = rotation_euler_z
 
     if abs(camera.data.passepartout_alpha - 0.5) < 0.0001:
