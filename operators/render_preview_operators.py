@@ -277,6 +277,9 @@ def do_camera_to_view_selected(camera_type, align,
     for child in children:
         select_and_activate(child)
 
+    # 对齐仅适用于单个角色；多角色直接由 camera_to_view_selected 取景，无需自行移动角色
+    align = align and len(ancestors) == 1
+
     # 随便选择一个ancestor
     ancestor = next(iter(ancestors))
     if align:
