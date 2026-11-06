@@ -37,7 +37,11 @@ class TransferPresetOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.main(context)
+        props = context.scene.mmd_kafei_tools_transfer_preset
+        if not self.check_props(props):
+            return {'CANCELLED'}
+        if not self.main(context):
+            return {'CANCELLED'}
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def main(self, context):
@@ -53,10 +57,6 @@ class TransferPresetOperator(bpy.types.Operator):
         if direction != 'PMX2PMX':
             props.tolerance = 0
 
-        # 参数校验
-        if self.check_props(props) is False:
-            return
-
         if direction in ['PMX2ABC', 'PMX2PMX']:
             # 将源网格与目标网格进行配对
             (source_root, source_armature, source_objects, target_root, target_armature, target_objects,
@@ -66,7 +66,7 @@ class TransferPresetOperator(bpy.types.Operator):
             # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
             res = self.check_source_target_map(source_target_map, source_objects, target_objects, props)
             if res is False:
-                return
+                return False
 
             # 三渲二面部定位器处理 - 获取面部对象
             face_obj, face_area, bm, continue_flag = get_face_area(self, source_target_map, props)
@@ -75,7 +75,7 @@ class TransferPresetOperator(bpy.types.Operator):
             if not continue_flag:
                 if bm:
                     bm.free()
-                return
+                return False
 
             # 记录源物体和目标物体的可见性，并取消隐藏
             display_list = (
@@ -114,6 +114,7 @@ class TransferPresetOperator(bpy.types.Operator):
                 set_visibility(obj, visibility)
         elif direction in ['ABC2ABC']:
             reset_cache_param(self, props)
+        return True
 
     def check_source_target_map(self, source_target_map, source_objects, target_objects, props):
         if not source_target_map:
