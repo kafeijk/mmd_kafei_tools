@@ -144,11 +144,12 @@ translation_dict = {
         ("*", "辅光距离"): "Fill Light Distance",
         ("*", "背光距离"): "Back Light Distance",
         ("*", "主光位置"): "Key Light Position",
+        ("*", "以角色自身为基准，主光的位置"): "Position of the key light relative to the character",
         ("*", "左"): "Left",
         ("*", "右"): "Right",
         ("*", "显示更多参数"): "Show More Parameters",
-        ("*", "勾选后显示距离、旋转与灯光类型参数"):
-            "Show distance, rotation and light type options",
+        ("*", "勾选后显示距离与灯光类型参数"):
+            "Show distance and light type options",
         ("*", "主光功率"): "Key Light Power",
         ("*", "辅光功率"): "Fill Light Power",
         ("*", "背光功率"): "Back Light Power",

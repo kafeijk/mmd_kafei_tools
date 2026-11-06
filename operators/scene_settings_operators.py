@@ -769,7 +769,8 @@ class LightSettingsOperator(bpy.types.Operator):
         fill_y = math.radians(FILL_LIGHT_ANGLE)
         z_angle = math.radians(LIGHT_HEIGHT_ANGLE)
 
-        key_factor = 1 if props.key_position == "RIGHT" else -1
+        # 主光位于左侧时 X 为正方向，右侧时 X 为负方向
+        key_factor = 1 if props.key_position == "LEFT" else -1
         fill_factor = -key_factor
 
         # 距离为到目标的直线距离，按当前俯角折算水平投影

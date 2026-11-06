@@ -314,13 +314,13 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
 
     key_position: bpy.props.EnumProperty(
         name="主光位置",
-        description="主光位置",
+        description="以角色自身为基准，主光的位置",
         items=[
             ("LEFT", "左", "左"),
             ("RIGHT", "右", "右")
 
         ],
-        default="RIGHT",
+        default="LEFT",
         update=update_light_transforms
     )
 
