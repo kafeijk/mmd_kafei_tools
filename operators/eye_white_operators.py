@@ -210,7 +210,35 @@ def arrange_eye_white_collections():
         for obj in objs:
             move_to_collection(obj, collection)
 
+        empties = [obj for obj in objs if obj.type != 'MESH']
+        for extra in empties[1:]:
+            bpy.data.objects.remove(extra, do_unlink=True)
+        ensure_eye_white_parent(
+            root_name, collection,
+            [obj for obj in objs if obj.type == 'MESH'],
+            empties[0] if empties else None,
+        )
+
     remove_empty_eye_white_collections()
+
+
+def ensure_eye_white_parent(root_name, collection, objs, empty=None):
+    """创建与集合同名的空父级并挂到模型 root 下，代理对象再挂到空父级，移动 root 时一并移动"""
+    root = bpy.data.objects.get(root_name)
+    if empty is None:
+        empty = bpy.data.objects.new(collection.name, None)
+        empty[EYE_WHITE_ROOT_PROPERTY] = root_name
+        collection.objects.link(empty)
+    if root is not None and empty.parent != root:
+        empty.parent = root
+
+    # 记录世界变换，挂接后恢复，保证代理对象位置不变
+    world_matrices = {obj: obj.matrix_world.copy() for obj in objs}
+    for obj in objs:
+        obj.parent = empty
+    bpy.context.view_layer.update()
+    for obj, matrix_world in world_matrices.items():
+        obj.matrix_world = matrix_world
 
 
 def remove_empty_eye_white_collections():
