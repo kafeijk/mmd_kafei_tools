@@ -50,7 +50,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         name="边距",
         description="模型主体与预览图边界之间的留白程度，边距为n时，角色的宽度和高度约占画面尺寸的1/n",
         default=1.0,
-        min=1.0,
+        min=0.25,
         max=2.0
     )
     rotation_euler_x: bpy.props.FloatProperty(
