@@ -899,85 +899,84 @@ def link_uv(operator, source_target_map, props):
     """传递源物体UV到目标物体上"""
     # 用物体的顶点数等数据是否相等来校验两个物体是否是一样的进而传递UV等内容，并不准确。
     # （比如将物体拆边后，虽然顶点数边数不一致，但依然能够传递UV），但这里不考虑这些内容
-    direction = props.direction
-    uv_flag = props.uv_flag
-    if not uv_flag:
+    if not props.uv_flag:
         return
 
-    # 移除之前生成的uv对后续重复执行造成的影响
-    target_uvs_to_remove = {}
+    # 移除之前生成的UV，避免重复执行时UV层数累加
     for source, target in source_target_map.items():
-        target_uvs_to_remove[target] = []
-        source_uv_names = [uv.name for uv in source.data.uv_layers]
-        for index, uv_layer in enumerate(target.data.uv_layers):
-            if uv_layer.name in source_uv_names:
-                target_uvs_to_remove[target].append(index)
-    for target, uvs_to_remove in target_uvs_to_remove.items():
-        # 逆序删除收集到的UV图层 uv_layers.remove顺序删除会有并发修改异常
-        for index in sorted(uvs_to_remove, reverse=True):
-            target.data.uv_layers.remove(target.data.uv_layers[index])
+        remove_same_name_uv_layers(source, target)
 
     for source, target in source_target_map.items():
-        source_mesh = source.data
-        target_mesh = target.data
-        if len(source_mesh.uv_layers) == 0:
-            continue
-        # 如果loop值不一致，则跳过本次循环，但这不意味着错误
-        # 比如3.x导入abc复制uv出问题，用2.x导入并拷贝到当前工程，执行插件依然可以进行后续逻辑
-        if len(source_mesh.loops) != len(target_mesh.loops):
+        copy_uv_layers(operator, source, target, props.direction)
+
+
+def remove_same_name_uv_layers(source, target):
+    """删除目标物体中与源物体同名的UV图层，避免重复执行时UV层数累加"""
+    source_uv_names = {uv_layer.name for uv_layer in source.data.uv_layers}
+    indexes_to_remove = [index for index, uv_layer in enumerate(target.data.uv_layers)
+                         if uv_layer.name in source_uv_names]
+    # 逆序删除，顺序删除会因索引变化而漏删
+    for index in sorted(indexes_to_remove, reverse=True):
+        target.data.uv_layers.remove(target.data.uv_layers[index])
+
+
+def copy_uv_layers(operator, source, target, direction):
+    """按loop顺序把源物体的UV图层复制到目标物体"""
+    source_mesh = source.data
+    target_mesh = target.data
+    if len(source_mesh.uv_layers) == 0:
+        return
+    # 如果loop值不一致，则跳过本次复制，但这不意味着错误
+    # 比如3.x导入abc复制uv出问题，用2.x导入并拷贝到当前工程，执行插件依然可以进行后续逻辑
+    if len(source_mesh.loops) != len(target_mesh.loops):
+        operator.report(type={'WARNING'},
+                        message=bpy.app.translations.pgettext_iface(
+                            "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology.")
+                        .format(source.name, len(source_mesh.loops), len(source_mesh.polygons), target.name,
+                                len(target_mesh.loops), len(target_mesh.polygons)))
+        return
+
+    # 记录源物体活动的UV、用于渲染的UV、原始uv数量，以及目标物体原始uv数量
+    source_active_index = source_mesh.uv_layers.active_index
+    source_render_index = next(
+        (index for index, uv_layer in enumerate(source_mesh.uv_layers) if uv_layer.active_render), 0)
+    source_uv_count = len(source_mesh.uv_layers)
+    target_uv_count = len(target_mesh.uv_layers)
+
+    # 删除PMX2PMX情况下目标物体的UV，否则UV数量可能会达到上限
+    if direction == "PMX2PMX":
+        for uv_layer in reversed(target_mesh.uv_layers):
+            target_mesh.uv_layers.remove(uv_layer)
+
+    for uv_layer in source_mesh.uv_layers:
+        # 新建uv
+        # blender 3.0以下（如2.93）导入abc，uv命名是"uv"，而不是"UVMap"
+        # 所以除非刻意进行额外操作，否则出现"UV名称已存在（或者说UV命名冲突，不过实际名称会自动修改并不会冲突）"的问题的可能性很低，这里对此种情况暂不处理。
+        # pmx对象最多5个uv，abc对象1个uv（3.0以下导入时），通常情况下，不会超过8个的上限，如超过，这里对此种情况暂不处理。
+        new_uv = target_mesh.uv_layers.new(name=uv_layer.name)
+        if new_uv is None:
+            # 目标物体uv数量达到上限，给予提示
             operator.report(type={'WARNING'},
                             message=bpy.app.translations.pgettext_iface(
-                                "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology.")
-                            .format(source.name, len(source_mesh.loops), len(source_mesh.polygons), target.name,
-                                    len(target_mesh.loops), len(target_mesh.polygons)))
+                                "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}").format(
+                                target.name, len(target_mesh.uv_layers), uv_layer.name))
             continue
-        # 记录源物体活动的UV、用于渲染的UV、原始uv数量
-        source_uv_active_index = source_mesh.uv_layers.active_index
-        source_uv_render_index = next(
-            (index for index, uv_layer in enumerate(source_mesh.uv_layers) if uv_layer.active_render), 0)
-        source_original_uv_count = len(source_mesh.uv_layers)
-        # 记录目标物体原始uv数量
-        target_original_uv_count = len(target_mesh.uv_layers)
+        # 前面已校验loop数一致，直接按loop顺序拷贝UV坐标
+        uv_data = [0.0] * (len(uv_layer.data) * 2)
+        uv_layer.data.foreach_get("uv", uv_data)
+        new_uv.data.foreach_set("uv", uv_data)
 
-        # 删除PMX2PMX情况下目标物体的UV，否则UV数量可能会达到上限
-        if direction == "PMX2PMX":
-            for layer in reversed(target.data.uv_layers):
-                target.data.uv_layers.remove(layer)
-
-        for uv_layer in source.data.uv_layers:
-            # 新建uv
-            # blender 3.0以下（如2.93）导入abc，uv命名是"uv"，而不是"UVMap"
-            # 所以除非刻意进行额外操作，否则出现"UV名称已存在（或者说UV命名冲突，不过实际名称会自动修改并不会冲突）"的问题的可能性很低，这里对此种情况暂不处理。
-            # pmx对象最多5个uv，abc对象1个uv（3.0以下导入时），通常情况下，不会超过8个的上限，如超过，这里对此种情况暂不处理。
-            new_uv = target_mesh.uv_layers.new(name=uv_layer.name)
-            if new_uv is None:
-                # 目标物体uv数量达到上限，给予提示
-                operator.report(type={'WARNING'},
-                                message=bpy.app.translations.pgettext_iface(
-                                    "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}").format(
-                                    target.name, len(target.data.uv_layers), uv_layer.name))
-                continue
-            # 前面已校验loop数一致，直接按loop顺序拷贝UV坐标
-            uv_data = [0.0] * (len(uv_layer.data) * 2)
-            uv_layer.data.foreach_get("uv", uv_data)
-            new_uv.data.foreach_set("uv", uv_data)
-
-        # 恢复uv的激活状态
-        source_mesh.uv_layers[source_uv_active_index].active = True
-        source_mesh.uv_layers[source_uv_render_index].active_render = True
-        target_current_uv_count = len(target_mesh.uv_layers)
-        # 目标物体原始UV数量为0，且全部复制成功
-        if target_original_uv_count == 0 and target_current_uv_count == source_original_uv_count:
-            target_mesh.uv_layers[source_uv_active_index].active = True
-            target_mesh.uv_layers[source_uv_render_index].active_render = True
-        # 目标物体原始UV数量不为0，且全部复制成功
-        elif target_original_uv_count != 0 and target_current_uv_count == (
-                source_original_uv_count + target_original_uv_count):
-            target_mesh.uv_layers[source_uv_active_index + target_original_uv_count].active = True
-            target_mesh.uv_layers[source_uv_render_index + target_original_uv_count].active_render = True
-        else:
-            # 要么不复制，要么全部复制成功，其它情况，这里暂不考虑
-            pass
+    # 同步目标物体UV的激活状态：仅在全部复制成功时设置，其它情况暂不考虑
+    target_current_uv_count = len(target_mesh.uv_layers)
+    if target_uv_count == 0 and target_current_uv_count == source_uv_count:
+        index_offset = 0
+    elif target_uv_count != 0 and target_current_uv_count == source_uv_count + target_uv_count:
+        index_offset = target_uv_count
+    else:
+        # uv数量达到上限，前面已跳过
+        return
+    target_mesh.uv_layers[source_active_index + index_offset].active = True
+    target_mesh.uv_layers[source_render_index + index_offset].active_render = True
 
 
 def link_material(source_target_map, props):
