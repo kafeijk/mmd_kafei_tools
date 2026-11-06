@@ -4,7 +4,7 @@ import time
 
 import bmesh
 import bpy
-from mathutils import Quaternion, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 from ..utils import (
     copy_obj,
@@ -222,6 +222,20 @@ def arrange_eye_white_collections():
     remove_empty_eye_white_collections()
 
 
+def get_world_center(obj):
+    """对象网格包围盒中心的世界坐标（直接取网格数据，不受修改器求值状态影响）"""
+    matrix = obj.matrix_world
+    coordinates = [matrix @ vertex.co for vertex in obj.data.vertices]
+    xs = [co.x for co in coordinates]
+    ys = [co.y for co in coordinates]
+    zs = [co.z for co in coordinates]
+    return Vector((
+        (min(xs) + max(xs)) / 2,
+        (min(ys) + max(ys)) / 2,
+        (min(zs) + max(zs)) / 2,
+    ))
+
+
 def ensure_eye_white_parent(root_name, collection, objs, empty=None):
     """创建与集合同名的空父级并挂到模型 root 下，代理对象再挂到空父级，移动 root 时一并移动"""
     root = bpy.data.objects.get(root_name)
@@ -231,6 +245,17 @@ def ensure_eye_white_parent(root_name, collection, objs, empty=None):
         collection.objects.link(empty)
     if root is not None and empty.parent != root:
         empty.parent = root
+
+    # 空父级放在两眼白代理的中心位置，显示尺寸对应代理中心点的间距
+    proxies = [obj for obj in objs if not obj.name.endswith(EYE_WHITE_TARGET_SUFFIXES)]
+    if proxies:
+        centers = [get_world_center(obj) for obj in proxies]
+        empty.matrix_world = Matrix.Translation(sum(centers, Vector()) / len(centers))
+        if len(centers) > 1:
+            empty.empty_display_size = max(
+                (a - b).length for i, a in enumerate(centers) for b in centers[i + 1:])
+        else:
+            empty.empty_display_size = max(proxies[0].dimensions)
 
     # 记录世界变换，挂接后恢复，保证代理对象位置不变
     world_matrices = {obj: obj.matrix_world.copy() for obj in objs}
