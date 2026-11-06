@@ -906,6 +906,13 @@ class LightSettingsOperator(bpy.types.Operator):
             light_root = bpy.data.objects.new(translate("灯光控制器"), None)
             light_root[LIGHT_MARKER] = LIGHT_CONTROLLER_ATTR
             light_root[LIGHT_ROOT_PROPERTY] = root_name
+            # 跟随骨骼时，控制器显示尺寸与骨骼长度一致；跟随顶点组时保持默认尺寸
+            if props.target_type == "ARMATURE":
+                pose_bone = target.pose.bones.get(subtarget)
+                if pose_bone is not None:
+                    head = target.matrix_world @ pose_bone.head
+                    tail = target.matrix_world @ pose_bone.tail
+                    light_root.empty_display_size = (tail - head).length
 
             for obj in (*lights, light_root):
                 if not obj.users_collection:
