@@ -343,9 +343,24 @@ def do_camera_to_view_selected(camera_type,
 
     # 调整边距
     if camera_type == "PERSPECTIVE":
-        # 这里实际上修改的是视野，而非“焦距”
-        camera.data.angle = camera.data.angle * scale
+        # 这里实际上修改的是视野（FOV），而非“焦距”
+        #
+        # 视野角取决于 sensor_fit：默认的 AUTO 取渲染画幅较长的一边，即 angle_x 与 angle_y 中较大的那个。
+        # 预览分辨率默认 1080P（1920×1080，横版），所以 camera.data.angle 是左右方向的水平视角；
+        # 若分辨率为竖版（如交换 XY），较长边变为高度，angle 则转为上下方向的垂直视角。
+        #
+        # 问：根据当前视野角下角色在画幅中的位置，使其长宽变为原来的1/n，求新视野角。
+        # 推导：设视野角为 θ，距离 d 处画面的半宽（或半高）为 h = d·tan(θ/2)。
+        # 物体半宽为 r 时占画面比例 r / (d·tan(θ/2))，要让占比变成 1/n，只需让 tan(θ/2) 变成 n·tan(θ/2)：
+        #   tan(θ'/2) = n·tan(θ/2)
+        #   θ' = 2·atan(n·tan(θ/2))
+        #
+        # 之所以改视野而不用相机后退：改视野是以光心为中心的等比缩放，画面每个点的投影距离都按 1/n 缩小，
+        # 与物体离相机的远近无关，横竖两方向同步缩放且画幅比例不变；
+        # 而相机后退会让不同深度的物体缩放比例不一致，透视关系发生变化。
+        camera.data.angle = 2 * math.atan(math.tan(camera.data.angle / 2) * scale)
     elif camera_type == "ORTHOGRAPHIC":
+        # ortho_scale 本身就是可见尺寸（较长边），线性缩放即精确，无需 tan 换算
         camera.data.ortho_scale = camera.data.ortho_scale * scale
     else:
         pass

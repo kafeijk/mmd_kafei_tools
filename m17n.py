@@ -559,7 +559,7 @@ translation_dict = {
         # Preview Rendering description
         ("*", "预览相机的类型"): "Type of the preview camera",
         ("*", "渲染预览图\n渲染逻辑相当于点击预览按钮并执行图像渲染\n勾选批量参数后，按钮将切换为批量渲染模式"): "Render the preview image\nThe rendering logic is equivalent to clicking the preview button and performing an image render\nWhen batch parameters are enabled, the button switches to batch rendering mode",
-        ("*", "模型主体与预览图边界之间的留白程度"): "Margin between the model and the preview image border",
+        ("*", "模型主体与预览图边界之间的留白程度，边距为n时，角色的宽度和高度约占画面尺寸的1/n"): "Margin between the model and the preview image border. When the margin is n, the character's width and height each occupy about 1/n of the image size",
         ("*", "欧拉旋转"): "Rotation in Eulers",
         ("*", "相机旋转值跟随活动相机视角"): "Camera rotation values follow the active camera's view",
         ("*", "受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中"): "Due to hidden parts, some characters may not render centered. This option forces the character to be centered.",
