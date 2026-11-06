@@ -8,7 +8,6 @@ from mathutils import Quaternion, Vector
 
 from ..utils import (
     copy_obj,
-    deselect_all_objects,
     find_pmx_armature,
     find_pmx_root_with_child,
     get_collection,
@@ -21,6 +20,10 @@ from ..utils import (
 
 # 眼白发黑修复：集合/顶点组名称、骨骼与旋转采样参数
 EYE_WHITE_COLLECTION_NAME = "眼白代理集合"
+# 多模型时代理子集合的命名后缀
+EYE_WHITE_COLLECTION_SUFFIX = "眼白代理"
+# 扫过区域对象（始终隐藏）的名称后缀
+EYE_WHITE_TARGET_SUFFIXES = ("眼白目标缩裹_左", "眼白目标缩裹_右")
 EYE_WHITE_VERTEX_GROUP = "缩裹范围"
 EYE_WHITE_HEAD_GROUP = "頭"
 EYE_WHITE_SWEEP_BONE_NAME = "両目"
@@ -159,6 +162,82 @@ def select_eye_object(objs):
     return max(objs, key=lambda obj: len(obj.data.vertices))
 
 
+def get_eye_white_collection(root_name):
+    """获取代理集合：单个模型使用总集合，存在多个模型时按模型根对象拆分子集合"""
+    parent = get_collection(EYE_WHITE_COLLECTION_NAME)
+    if not root_name:
+        return parent
+
+    name = f"{root_name}_{EYE_WHITE_COLLECTION_SUFFIX}"
+    collection = bpy.data.collections.get(name)
+    if collection is None:
+        collection = bpy.data.collections.new(name)
+    # 子集合只挂在代理总集合下
+    for other in list(bpy.data.collections):
+        if other != parent and other.children.get(collection.name) is not None:
+            other.children.unlink(collection)
+    if parent.children.get(collection.name) is None:
+        parent.children.link(collection)
+    return collection
+
+
+def move_to_collection(obj, collection):
+    """把对象移动到指定集合"""
+    for other in list(obj.users_collection):
+        if other != collection:
+            other.objects.unlink(obj)
+    if collection not in obj.users_collection:
+        collection.objects.link(obj)
+
+
+def arrange_eye_white_collections():
+    """把场景中所有代理对象按所属模型归入对应集合：多模型时使用子集合，否则使用总集合"""
+    parent = bpy.data.collections.get(EYE_WHITE_COLLECTION_NAME)
+    if parent is None:
+        return
+
+    root_objects = {}
+    for obj in bpy.context.scene.objects:
+        root_name = obj.get(EYE_WHITE_ROOT_PROPERTY)
+        if root_name is None:
+            continue
+        root_objects.setdefault(root_name, []).append(obj)
+
+    # 存在多组代理对象时，按模型根对象拆分到子集合
+    prefixed = len(root_objects) > 1
+    for root_name, objs in root_objects.items():
+        collection = get_eye_white_collection(root_name) if prefixed else parent
+        for obj in objs:
+            move_to_collection(obj, collection)
+
+    remove_empty_eye_white_collections()
+
+
+def remove_empty_eye_white_collections():
+    """清理不再包含对象的代理子集合"""
+    parent = bpy.data.collections.get(EYE_WHITE_COLLECTION_NAME)
+    if parent is None:
+        return
+    for child in list(parent.children):
+        if child.objects or not child.name.endswith(f"_{EYE_WHITE_COLLECTION_SUFFIX}"):
+            continue
+        parent.children.unlink(child)
+        bpy.data.collections.remove(child)
+
+
+def apply_eye_white_visibility():
+    """统一代理可见性：眼白代理始终可见，眼白目标缩裹始终隐藏"""
+    # 新建或移动对象后需先刷新视图层，否则 set_visibility 会因对象尚未注册而跳过
+    bpy.context.view_layer.update()
+    for obj in bpy.context.scene.objects:
+        if obj.get(EYE_WHITE_ROOT_PROPERTY) is None:
+            continue
+        if obj.name.endswith(EYE_WHITE_TARGET_SUFFIXES):
+            set_visibility(obj, (False, True, False, True))
+        else:
+            show_object(obj)
+
+
 def get_eye_white_material():
     """获取/创建“默认眼白”材质：仅原理化BSDF（默认参数）连接材质输出"""
     material = bpy.data.materials.get(EYE_WHITE_MATERIAL_NAME)
@@ -180,23 +259,6 @@ def set_object_material(obj, material):
     """把物体材质替换为指定材质"""
     obj.data.materials.clear()
     obj.data.materials.append(material)
-
-
-def join_objects(objs, name):
-    """合并物体并重命名"""
-    if len(objs) == 1:
-        objs[0].name = name
-        return objs[0]
-
-    deselect_all_objects()
-    for obj in objs:
-        obj.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-    bpy.ops.object.join()
-
-    result = bpy.context.view_layer.objects.active
-    result.name = name
-    return result
 
 
 def get_sweep_bones(armature):
@@ -286,13 +348,29 @@ def prefix_object_name(name, root_name):
     return f"{truncate_utf8(root_name, available)}_{name}"
 
 
-def bake_evaluated_mesh(source, collection, name):
-    """把物体当前求值结果（含骨架变形）烘焙为新的网格对象"""
-    depsgraph = bpy.context.evaluated_depsgraph_get()
+def bake_evaluated_mesh(source, depsgraph, name):
+    """烘焙物体的当前求值网格（含骨架变形），只返回网格与变换，暂不创建对象"""
     mesh = bpy.data.meshes.new_from_object(source.evaluated_get(depsgraph))
     mesh.name = name
-    obj = bpy.data.objects.new(name, mesh)
-    obj.matrix_world = source.matrix_world
+    return mesh, source.matrix_world.copy()
+
+
+def merge_baked_objects(parts, name, collection):
+    """把采样得到的网格数据合并成一个网格并创建对象（各网格使用同一世界变换，无需再变换顶点）"""
+    if not parts:
+        return None
+
+    bm = bmesh.new()
+    try:
+        for mesh, _ in parts:
+            bm.from_mesh(mesh)
+        merged = bpy.data.meshes.new(name)
+        bm.to_mesh(merged)
+    finally:
+        bm.free()
+
+    obj = bpy.data.objects.new(name, merged)
+    obj.matrix_world = parts[0][1]
     collection.objects.link(obj)
     return obj
 
@@ -325,7 +403,16 @@ def build_swept_eyes(context, armature, left_sources, right_sources, collection,
 
     states = [(bone, bone.rotation_mode, bone.matrix_basis.copy()) for bone in bones]
     left_parts, right_parts = [], []
+    # 采样期间只需要骨架与眼睛参与求值，临时隐藏其它对象可大幅降低刷新耗时
+    keep = {armature, *left_sources, *right_sources}
+    hidden_states = [
+        (obj, obj.hide_viewport) for obj in context.scene.objects
+        if obj not in keep and not obj.hide_viewport
+    ]
     try:
+        for obj, _ in hidden_states:
+            obj.hide_viewport = True
+
         for bone in bones:
             bone.rotation_mode = 'QUATERNION'
 
@@ -334,19 +421,24 @@ def build_swept_eyes(context, armature, left_sources, right_sources, collection,
                 bone.rotation_quaternion = get_world_axis_quaternion(
                     armature, bone, axis, angle)
             context.view_layer.update()
+            depsgraph = context.evaluated_depsgraph_get()
 
+            # 采样期间只烘焙网格数据，不创建对象，避免依赖图每次求值都带上已烘好的对象
             for source in left_sources:
-                left_parts.append(bake_evaluated_mesh(source, collection, f"{left_name}_b{index}"))
+                left_parts.append(bake_evaluated_mesh(source, depsgraph, f"{left_name}_b{index}"))
             for source in right_sources:
-                right_parts.append(bake_evaluated_mesh(source, collection, f"{right_name}_b{index}"))
+                right_parts.append(bake_evaluated_mesh(source, depsgraph, f"{right_name}_b{index}"))
     finally:
+        for obj, hide_viewport in hidden_states:
+            obj.hide_viewport = hide_viewport
         for bone, rotation_mode, matrix_basis in states:
             bone.rotation_mode = rotation_mode
             bone.matrix_basis = matrix_basis
         context.view_layer.update()
 
-    left_target = join_objects(left_parts, left_name) if left_parts else None
-    right_target = join_objects(right_parts, right_name) if right_parts else None
+    # 采样结束后统一合并为左右两个对象
+    left_target = merge_baked_objects(left_parts, left_name, collection)
+    right_target = merge_baked_objects(right_parts, right_name, collection)
     return left_target, right_target
 
 
@@ -523,13 +615,13 @@ class FixEyeWhiteOperator(bpy.types.Operator):
 
         armature = get_eye_armatures(eye_objs + eye_white_objs)[0]
         root_name = find_pmx_root_with_child(armature).name
-        collection = get_collection(EYE_WHITE_COLLECTION_NAME)
 
         # 删除同一模型上次生成的旧对象，记录其遗留的数据块以便一并清理
         removed_pointers = remove_previous_objects(root_name)
 
-        # 全场景存在其他模型的旧对象时，生成对象名添加 root 前缀以便区分
+        # 全场景存在其他模型的旧对象时，生成对象名添加 root 前缀并放置于对应的代理子集合
         prefix = root_name if has_other_model_objects(root_name) else ""
+        collection = get_eye_white_collection(prefix)
         white_left_name = prefix_object_name("眼白代理_左", prefix)
         white_right_name = prefix_object_name("眼白代理_右", prefix)
         target_left_name = prefix_object_name("眼白目标缩裹_左", prefix)
@@ -581,13 +673,18 @@ class FixEyeWhiteOperator(bpy.types.Operator):
                 continue
             setup_target_vertex_groups(target)
             copy_armature_modifier(target, whites[0])
-            set_visibility(target, (False, True, False, True))
 
         # 生成对象记录所属模型根对象名称，便于下次执行时清理
         generated_objs = left_whites + right_whites + [
             target for target in (left_target, right_target) if target is not None]
         for obj in generated_objs:
             obj[EYE_WHITE_ROOT_PROPERTY] = root_name
+
+        # 已存在的代理对象与新生成对象统一归入对应集合
+        arrange_eye_white_collections()
+
+        # 统一最终可见性：眼白代理始终可见，眼白目标缩裹始终隐藏
+        apply_eye_white_visibility()
 
         # 眼睛拷贝仅用于生成扫过区域，之后统一删除
         for obj in left_eyes + right_eyes:
