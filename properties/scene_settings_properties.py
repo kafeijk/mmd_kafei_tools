@@ -8,6 +8,18 @@ from ..constants import (LIGHT_COLOR_PRESETS,
 from ..utils import hex_to_rgb
 
 
+def update_render_settings(self, context):
+    """渲染引擎参数变更后立即应用渲染设置"""
+    from ..operators.scene_settings_operators import apply_render_settings
+    apply_render_settings(context)
+
+
+def update_world_settings(self, context):
+    """世界环境参数变更后立即应用世界环境"""
+    from ..operators.scene_settings_operators import apply_world_settings
+    apply_world_settings(context)
+
+
 class RenderSettingsProperty(bpy.types.PropertyGroup):
     engine: bpy.props.EnumProperty(
         name="Render Engine",
@@ -17,7 +29,8 @@ class RenderSettingsProperty(bpy.types.PropertyGroup):
             ("CYCLES", "Cycles", "Cycles")
 
         ],
-        default="EEVEE"
+        default="EEVEE",
+        update=update_render_settings
     )
 
     @staticmethod
@@ -44,7 +57,8 @@ class WorldSettingsProperty(bpy.types.PropertyGroup):
             ("SUNRISE", "日出", "日出"),
             ("SUNSET", "日落", "日落"),
         ],
-        default="DEFAULT"
+        default="DEFAULT",
+        update=update_world_settings
     )
 
     @staticmethod

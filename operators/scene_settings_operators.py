@@ -47,6 +47,39 @@ IS_4_0_OR_NEWER = bpy.app.version >= (4, 0, 0)
 IS_5_0_OR_NEWER = bpy.app.version >= (5, 0, 0)
 
 
+def apply_render_settings(context):
+    """应用渲染设置（引擎参数变更后立即执行）"""
+    scene = context.scene
+    props = scene.mmd_kafei_tools_render_settings
+    engine = props.engine
+    # 设置渲染参数。
+    if engine == "EEVEE":
+        if IS_EEVEE_NEXT:
+            set_eevee_next(context)
+        else:
+            set_eevee(context)
+    elif engine == "CYCLES":
+        set_cycles(context)
+
+    # 色彩管理 - 查看变换
+    if bpy.context.scene.display_settings.display_device == 'sRGB':
+        bpy.context.scene.view_settings.view_transform = 'Filmic'
+
+    # 着色方式 - 渲染
+    try:
+        with bpy.context.temp_override(**view3d_context()):
+            bpy.context.space_data.shading.type = 'RENDERED'
+    except (AttributeError, TypeError):
+        pass
+
+
+def apply_world_settings(context):
+    """应用世界环境（世界环境参数变更后立即执行），返回需要提示的信息"""
+    scene = context.scene
+    world_name = scene.mmd_kafei_tools_world_settings.world_name
+    return set_env(context, world_name, 1)
+
+
 class RenderSettingsOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.render_settings"
     bl_label = "执行"
@@ -54,32 +87,8 @@ class RenderSettingsOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.main(context)
+        apply_render_settings(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
-
-    def main(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_render_settings
-        engine = props.engine
-        # 设置渲染参数。
-        if engine == "EEVEE":
-            if IS_EEVEE_NEXT:
-                set_eevee_next(context)
-            else:
-                set_eevee(context)
-        elif engine == "CYCLES":
-            set_cycles(context)
-
-        # 色彩管理 - 查看变换
-        if bpy.context.scene.display_settings.display_device == 'sRGB':
-            bpy.context.scene.view_settings.view_transform = 'Filmic'
-
-        # 着色方式 - 渲染
-        with bpy.context.temp_override(**view3d_context()):
-            try:
-                bpy.context.space_data.shading.type = 'RENDERED'
-            except (AttributeError, TypeError):
-                pass
 
 
 class WorldSettingsOperator(bpy.types.Operator):
@@ -93,10 +102,7 @@ class WorldSettingsOperator(bpy.types.Operator):
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def main(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_world_settings
-        world_name = props.world_name
-        warning = set_env(context, world_name, 1)
+        warning = apply_world_settings(context)
         if warning is not None:
             self.report(type={'WARNING'}, message=warning)
 
