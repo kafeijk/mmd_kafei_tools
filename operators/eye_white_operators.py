@@ -222,6 +222,16 @@ def arrange_eye_white_collections():
     remove_empty_eye_white_collections()
 
 
+def strip_numeric_suffix(name):
+    """去掉 Blender 自动追加的 .001 之类数字后缀"""
+    return re.sub(r"\.\d+$", "", name)
+
+
+def is_eye_white_target(obj):
+    """判断是否为扫过区域目标对象，兼容名称被追加 .001 之类数字后缀的情况"""
+    return strip_numeric_suffix(obj.name).endswith(EYE_WHITE_TARGET_SUFFIXES)
+
+
 def get_world_center(obj):
     """对象网格包围盒中心的世界坐标（直接取网格数据，不受修改器求值状态影响）"""
     matrix = obj.matrix_world
@@ -247,7 +257,7 @@ def ensure_eye_white_parent(root_name, collection, objs, empty=None):
         empty.parent = root
 
     # 空父级放在两眼白代理的中心位置，显示尺寸对应代理中心点的间距
-    proxies = [obj for obj in objs if not obj.name.endswith(EYE_WHITE_TARGET_SUFFIXES)]
+    proxies = [obj for obj in objs if not is_eye_white_target(obj)]
     if proxies:
         centers = [get_world_center(obj) for obj in proxies]
         empty.matrix_world = Matrix.Translation(sum(centers, Vector()) / len(centers))
@@ -272,7 +282,8 @@ def remove_empty_eye_white_collections():
     if parent is None:
         return
     for child in list(parent.children):
-        if child.objects or not child.name.endswith(f"_{EYE_WHITE_COLLECTION_SUFFIX}"):
+        if child.objects or not strip_numeric_suffix(child.name).endswith(
+                f"_{EYE_WHITE_COLLECTION_SUFFIX}"):
             continue
         parent.children.unlink(child)
         bpy.data.collections.remove(child)
@@ -285,7 +296,7 @@ def apply_eye_white_visibility():
     for obj in bpy.context.scene.objects:
         if obj.get(EYE_WHITE_ROOT_PROPERTY) is None:
             continue
-        if obj.name.endswith(EYE_WHITE_TARGET_SUFFIXES):
+        if is_eye_white_target(obj):
             set_visibility(obj, (False, True, False, True))
         else:
             show_object(obj)
@@ -352,6 +363,44 @@ def get_eye_armatures(objs):
         if armature is not None and armature not in armatures:
             armatures.append(armature)
     return armatures
+
+
+def remove_object_with_data(obj):
+    """删除对象，并清理其无用户的网格数据"""
+    data = obj.data
+    bpy.data.objects.remove(obj, do_unlink=True)
+    if isinstance(data, bpy.types.Mesh) and data.users == 0:
+        bpy.data.meshes.remove(data)
+
+
+def remove_orphan_eye_white_objects():
+    """校验代理父级空对象与代理对象：父级是孤儿或模型 root 不存在时移除，不处理 root"""
+    eye_white_objects = [
+        obj for obj in bpy.data.objects
+        if obj.get(EYE_WHITE_ROOT_PROPERTY) is not None]
+    mesh_objects = [obj for obj in eye_white_objects if obj.type == 'MESH']
+
+    # 校验模型 root 对象是否存在
+    existing_roots = {
+        obj.get(EYE_WHITE_ROOT_PROPERTY) for obj in eye_white_objects
+        if bpy.data.objects.get(obj.get(EYE_WHITE_ROOT_PROPERTY)) is not None
+    }
+
+    # 先校验 eye_white_parent：对应 root 不存在或 eye_white_parent 本身是孤儿时移除
+    for obj in eye_white_objects:
+        if obj.type == 'MESH':
+            continue
+        root_name = obj.get(EYE_WHITE_ROOT_PROPERTY)
+        if root_name not in existing_roots or obj.name not in bpy.context.scene.objects:
+            remove_object_with_data(obj)
+
+    # 再校验代理与扫过区域对象：root 不存在、eye_white_parent 被移除或是孤儿时移除
+    for obj in mesh_objects:
+        root_name = obj.get(EYE_WHITE_ROOT_PROPERTY)
+        parent = obj.parent
+        if (root_name not in existing_roots or parent is None
+                or parent.name not in bpy.context.scene.objects):
+            remove_object_with_data(obj)
 
 
 def remove_previous_objects(root_name):
@@ -659,6 +708,8 @@ class FixEyeWhiteOperator(bpy.types.Operator):
     def repair(self, context):
         """复制眼白与眼睛，按左右拆分后把眼白缩裹到眼睛旋转扫过的区域"""
         start_time = time.time()
+        # 先清理所属模型已不存在的代理残留对象，释放被占用的名称
+        remove_orphan_eye_white_objects()
         # 记录执行前的网格与形态键，执行后清理残留的孤儿数据
         data_snapshot = snapshot_data_blocks()
 
