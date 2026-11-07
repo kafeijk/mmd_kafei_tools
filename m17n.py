@@ -55,7 +55,6 @@ translation_dict = {
         ("*", "Armature not found in {}!"): "在{}中未找到模型骨架！",
         ("*", "Mesh not found in {}!"): "在{}中未找到网格对象！",
         ("*", "Invalid parent type for face locator! Required: BONE, Found: {}"): "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
-        ("*", "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}"): "未能完整传递多材质，请检查网格拓扑与初始姿态。源物体：{}，面数：{}。目标物体：{}，面数：{}，匹配成功面数：{}",
         # transfer_preset_operators msg
         ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
         ("*", "Model pairing failed. Successful pairs: 0, source model object count: {}{}, target model object count: {}, please check."): "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。",
@@ -627,6 +626,9 @@ translation_dict = {
         ("*", "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV："):
             "The following meshes reached the UV layer limit during UV transfer. "
             "If abnormal, clear the target objects' own UVs before running:",
+        ("*", "以下内容多材质槽传递不完整，请检查网格拓扑与初始姿态："):
+            "Multiple material slots were not fully transferred for the following meshes. "
+            "Check mesh topology and rest pose:",
 
 
         # Other

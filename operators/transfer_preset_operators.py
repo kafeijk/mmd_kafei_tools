@@ -95,10 +95,8 @@ class TransferPresetOperator(bpy.types.Operator):
                 # 传递源物体UV到目标物体上
                 link_uv(source_target_map, props)
 
-                # 关联源物体材质到目标物体上
-                link_material(source_target_map, props)
-                # 关联源物体材质到目标物体上（多材质槽情况下）
-                link_multi_slot_materials(self, source_target_map, props)
+                # 关联源物体材质到目标物体上（含多材质槽的面映射）
+                link_materials(source_target_map, props)
 
                 # 传递源物体顶点组及顶点权重到目标物体上（正序）
                 link_vertices_group(source_armature, target_armature, source_target_map, props)
@@ -946,6 +944,7 @@ def add_warning(category, record):
 WARNING_HEADERS = {
     "loop_mismatch": "以下内容拓扑信息不一致，已跳过UV传递：",
     "uv_limit": "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV：",
+    "material_mismatch": "以下内容多材质槽传递不完整，请检查网格拓扑与初始姿态：",
 }
 
 
@@ -1026,19 +1025,63 @@ def copy_uv_layers(source, target, direction):
     target_mesh.uv_layers[source_render_index + index_offset].active_render = True
 
 
-def link_material(source_target_map, props):
-    """关联源物体材质到目标物体上"""
-    material_flag = props.material_flag
-    if not material_flag:
+def link_materials(source_target_map, props):
+    """关联源物体材质到目标物体上，并按面质心映射多材质槽"""
+    if not props.material_flag:
         return
 
+    direction = props.direction
     for source, target in source_target_map.items():
-        deselect_all_objects()
-        select_and_activate(target)
-        select_and_activate(source)
-        # 关联材质
-        bpy.ops.object.make_links_data(type='MATERIAL')
-    deselect_all_objects()
+        # 复制材质槽
+        target.data.materials.clear()
+        for material in source.data.materials:
+            target.data.materials.append(material)
+
+        # 单材质槽不需要逐面映射
+        if len(source.material_slots) <= 1:
+            continue
+
+        # 通过面的质心坐标（局部）来确定源和目标的映射关系，以此来关联材质。
+        # 需要说明的是，针对大多数模型，只有单材质槽，因此不会进入后续代码。
+        # 只有人为设置源物体为多材质时，才会进入后续代码。
+        # 因此，虽然面质心可能会受重合面影响，但那只存在于重合面属于同一网格且为不同材质，非正常逻辑。
+
+        # 源物体质心与面的map，源物体面与对应材质的map
+        source_center_poly_map = {}
+        source_poly_material_map = {}
+        for source_poly in source.data.polygons:
+            source_poly_material_map[source_poly.index] = source_poly.material_index
+            # 将质心坐标（局部）进行精度误差处理，得到的结果保存在map中
+            # 坐标值 / PRECISION后截断保留整数，误差为±1，因此额外覆盖一圈邻域
+            for i in range(-1, 2):
+                for j in range(-1, 2):
+                    for k in range(-1, 2):
+                        key = (
+                            truncate(source_poly.center.x) + i,
+                            truncate(source_poly.center.y) + j,
+                            truncate(source_poly.center.z) + k)
+                        source_center_poly_map[key] = source_poly.index
+
+        match_count = 0
+        for target_poly in target.data.polygons:
+            # abc模型导入时按PMX_IMPORT_SCALE缩放，质心坐标需要换算回pmx的尺度
+            if direction[-3:] == 'ABC':
+                key = (
+                    truncate(target_poly.center.x * PMX_IMPORT_SCALE),
+                    truncate(target_poly.center.y * PMX_IMPORT_SCALE),
+                    truncate(target_poly.center.z * PMX_IMPORT_SCALE))
+            else:
+                key = (
+                    truncate(target_poly.center.x),
+                    truncate(target_poly.center.y),
+                    truncate(target_poly.center.z))
+            if key in source_center_poly_map:
+                match_count += 1
+                source_poly = source_center_poly_map[key]
+                target_poly.material_index = source_poly_material_map[source_poly]
+
+        if match_count != len(source.data.polygons):
+            add_warning("material_mismatch", (source.name, target.name))
 
 
 def link_vertices_group(source_armature, target_armature, mapping, props):
@@ -1152,79 +1195,6 @@ def get_vertices_and_weights(obj, vertex_group):
 def truncate(value):
     """对值÷精度后的结果进行截断，返回整数部分"""
     return math.floor(value / PRECISION)
-
-
-def link_multi_slot_materials(operator, mapping, props):
-    """关联源物体材质到目标物体上（多材质槽情况下）"""
-    direction = props.direction
-    material_flag = props.material_flag
-    if not material_flag:
-        return
-
-    for source, target in mapping.items():
-        # 没有active_object直接mode_set会报异常
-        deselect_all_objects()
-        select_and_activate(source)
-
-        # 通过面的质心坐标（局部）来确定源和目标的映射关系，以此来关联材质
-        # 模型可能会存在重合面，导致质心位置相同
-        # 但是pmx模型的肌和体，要么分属不同的网格对象，要么属于同一网格对象的不同面
-        # 不论是哪种情况，重合面都不会对最终的结果产生影响（如有其它普遍且未考虑进来的情况再说）
-
-        # 获取源物体网格数据
-        source_mesh = source.data
-        # 源物体质心与面的map
-        source_center_poly_map = {}
-        # 源物体面与对应材质的map
-        source_poly_material_map = {}
-        for source_poly in source_mesh.polygons:
-            source_poly_material_map[source_poly.index] = source_poly.material_index
-
-            # 将质心坐标（局部）进行精度误差处理，得到的结果保存在map中。
-            # 如果不进行精度误差处理，直接将poly.center作为key，坐标值只会保留小数点后4位。（以四舍五入的方式）
-            # 首先想到的是增加精度，获取更后面的值，直到完整获取整个数值以避免四舍五入，但是这样会产生精度丢失的问题
-            # 实际的值非常不可控，所以才要四舍五入吧，但问题的原因不是四舍五入，而是存在误差
-            # 事实上，保留小数点后四位已经足够了，但个别面的质心坐标值依然存在误差。
-            # 这里对坐标值 / PRECISION后的结果进行截断，保留整数，误差为±1。
-            for i in range(-1, 2):
-                for j in range(-1, 2):
-                    for k in range(-1, 2):
-                        key = (
-                            truncate(source_poly.center.x) + i * 1,
-                            truncate(source_poly.center.y) + j * 1,
-                            truncate(source_poly.center.z) + k * 1)
-                        source_center_poly_map[key] = source_poly.index
-
-        deselect_all_objects()
-        select_and_activate(target)
-        # 获取目标物体网格数据
-        target_mesh = target.data
-        match_count = 0
-        for target_poly in target_mesh.polygons:
-            # target_poly的质心坐标要乘上0.08，但是质心坐标不会随着缩放比例的变化而变化
-            key = None
-            if direction[-3:] == 'ABC':
-                key = (
-                    truncate(target_poly.center.x * PMX_IMPORT_SCALE),
-                    truncate(target_poly.center.y * PMX_IMPORT_SCALE),
-                    truncate(target_poly.center.z * PMX_IMPORT_SCALE))
-            elif direction[-3:] == 'PMX':
-                key = (
-                    truncate(target_poly.center.x),
-                    truncate(target_poly.center.y),
-                    truncate(target_poly.center.z))
-            if key in source_center_poly_map:
-                match_count += 1
-                source_poly = source_center_poly_map[key]
-                material_index = source_poly_material_map[source_poly]
-                target_poly.material_index = material_index
-        if match_count != len(source_mesh.polygons) and len(source.material_slots) > 1:
-            # 如果出现特殊情况给予提示
-            operator.report(type={'WARNING'},
-                            message=bpy.app.translations.pgettext_iface(
-                                "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}")
-                            .format(source.name, len(source_mesh.polygons), target.name, len(source_mesh.polygons),
-                                    match_count))
 
 
 def link_modifiers(mapping, props):
