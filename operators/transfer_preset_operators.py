@@ -1006,6 +1006,9 @@ def copy_uv_layers(source, target, direction):
             add_warning("uv_limit", (source.name, target.name))
             continue
         # 前面已校验loop数一致，直接按loop顺序拷贝UV坐标
+        # uv_layer.data 的长度与 mesh.loops 一致，存储的是面角数据。
+        # 只要网格面未发生变化，各面的角数就不会改变。
+        # 因此，无论相邻面之间的重合顶点是否合并，面角数据的数量和结构都保持不变。
         uv_data = [0.0] * (len(uv_layer.data) * 2)
         uv_layer.data.foreach_get("uv", uv_data)
         new_uv.data.foreach_set("uv", uv_data)
