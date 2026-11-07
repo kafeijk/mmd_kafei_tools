@@ -634,10 +634,57 @@ def link_normal(mapping, props):
     if direction == "PMX2PMX":
         return
 
+    fallback_map = {}
+    for source, target in mapping.items():
+        # 优先直接写入自定义法向，省去每个对象创建、移动、应用DataTransfer修改器的算子开销
+        # 直接写入不可用时（如拓扑不一致、当前版本不支持）退化为修改器方案
+        if not copy_custom_normals(source, target):
+            fallback_map[source] = target
+
+        # 获取target网格序列缓存修改器，取消面的读取
+        for cache_modifier in modifiers_by_type(target, "MESH_SEQUENCE_CACHE"):
+            cache_modifier.read_data = {'VERT', 'UV', 'COLOR'}
+
+    if fallback_map:
+        link_normal_by_modifier(fallback_map)
+
+
+def copy_custom_normals(source, target):
+    """
+    直接写入自定义拆边法向，避免DataTransfer修改器。
+    拓扑一致（面拐数量相同）且当前版本支持写入时返回True，否则返回False由调用方退化为修改器方案。
+    3.x / 4.0 需先调用calc_normals_split缓存面拐法向；4.1起calc_normals_split已被移除，改用corner_normals直接读取
+    3.x / 4.0 的自定义法向是否生效取决于目标自身的自动平滑设置，与原修改器方案保持一致，此处不做修改
+    """
+    source_mesh = source.data
+    target_mesh = target.data
+    if len(source_mesh.loops) != len(target_mesh.loops):
+        return False
+
+    set_custom_normals = getattr(target_mesh, "normals_split_custom_set", None)
+    if set_custom_normals is None:
+        return False
+
+    calc_normals_split = getattr(source_mesh, "calc_normals_split", None)
+    if calc_normals_split is None:
+        normals = [normal.vector.copy() for normal in source_mesh.corner_normals]
+    else:
+        calc_normals_split()
+        normals = [loop.normal.copy() for loop in source_mesh.loops]
+
+    if len(normals) != len(target_mesh.loops):
+        return False
+
+    set_custom_normals(normals)
+    return True
+
+
+def link_normal_by_modifier(mapping):
+    """退化为DataTransfer修改器方案的实现"""
     # 记录物体修改器显示情况，然后关闭修改器的显示，防止对后续传递造成影响（如焊接等修改器会使source target拓扑不一致）
     # 物体 -> 物体修改器是否显示
     obj_mod_show_map = {}
-    for source, target in mapping.items():
+    for source in mapping:
         obj_mod_show_map[source.name] = [mod.show_viewport for mod in source.modifiers]
         for mod in source.modifiers:
             mod.show_viewport = False
@@ -665,13 +712,8 @@ def link_normal(mapping, props):
         bpy.ops.object.datalayout_transfer(modifier=modifier.name)
         bpy.ops.object.modifier_apply(modifier=modifier.name)
 
-        # 获取target网格序列缓存修改器，取消面的读取
-        cache_modifiers = modifiers_by_type(target, "MESH_SEQUENCE_CACHE")
-        for cache_modifier in cache_modifiers:
-            cache_modifier.read_data = {'VERT', 'UV', 'COLOR'}
-
     # 恢复物体修改器显示情况
-    for source, target in mapping.items():
+    for source in mapping:
         source_mod_show_list = obj_mod_show_map.get(source.name)
         for index, mod in enumerate(source.modifiers):
             mod.show_viewport = source_mod_show_list[index]
