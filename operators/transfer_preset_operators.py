@@ -879,8 +879,10 @@ def create_abc_parent(source_root, source_target_map, props):
     if direction != 'PMX2ABC':
         return
 
-    # 检查是否已经有父对象，如果有则不需要创建新的
-    if any(obj.parent for obj in source_target_map.values()):
+    targets = list(source_target_map.values())
+    # 所有目标已经挂在同一个父级下时无需处理，其余情况（无父级、部分无父级、父级不一致）一律重建
+    parents = {target.parent for target in targets}
+    if len(parents) == 1 and None not in parents:
         return
 
     # 创建ABC父级空对象
@@ -895,13 +897,13 @@ def create_abc_parent(source_root, source_target_map, props):
     abc_root = bpy.data.objects.new(abc_name, None)
 
     # 将父对象链接到第一个子对象所在的集合中
-    collection = next((target.users_collection[0] for target in source_target_map.values()
+    collection = next((target.users_collection[0] for target in targets
                        if target.users_collection), None)
     if collection:
         collection.objects.link(abc_root)
 
     # 设置所有目标对象的父对象为新创建的abc_root
-    for target in source_target_map.values():
+    for target in targets:
         target.parent = abc_root
 
 
