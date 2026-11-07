@@ -358,6 +358,32 @@ def process_locator(face_obj, face_area, bm, props):
     set_visibility(locator, (False, True, False, True))
 
 
+def get_weight_one_vertex_info(mesh, vertex_group_index):
+    """
+    获取网格中指定顶点组权重为1的顶点信息。
+    返回（顶点数, 顶点位置(27邻域膨胀) -> 出现次数, 最小z值）。
+    直接遍历mesh.vertices与其顶点组权重，避免为每个物体构建bmesh并逐层访问变形权重层。
+    """
+    count = 0
+    min_z = float('inf')
+    vert_location = {}
+    for vert in mesh.vertices:
+        for group_element in vert.groups:
+            if group_element.group != vertex_group_index or group_element.weight != 1.0:
+                continue
+            count += 1
+            co = vert.co
+            if co.z < min_z:
+                min_z = co.z
+            # 备选三点父级位置
+            for i in range(-1, 2):
+                for j in range(-1, 2):
+                    for k in range(-1, 2):
+                        key = (truncate(co.x) + i, truncate(co.y) + j, truncate(co.z) + k)
+                        vert_location[key] = vert_location.get(key, 0) + 1
+    return count, vert_location, min_z
+
+
 def get_face_area(operator, mapping, props):
     direction = props.direction
     toon_shading_flag = props.toon_shading_flag
@@ -385,30 +411,8 @@ def get_face_area(operator, mapping, props):
             operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
 
-        group_names = {v.index: v.name for v in face_object.vertex_groups}
-        bm = bmesh.new()
-        bm.from_mesh(face_object.data)
-        # 获取顶点的变形权重层
-        dvert_lay = bm.verts.layers.deform.active
-        count = 0
-        for vert in bm.verts:
-            dvert = vert[dvert_lay]
-            for group_index, weight in dvert.items():
-                group_name = group_names[group_index]
-                if group_name == face_vg and weight == 1.0:
-                    count += 1
-                    # 备选三点父级位置
-                    for i in range(-1, 2):
-                        for j in range(-1, 2):
-                            for k in range(-1, 2):
-                                key = (
-                                    truncate(vert.co.x) + i * 1,
-                                    truncate(vert.co.y) + j * 1,
-                                    truncate(vert.co.z) + k * 1)
-                                if key not in source_face_vert_location:
-                                    source_face_vert_location[key] = 1
-                                else:
-                                    source_face_vert_location[key] = source_face_vert_location[key] + 1
+        vg_index = face_object.vertex_groups.find(face_vg)
+        count, source_face_vert_location, _ = get_weight_one_vertex_info(face_object.data, vg_index)
         if count < 3:
             msg = bpy.app.translations.pgettext_iface(
                 "In the face object \"{}\", "
@@ -431,47 +435,20 @@ def get_face_area(operator, mapping, props):
         # 拥有局部z值最小的顶点的源物体所对应的目标物体
         face_min_z_obj = None
         for source, target in mapping.items():
-            current_min_z = float('inf')
-            current_min_z_obj = None
-            # 符合条件的顶点数量
-            count = 0
-            # 符合条件的顶点位置 -> 出现次数，次数大于1表明存在重合点
-            vert_location = {}
-            # 顶点组索引 -> 顶点组名称
-            group_names = {v.index: v.name for v in source.vertex_groups}
-
-            bm = bmesh.new()
-            bm.from_mesh(source.data)
-            # 获取顶点的变形权重层
-            dvert_lay = bm.verts.layers.deform.active
-            for vert in bm.verts:
-                dvert = vert[dvert_lay]
-                for group_index, weight in dvert.items():
-                    group_name = group_names[group_index]
-                    if group_name == vg_name and weight == 1.0:
-                        count += 1
-                        if vert.co.z < current_min_z:
-                            current_min_z = vert.co.z
-                            current_min_z_obj = target
-                        # 备选三点父级位置
-                        for i in range(-1, 2):
-                            for j in range(-1, 2):
-                                for k in range(-1, 2):
-                                    key = (
-                                        truncate(vert.co.x) + i * 1,
-                                        truncate(vert.co.y) + j * 1,
-                                        truncate(vert.co.z) + k * 1)
-                                    if key not in vert_location:
-                                        vert_location[key] = 1
-                                    else:
-                                        vert_location[key] = vert_location[key] + 1
+            vg_index = source.vertex_groups.find(vg_name)
+            # 没有该顶点组时不可能存在符合条件的顶点，直接跳过，避免全量扫描
+            if vg_index == -1:
+                continue
+            # 物体的包围盒最低点均已不低于当前最优值时，不可能存在更低的头部顶点，跳过整次扫描
+            if min(corner[2] for corner in source.bound_box) >= face_min_z:
+                continue
+            count, vert_location, current_min_z = get_weight_one_vertex_info(source.data, vg_index)
             if count >= 3:  # 3点父级
                 if current_min_z < face_min_z:
                     face_flag = True
                     source_face_vert_location = vert_location
                     face_min_z = current_min_z
-                    face_min_z_obj = current_min_z_obj
-            bm.free()
+                    face_min_z_obj = target
 
         if face_flag:
             face_obj = face_min_z_obj
