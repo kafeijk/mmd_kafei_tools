@@ -1,3 +1,5 @@
+import contextlib
+import contextvars
 import math
 import os
 import re
@@ -88,26 +90,31 @@ class TransferPresetOperator(bpy.types.Operator):
             # 三渲二面部定位器处理 - 设置面部定位器
             process_locator(face_obj, face_area, bm, props)
 
-            # 传递源物体UV到目标物体上
-            link_uv(self, source_target_map, props)
+            # 记录传递过程中的警告，最后由report_warnings统一提示
+            with collect_warnings() as warning_map:
+                # 传递源物体UV到目标物体上
+                link_uv(source_target_map, props)
 
-            # 关联源物体材质到目标物体上
-            link_material(source_target_map, props)
-            # 关联源物体材质到目标物体上（多材质槽情况下）
-            link_multi_slot_materials(self, source_target_map, props)
+                # 关联源物体材质到目标物体上
+                link_material(source_target_map, props)
+                # 关联源物体材质到目标物体上（多材质槽情况下）
+                link_multi_slot_materials(self, source_target_map, props)
 
-            # 传递源物体顶点组及顶点权重到目标物体上（正序）
-            link_vertices_group(source_armature, target_armature, source_target_map, props)
-            link_vertices_weight(source_armature, target_armature, source_target_map, props)
+                # 传递源物体顶点组及顶点权重到目标物体上（正序）
+                link_vertices_group(source_armature, target_armature, source_target_map, props)
+                link_vertices_weight(source_armature, target_armature, source_target_map, props)
 
-            # 传递源物体修改器到目标物体上（保留网格序列缓存修改器，删除骨架修改器）
-            link_modifiers(source_target_map, props)
+                # 传递源物体修改器到目标物体上（保留网格序列缓存修改器，删除骨架修改器）
+                link_modifiers(source_target_map, props)
 
-            # 传递源物体自定义拆边法向到目标物体上
-            link_normal(source_target_map, props)
+                # 传递源物体自定义拆边法向到目标物体上
+                link_normal(source_target_map, props)
 
-            # 为ABC模型创建父级对象，方便后续操作与管理
-            create_abc_parent(source_root, source_target_map, props)
+                # 为ABC模型创建父级对象，方便后续操作与管理
+                create_abc_parent(source_root, source_target_map, props)
+
+            # 统一提示传递过程中记录的警告
+            report_warnings(self, warning_map)
 
             # 恢复原有可见性
             for obj, visibility in visibility_map.items():
@@ -895,7 +902,7 @@ def modifiers_by_type(obj, typename):
     return [x for x in obj.modifiers if x.type == typename]
 
 
-def link_uv(operator, source_target_map, props):
+def link_uv(source_target_map, props):
     """传递源物体UV到目标物体上"""
     # 用物体的顶点数等数据是否相等来校验两个物体是否是一样的进而传递UV等内容，并不准确。
     # （比如将物体拆边后，虽然顶点数边数不一致，但依然能够传递UV），但这里不考虑这些内容
@@ -907,7 +914,49 @@ def link_uv(operator, source_target_map, props):
         remove_same_name_uv_layers(source, target)
 
     for source, target in source_target_map.items():
-        copy_uv_layers(operator, source, target, props.direction)
+        copy_uv_layers(source, target, props.direction)
+
+
+_warning_map_context = contextvars.ContextVar("transfer_preset_warning_map", default=None)
+
+
+@contextlib.contextmanager
+def collect_warnings():
+    """在with范围内收集警告，格式为 {警告类别: [提示文本]}"""
+    warning_map = {}
+    token = _warning_map_context.set(warning_map)
+    try:
+        yield warning_map
+    finally:
+        _warning_map_context.reset(token)
+
+
+def add_warning(category, record):
+    """记录一条警告；未处于collect_warnings范围内时忽略"""
+    warning_map = _warning_map_context.get()
+    if warning_map is None:
+        return
+    records = warning_map.setdefault(category, [])
+    # 同一配对可能因多个UV层重复记录，这里去重
+    if record not in records:
+        records.append(record)
+
+
+# 警告类别 -> 提示标题（中文为msgid，英文在m17n的en_US中翻译），具体记录内容由report_warnings格式化
+WARNING_HEADERS = {
+    "loop_mismatch": "以下内容拓扑信息不一致，已跳过UV传递：",
+    "uv_limit": "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV：",
+}
+
+
+def report_warnings(operator, warning_map):
+    """把传递过程中收集到的警告按类别汇总提示"""
+    for category, records in warning_map.items():
+        header = WARNING_HEADERS.get(category, category)
+        # 记录格式为（源名称，目标名称，其它信息...），其它信息仅记录不输出
+        lines = [bpy.app.translations.pgettext_iface(header)]
+        lines.extend("{} → {}".format(record[0], record[1]) for record in records)
+        operator.report(type={'WARNING'}, message="\n".join(lines))
 
 
 def remove_same_name_uv_layers(source, target):
@@ -920,7 +969,7 @@ def remove_same_name_uv_layers(source, target):
         target.data.uv_layers.remove(target.data.uv_layers[index])
 
 
-def copy_uv_layers(operator, source, target, direction):
+def copy_uv_layers(source, target, direction):
     """按loop顺序把源物体的UV图层复制到目标物体"""
     source_mesh = source.data
     target_mesh = target.data
@@ -929,11 +978,9 @@ def copy_uv_layers(operator, source, target, direction):
     # 如果loop值不一致，则跳过本次复制，但这不意味着错误
     # 比如3.x导入abc复制uv出问题，用2.x导入并拷贝到当前工程，执行插件依然可以进行后续逻辑
     if len(source_mesh.loops) != len(target_mesh.loops):
-        operator.report(type={'WARNING'},
-                        message=bpy.app.translations.pgettext_iface(
-                            "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology.")
-                        .format(source.name, len(source_mesh.loops), len(source_mesh.polygons), target.name,
-                                len(target_mesh.loops), len(target_mesh.polygons)))
+        # 仅记录名称与loop信息，具体提示由report_warnings统一格式化
+        add_warning("loop_mismatch",
+                    (source.name, target.name, len(source_mesh.loops), len(target_mesh.loops)))
         return
 
     # 记录源物体活动的UV、用于渲染的UV、原始uv数量，以及目标物体原始uv数量
@@ -955,11 +1002,8 @@ def copy_uv_layers(operator, source, target, direction):
         # pmx对象最多5个uv，abc对象1个uv（3.0以下导入时），通常情况下，不会超过8个的上限，如超过，这里对此种情况暂不处理。
         new_uv = target_mesh.uv_layers.new(name=uv_layer.name)
         if new_uv is None:
-            # 目标物体uv数量达到上限，给予提示
-            operator.report(type={'WARNING'},
-                            message=bpy.app.translations.pgettext_iface(
-                                "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}").format(
-                                target.name, len(target_mesh.uv_layers), uv_layer.name))
+            # 目标物体uv数量达到上限，仅记录名称
+            add_warning("uv_limit", (source.name, target.name))
             continue
         # 前面已校验loop数一致，直接按loop顺序拷贝UV坐标
         uv_data = [0.0] * (len(uv_layer.data) * 2)

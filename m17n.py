@@ -55,9 +55,7 @@ translation_dict = {
         ("*", "Armature not found in {}!"): "在{}中未找到模型骨架！",
         ("*", "Mesh not found in {}!"): "在{}中未找到网格对象！",
         ("*", "Invalid parent type for face locator! Required: BONE, Found: {}"): "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
-        ("*", "UV transfer failed! Source: {} (loops:{}, faces:{}) → Target: {} (loops:{}, faces:{}). Check mesh topology."): "UV传递失败！源物体：{} (loops：{}，面数：{}) → 目标物体：{} (loops：{}，面数：{})。请检查网格拓扑。",
         ("*", "Multiple material slots transfer incomplete! Verify mesh topology & rest pose. Source: {} (faces:{}), Target: {} (faces:{}), Matched: {}"): "未能完整传递多材质，请检查网格拓扑与初始姿态。源物体：{}，面数：{}。目标物体：{}，面数：{}，匹配成功面数：{}",
-        ("*", "UV copy failed during transfer! Target: {} (UV channels:{}), Source UV:{}"): "传递材质时UV复制失败！目标物体：{} (UV通道数：{})，源物体UV名称：{}",
         # transfer_preset_operators msg
         ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
         ("*", "Model pairing failed. Successful pairs: 0, source model object count: {}{}, target model object count: {}, please check."): "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。",
@@ -622,6 +620,13 @@ translation_dict = {
         ("*", "个别失败通常是模型文件本身的问题，请单独检查这些文件。文件详情↑↑↑"):
             "Individual failures are usually caused by the model files; "
             "please check them separately. See file details above ↑↑↑",
+
+        # Transfer preset warning
+        ("*", "以下内容拓扑信息不一致，已跳过UV传递："):
+            "The following meshes have mismatched topology, so UV transfer was skipped:",
+        ("*", "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV："):
+            "The following meshes reached the UV layer limit during UV transfer. "
+            "If abnormal, clear the target objects' own UVs before running:",
 
 
         # Other
