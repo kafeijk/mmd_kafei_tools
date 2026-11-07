@@ -1225,67 +1225,53 @@ def link_modifiers(mapping, props):
     if not modifiers_flag:
         return
 
+    # 软体/多重分辨率修改器要求原始数据，无法重建；骨架修改器会让目标错误绑定到源骨架，均不复制
+    skip_types = {'SOFT_BODY', 'MULTIRES', 'ARMATURE'}
+    # ABC 保留网格序列缓存，PMX 保留骨架
+    keep_type = 'MESH_SEQUENCE_CACHE' if direction[-3:] == 'ABC' else 'ARMATURE'
+    # 可写属性列表按修改器类型缓存，避免每个对象重复遍历RNA
+    property_cache = {}
+
+    def get_writable_properties(modifier_type, modifier):
+        identifiers = property_cache.get(modifier_type)
+        if identifiers is None:
+            identifiers = [p.identifier for p in modifier.bl_rna.properties if not p.is_readonly]
+            property_cache[modifier_type] = identifiers
+        return identifiers
+
+    def snapshot(modifier):
+        """在清空修改器之前把名称、类型与可写属性值全部读出，避免清空后引用失效"""
+        modifier_type = modifier.type
+        try:
+            modifier_name = modifier.name
+        except UnicodeDecodeError:
+            # 历史数据的修改器名称可能不是UTF-8，读取会报错，退化为按类型命名
+            modifier_name = modifier_type
+        values = {}
+        for prop in get_writable_properties(modifier_type, modifier):
+            if prop == "name":
+                continue
+            values[prop] = getattr(modifier, prop)
+        return modifier_name, modifier_type, values
+
     for source, target in mapping.items():
-        deselect_all_objects()
-        # 备份目标物体的修改器（不进行这一步的话目标物体的修改器会丢失）
-        # 创建一个临时网格对象（立方体）
-        bpy.ops.mesh.primitive_cube_add(size=2, enter_editmode=False, align='WORLD', location=(0, 0, 0))
-        temp_mesh_object = bpy.context.active_object
-        select_and_activate(temp_mesh_object)
-        select_and_activate(target)
-        # 将目标物体修改器关联到临时网格对象上面
-        bpy.ops.object.make_links_data(type='MODIFIERS')
+        # 记录目标自身需要保留的修改器及其原索引
+        target_own_entries = [(index, snapshot(modifier)) for index, modifier in enumerate(target.modifiers)
+                              if modifier.type == keep_type]
+        # 先按源修改器顺序排列，再把目标自身的修改器插回原索引位置，与原「逐个上移」的结果一致
+        entries = [snapshot(modifier) for modifier in source.modifiers if modifier.type not in skip_types]
+        for index, entry in sorted(target_own_entries, key=lambda item: item[0]):
+            entries.insert(min(index, len(entries)), entry)
 
-        # 复制源物体修改器到目标物体上面
-        deselect_all_objects()
-        select_and_activate(target)
-        select_and_activate(source)
-        bpy.ops.object.make_links_data(type='MODIFIERS')
+        target.modifiers.clear()
 
-        # 增强健壮性 无法移动至一个需要原始数据的修改器之上
-        for i in range(len(target.modifiers) - 1, -1, -1):
-            modifier = target.modifiers[i]
-            if modifier.type in ['SOFT_BODY', 'MULTIRES']:
-                target.modifiers.remove(modifier)
-
-        # 删除骨架修改器
-        for armature_modifier in modifiers_by_type(target, 'ARMATURE'):
-            target.modifiers.remove(armature_modifier)
-
-        # 将临时网格对象的修改器名称、类型、属性复制到目标物体的新建修改器上面
-        # 因为默认顶点组并没有关联到target中，所以可能存在target修改器属性值为红的情况，但这里暂不处理（可能性较低）
-        deselect_all_objects()
-        select_and_activate(temp_mesh_object)
-        for index, modifier in enumerate(temp_mesh_object.modifiers):
-            if direction[-3:] == 'ABC' and modifier.type != 'MESH_SEQUENCE_CACHE':
-                continue
-            if direction[-3:] == 'PMX' and modifier.type != 'ARMATURE':
-                continue
-            select_and_activate(target)
-            m_dst = target.modifiers.new(modifier.name, modifier.type)
-            properties = [p.identifier for p in modifier.bl_rna.properties
-                          if not p.is_readonly]
-            for prop in properties:
-                setattr(m_dst, prop, getattr(modifier, prop))
-
-            while target.modifiers.find(modifier.name) != index:
-                bpy.ops.object.modifier_move_up(modifier=modifier.name)
-
-        # 如果修改器涉及到source对象的引用，则将其修改为target的引用
-        for target_modifier in target.modifiers:
-            properties = [p.identifier for p in target_modifier.bl_rna.properties
-                          if not p.is_readonly]
-            for prop in properties:
-                value = getattr(target_modifier, prop)
+        for modifier_name, modifier_type, values in entries:
+            new_modifier = target.modifiers.new(modifier_name, modifier_type)
+            for prop, value in values.items():
+                # 如果修改器涉及到source对象的引用，则将其修改为target的引用
                 if isinstance(value, bpy.types.Object):
-                    target_ref = mapping.get(value, None)
-                    if target_ref:
-                        setattr(target_modifier, prop, target_ref)
-
-        # 删除临时网格对象
-        deselect_all_objects()
-        select_and_activate(temp_mesh_object)
-        bpy.ops.object.delete()
+                    value = mapping.get(value, value)
+                setattr(new_modifier, prop, value)
 
 
 if __name__ == "__main__":
