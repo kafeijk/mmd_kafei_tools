@@ -273,7 +273,8 @@ class TransferPresetOperator(bpy.types.Operator):
             if not abc_filepath:
                 self.report(type={'ERROR'}, message=f'Cache file path required!')
                 return False
-            if not bpy.path.abspath(abc_filepath):
+            # abspath 对非空字符串必定返回非空，必须显式判断文件是否存在
+            if not os.path.exists(bpy.path.abspath(abc_filepath)):
                 self.report(type={'ERROR'}, message=f'Cache file not found!')
                 return False
             if "abc" not in os.path.splitext(abc_filepath)[1]:
