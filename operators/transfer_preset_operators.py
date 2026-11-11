@@ -730,7 +730,7 @@ def reset_cache_param(operator, props):
             if mesh_objs:
                 target_objs.extend(mesh_objs)
     else:
-        target_objs = bpy.data.objects
+        target_objs = bpy.context.scene.objects
 
     # 目标角色 -> 角色信息 map
     target_character_map, obj_info_map, target_obj_flag_map, non_compliant_list = get_character_map(target_objs)
