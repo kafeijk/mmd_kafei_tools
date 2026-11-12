@@ -497,6 +497,8 @@ def get_face_area(operator, mapping, props):
             ).format(vg_name)
             operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
+
+    show_object(face_obj)
     select_and_activate(face_obj)
     bpy.ops.object.mode_set(mode='EDIT')
     # 取消所有选中的面、边和顶点
