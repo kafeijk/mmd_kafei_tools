@@ -548,10 +548,13 @@ def matching(sources, targets, direction, tolerance=0):
     target_order = {target: index for index, target in enumerate(targets)}
     # 源物体 -> 候选目标列表（名称/贴图/顶点校验后仍未唯一确定的会保留多个候选）
     candidate_map = {}
-    # 第一轮没有候选的源物体，留到第二轮用顶点位置做全量匹配
-    pending_sources = []
+    # 第一轮没有候选的源物体，按名称情况区分第二轮使用的匹配方式
+    # 名称一致但loop数不一致（换头等网格编辑）：允许误差
+    pending_tolerance = []
+    # 名称不一致或名称+loop一致但校验未通过：精确匹配
+    pending_exact = []
 
-    # 第一轮：名称 + loop数，常规模型绝大多数可以在这一轮直接完成配对
+    # 第一轮：名称 + loop数 + 5%顶点邻域抽样，常规模型绝大多数可以在这一轮直接完成配对
     for source in sources:
         source_name = get_normalized_name(source)
         source_loop_count = len(source.data.loops)
@@ -574,9 +577,14 @@ def matching(sources, targets, direction, tolerance=0):
             if candidates:
                 candidate_map[source] = candidates
             else:
-                pending_sources.append(source)
+                pending_exact.append(source)
             continue
-        pending_sources.append(source)
+        # 名称一致但loop数不一致时按误差匹配，其余情况按精确匹配
+        if any(get_normalized_name(target) == source_name for target in targets):
+            pending_tolerance.append(source)
+        else:
+            # 兼容 PMX2ABC，必定会走全量校验
+            pending_exact.append(source)
 
     # 最终配对结果，格式为 {源物体: 目标物体}
     source_target_map = {}
@@ -586,12 +594,21 @@ def matching(sources, targets, direction, tolerance=0):
     pair_issues = []
     resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
 
-    # 第二轮：名称不一致、拓扑被修改或第一轮未配对时，用顶点位置做全量匹配
+    # 第二轮：名称一致但loop数不一致（换头等网格编辑），带误差做全量匹配
     # 仅针对第一轮未被占用的目标，避免低置信匹配把已确定的目标拖入多对一异常
     available_targets = [target for target in targets if target not in used_targets]
     candidate_map = {}
-    for source in pending_sources:
+    for source in pending_tolerance:
         candidates = match_by_vertices(source, available_targets, direction, tolerance=tolerance)
+        if candidates:
+            candidate_map[source] = candidates
+    resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
+
+    # 第三轮：名称不一致，做精确全量匹配。兼容 PMX2ABC，必定会走全量校验
+    available_targets = [target for target in targets if target not in used_targets]
+    candidate_map = {}
+    for source in pending_exact:
+        candidates = match_by_vertices(source, available_targets, direction)
         if candidates:
             candidate_map[source] = candidates
     resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
@@ -605,8 +622,8 @@ def matching(sources, targets, direction, tolerance=0):
 def resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order):
     """把候选集合解析为最终配对
 
-    多对多：候选集合完全相同的多个源，按目标顺序两两配对（允许）
-    一对多：候选集合大于1且找不到等价的源，异常，不传递
+    多对多：候选集合完全相同的多个源，且源数量与目标数量一致时按目标顺序两两配对（允许）
+    一对多：候选集合大于1且无法等价为多对多，异常，不传递
     多对一：同一个目标被多个源候选，异常，不传递
     """
     # 按候选集合分组，集合相同的源视为等价（多对多的判定依据）
@@ -621,21 +638,21 @@ def resolve_candidates(candidate_map, source_target_map, pair_issues, used_targe
             target = next(iter(candidate_key))
             single_claimants.setdefault(target, []).extend(group_sources)
             continue
-        if len(group_sources) == 1:
-            # 一对多且没有等价的源，异常，不传递
-            source = group_sources[0]
-            pair_issues.append(('one_to_many', source.name, join_names(candidate_key, target_order)))
+        # 候选集合相同且源数量与目标数量一致时，提升为多对多，任意两两配对
+        if len(group_sources) == len(candidate_key):
+            ordered_targets = sorted(candidate_key, key=target_order.get)
+            for source, target in zip(group_sources, ordered_targets):
+                if target in used_targets:
+                    pair_issues.append(('many_to_one', target.name, source.name))
+                    continue
+                source_target_map[source] = target
+                used_targets.add(target)
+            pair_issues.append(('many_to_many', join_names(group_sources),
+                                join_names(ordered_targets, target_order)))
             continue
-        # 多对多等价：按目标顺序任意两两配对
-        ordered_targets = sorted(candidate_key, key=target_order.get)
-        for source, target in zip(group_sources, ordered_targets):
-            if target in used_targets:
-                pair_issues.append(('many_to_one', target.name, source.name))
-                continue
-            source_target_map[source] = target
-            used_targets.add(target)
-        pair_issues.append(('many_to_many', join_names(group_sources),
-                            join_names(ordered_targets, target_order)))
+        # 数量不一致时无法等价，仍按一对多异常处理，逐个记录且不传递
+        for source in group_sources:
+            pair_issues.append(('one_to_many', source.name, join_names(candidate_key, target_order)))
 
     for target, claimants in single_claimants.items():
         if target in used_targets or len(claimants) > 1:
@@ -662,7 +679,7 @@ def get_normalized_name(obj):
 def verify_vertex_sample(source, target, direction, ratio=0.05):
     """按比例抽样源顶点，在目标顶点的27邻域中做存在性校验
 
-    名称与loop数一致只能说明命名和面角数量相同，不能排除位置完全不同的极端情况（如面部）。
+    名称与loop数一致只能说明命名和面角数量相同，不能排除位置完全不同的极端情况。
     这里抽样5%的源顶点，要求每个抽样点都能在目标的27邻域（±1精度格）中找到对应顶点。
     """
     source_vertices = source.data.vertices
@@ -783,24 +800,56 @@ def get_image_signature(image, cache):
     return signature
 
 
+def get_output_connected_nodes(node_tree):
+    """返回与激活的输出节点连通的节点集合（沿输入链接反向遍历），不考虑节点组"""
+    output_node = None
+    for node in node_tree.nodes:
+        # is_active_output 仅输出节点具备该属性
+        if getattr(node, 'is_active_output', False):
+            output_node = node
+            break
+    if output_node is None:
+        return set()
+    connected = set()
+    stack = [output_node]
+    while stack:
+        node = stack.pop()
+        if node in connected:
+            continue
+        connected.add(node)
+        for socket in node.inputs:
+            for link in socket.links:
+                stack.append(link.from_node)
+    return connected
+
+
 def get_material_texture_signature(material, cache):
-    """返回材质中已连接贴图节点的图像内容签名；无贴图或图像不可读时返回None"""
+    """
+    返回材质中标签为 Mmd Base Tex 的图像内容签名
+
+    仅当图像节点与激活的输出节点连通、且图像去重后唯一时返回签名，否则返回 None。
+    """
     if material is None or not material.use_nodes or material.node_tree is None:
         return None
-    signatures = []
+    connected_nodes = get_output_connected_nodes(material.node_tree)
+    images = []
     for node in material.node_tree.nodes:
         if node.type != 'TEX_IMAGE' or node.image is None:
             continue
-        # 忽略未连接的孤立贴图节点
-        if not any(output.is_linked for output in node.outputs):
+        if node.label != "Mmd Base Tex":
             continue
-        signature = get_image_signature(node.image, cache)
-        if signature[0] in {'missing', 'unreadable'}:
-            return None
-        signatures.append(signature)
-    if not signatures:
+        # 图像必须与激活的输出节点连通才算被使用
+        if node not in connected_nodes:
+            continue
+        if node.image not in images:
+            images.append(node.image)
+    # 去重后必须唯一，否则无法用于区分
+    if len(images) != 1:
         return None
-    return tuple(sorted(signatures, key=str))
+    signature = get_image_signature(images[0], cache)
+    if signature[0] in {'missing', 'unreadable'}:
+        return None
+    return signature
 
 
 def filter_by_material_texture(source, candidates):
