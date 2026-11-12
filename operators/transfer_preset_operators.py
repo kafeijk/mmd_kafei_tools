@@ -225,102 +225,94 @@ class TransferPresetOperator(bpy.types.Operator):
                 target_root, target_armature, target_objects, source_target_map)
 
     def check_props(self, props):
-        direction = props.direction
-        if direction == 'PMX2ABC':
-            source_pmx2abc = props.source_pmx2abc
-            if source_pmx2abc is None:
-                self.report(type={'ERROR'}, message=translate("请选择源模型！"))
-                return False
-            pmx_root = find_pmx_root_with_child(source_pmx2abc)
-            if pmx_root is None:
-                self.report(type={'ERROR'}, message=translate("源模型不是 PMX 模型！"))
-                return False
-            pmx_armature = find_pmx_armature(pmx_root)
-            if pmx_armature is None:
-                self.report(type={'ERROR'},
-                            message=translate("在 {} 中未找到骨架！").format(pmx_root.name))
-                return False
-            pmx_objects = find_pmx_objects(pmx_armature)
-            if len(pmx_objects) == 0:
-                self.report(type={'ERROR'},
-                            message=translate("在 {} 中未找到网格！").format(pmx_root.name))
-                return False
-            abc_objects = find_abc_objects()
-            if len(abc_objects) == 0:
-                self.report(type={'ERROR'}, message=translate("未找到 ABC 网格！"))
-                return False
+        """按传递方向校验参数"""
+        checkers = {
+            'PMX2ABC': self.check_pmx2abc_props,
+            'PMX2PMX': self.check_pmx2pmx_props,
+            'ABC2ABC': self.check_abc2abc_props,
+        }
+        checker = checkers.get(props.direction)
+        return checker(props) if checker else True
 
-            toon_shading_flag = props.toon_shading_flag
-            face_locator = props.face_locator
-            auto_face_location = props.auto_face_location
-            face_object = props.face_object
-            face_vg = props.face_vg
-            # 排除面部定位器对操作流程的影响
-            if toon_shading_flag:
-                if face_locator is None:
-                    self.report(type={'ERROR'}, message=translate("请选择面部定位器！"))
-                    return False
-                # 先仅考虑骨骼父级的情况
-                if face_locator.parent_type != 'BONE':
-                    self.report(type={'ERROR'},
-                                message=translate(
-                                    "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}").format(
-                                    face_locator.parent_type))
-                    return False
-                vg_name = face_locator.parent_bone
-                if vg_name is None or vg_name == '':
-                    self.report(type={'ERROR'},
-                                message=translate("面部定位器未绑定到父级骨骼！"))
-                    return False
-                # 仅三渲二会使用手动指定的面部物体与顶点组
-                if auto_face_location is False:
-                    if face_object is None:
-                        self.report(type={'ERROR'}, message=translate("请选择面部物体！"))
-                        return False
-                    if face_object.type != "MESH":
-                        self.report(type={'ERROR'},
-                                    message=translate("面部物体必须是网格物体！"))
-                        return False
-                    if face_vg is None or face_vg == '':
-                        self.report(type={'ERROR'}, message=translate("请选择面部顶点组！"))
-                        return False
-        elif direction == 'PMX2PMX':
-            if props.source is None:
-                self.report(type={'ERROR'}, message=translate("请选择源模型！"))
-                return False
-            if props.target is None:
-                self.report(type={'ERROR'}, message=translate("请选择目标模型！"))
-                return False
-            source_root = find_pmx_root_with_child(props.source)
-            target_root = find_pmx_root_with_child(props.target)
-            if source_root is None:
-                self.report(type={'ERROR'}, message=translate("源模型不是 PMX 模型！"))
-                return False
-            if target_root is None:
-                self.report(type={'ERROR'}, message=translate("目标模型不是 PMX 模型！"))
-                return False
-            if source_root == target_root:
-                self.report(type={'ERROR'}, message=translate("源模型与目标模型不能相同！"))
-                return False
-            for r in [source_root, target_root]:
-                pmx_armature = find_pmx_armature(r)
-                if pmx_armature is None:
-                    self.report(type={'ERROR'},
-                                message=translate("在 {} 中未找到骨架！").format(r.name))
-                    return False
-        elif direction == 'ABC2ABC':
-            abc_filepath = props.abc_filepath
-            if not abc_filepath:
-                self.report(type={'ERROR'}, message=translate("请选择缓存文件！"))
-                return False
-            # abspath 对非空字符串必定返回非空，必须显式判断文件是否存在
-            if not os.path.exists(bpy.path.abspath(abc_filepath)):
-                self.report(type={'ERROR'}, message=translate("缓存文件不存在！"))
-                return False
-            if "abc" not in os.path.splitext(abc_filepath)[1]:
-                self.report(type={'ERROR'}, message=translate("请选择 ABC 缓存文件！"))
-                return False
+    def check_fail(self, message, *args):
+        """输出校验错误并返回 False，供各方向校验方法直接返回"""
+        self.report(type={'ERROR'}, message=translate(message).format(*args))
+        return False
 
+    def check_pmx2abc_props(self, props):
+        """PMX → ABC：源 PMX 与 ABC 网格均需存在"""
+        source_pmx2abc = props.source_pmx2abc
+        if source_pmx2abc is None:
+            return self.check_fail("请选择源模型！")
+        pmx_root = find_pmx_root_with_child(source_pmx2abc)
+        if pmx_root is None:
+            return self.check_fail("源模型不是 PMX 模型！")
+        pmx_armature = find_pmx_armature(pmx_root)
+        if pmx_armature is None:
+            return self.check_fail("在 {} 中未找到骨架！", pmx_root.name)
+        if len(find_pmx_objects(pmx_armature)) == 0:
+            return self.check_fail("在 {} 中未找到网格！", pmx_root.name)
+        if len(find_abc_objects()) == 0:
+            return self.check_fail("未找到 ABC 网格！")
+        # 三渲二才需要面部定位器与面部物体
+        if props.toon_shading_flag:
+            return self.check_toon_shading_props(props)
+        return True
+
+    def check_toon_shading_props(self, props):
+        """三渲二：面部定位器必须有效，手动指定面部时校验面部物体与顶点组"""
+        face_locator = props.face_locator
+        if face_locator is None:
+            return self.check_fail("请选择面部定位器！")
+        # 先仅考虑骨骼父级的情况
+        if face_locator.parent_type != 'BONE':
+            return self.check_fail(
+                "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
+                face_locator.parent_type)
+        vg_name = face_locator.parent_bone
+        if vg_name is None or vg_name == '':
+            return self.check_fail("面部定位器未绑定到父级骨骼！")
+        # 自动识别面部时不需要手动参数
+        if props.auto_face_location:
+            return True
+        face_object = props.face_object
+        if face_object is None:
+            return self.check_fail("请选择面部物体！")
+        if face_object.type != "MESH":
+            return self.check_fail("面部物体必须是网格物体！")
+        if props.face_vg is None or props.face_vg == '':
+            return self.check_fail("请选择面部顶点组！")
+        return True
+
+    def check_pmx2pmx_props(self, props):
+        """PMX → PMX：源/目标均需为不同且带骨架的 PMX 模型"""
+        if props.source is None:
+            return self.check_fail("请选择源模型！")
+        if props.target is None:
+            return self.check_fail("请选择目标模型！")
+        source_root = find_pmx_root_with_child(props.source)
+        target_root = find_pmx_root_with_child(props.target)
+        if source_root is None:
+            return self.check_fail("源模型不是 PMX 模型！")
+        if target_root is None:
+            return self.check_fail("目标模型不是 PMX 模型！")
+        if source_root == target_root:
+            return self.check_fail("源模型与目标模型不能相同！")
+        for root in (source_root, target_root):
+            if find_pmx_armature(root) is None:
+                return self.check_fail("在 {} 中未找到骨架！", root.name)
+        return True
+
+    def check_abc2abc_props(self, props):
+        """ABC → ABC：缓存文件必须存在且为 abc 格式"""
+        abc_filepath = props.abc_filepath
+        if not abc_filepath:
+            return self.check_fail("请选择缓存文件！")
+        # abspath 对非空字符串必定返回非空，必须显式判断文件是否存在
+        if not os.path.exists(bpy.path.abspath(abc_filepath)):
+            return self.check_fail("缓存文件不存在！")
+        if "abc" not in os.path.splitext(abc_filepath)[1]:
+            return self.check_fail("请选择 ABC 缓存文件！")
         return True
 
 
