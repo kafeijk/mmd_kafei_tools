@@ -50,12 +50,11 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     direction: bpy.props.EnumProperty(
         name="传递方向",
         description="预设传递方向",
-        default='PMX2ABC',
+        default='PMX2PMX',
         items=[
-            # pmx -> abc 较为常用
-            ('PMX2ABC', 'PMX → ABC', "将PMX模型的预设传递到ABC模型上"),
             # pmx -> pmx 一定配合强校验，可解决网格顺序不同、网格内容修改后重新导入产生的重复上材质问题
             ('PMX2PMX', 'PMX → PMX', "将PMX模型的预设传递到PMX模型上"),
+            ('PMX2ABC', 'PMX → ABC', "将PMX模型的预设传递到ABC模型上"),
             ('ABC2ABC', 'ABC → ABC', "根据缓存文件重新设定网格序列缓存修改器参数")
         ],
         update=lambda self, context: update_preset(self, context)
@@ -69,7 +68,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     uv_flag: bpy.props.BoolProperty(
         name="UV贴图",
         description="复制UV贴图",
-        default=True,
+        default=False,
         update=lambda self, context: self.check_selection(context, "uv_flag")
     )
     vgs_flag: bpy.props.BoolProperty(
