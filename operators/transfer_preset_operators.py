@@ -31,6 +31,7 @@ from ..utils import (
     show_object,
     sort_abc_objects,
     sort_pmx_objects,
+    translate,
 )
 
 
@@ -50,6 +51,7 @@ class TransferPresetOperator(bpy.types.Operator):
 
     def transfer_preset(self, context):
         props = context.scene.mmd_kafei_tools_transfer_preset
+        self.start_time = time.time()
         # 配对阶段的异常记录，传递结束时统一提示
         self.pair_issue_list = []
 
@@ -132,37 +134,37 @@ class TransferPresetOperator(bpy.types.Operator):
         report_warnings(self, warning_map)
 
     def report_transfer_result(self):
-        """存在配对异常（一对多/多对一）时先输出明细，再给出总提示"""
+        """输出总耗时；存在配对异常（一对多/多对一）时先输出明细，再给出总提示"""
+        elapsed = time.time() - self.start_time
         if not self.pair_issue_list:
-            self.report({'INFO'}, bpy.app.translations.pgettext_iface("已传递"))
+            self.report({'INFO'},
+                        translate("已传递，总耗时 {:.2f} 秒").format(elapsed))
             return
 
         labels = {
-            'one_to_many': bpy.app.translations.pgettext_iface("一对多"),
-            'many_to_one': bpy.app.translations.pgettext_iface("多对一"),
+            'one_to_many': translate("一对多"),
+            'many_to_one': translate("多对一"),
         }
         notes = {
-            'one_to_many': bpy.app.translations.pgettext_iface("（未传递）"),
-            'many_to_one': bpy.app.translations.pgettext_iface("（以第一个匹配结果为准）"),
+            'one_to_many': translate("（未传递）"),
+            'many_to_one': translate("（以第一个匹配结果为准）"),
         }
-        lines = [bpy.app.translations.pgettext_iface("以下内容存在配对异常，请检查配对结果：")]
+        lines = [translate("以下内容存在配对异常，请检查配对结果：")]
         for kind, source_name, target_names in self.pair_issue_list:
             label = labels.get(kind, kind)
             note = notes.get(kind, '')
             lines.append(f'{label} {source_name} → {target_names}{note}')
         self.report({'WARNING'}, "\n".join(lines))
-        self.report({'WARNING'},
-                    bpy.app.translations.pgettext_iface("已传递。存在异常配对，详见↑↑↑"))
+        self.report({'WARNING'}, translate(
+            "已传递，总耗时 {:.2f} 秒。存在异常配对，详见↑↑↑").format(elapsed))
 
     def check_source_target_map(self, source_target_map, source_objects, target_objects, props):
         if not source_target_map:
-            msg = bpy.app.translations.pgettext_iface(
-                "Model pairing failed. Successful pairs: 0, "
-                "source model object count: {}{}, "
-                "target model object count: {}, please check."
+            msg = translate(
+                "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。"
             ).format(
                 len(source_objects),
-                bpy.app.translations.pgettext_iface(" (excluding face locators)") if props.toon_shading_flag else "",
+                translate("（不含面部定位器）") if props.toon_shading_flag else "",
                 len(target_objects)
             )
             self.report({'ERROR'}, msg)
@@ -216,27 +218,25 @@ class TransferPresetOperator(bpy.types.Operator):
         if direction == 'PMX2ABC':
             source_pmx2abc = props.source_pmx2abc
             if source_pmx2abc is None:
-                self.report(type={'ERROR'}, message=f'Source model required!')
+                self.report(type={'ERROR'}, message=translate("请选择源模型！"))
                 return False
             pmx_root = find_pmx_root_with_child(source_pmx2abc)
             if pmx_root is None:
-                self.report(type={'ERROR'}, message=f'Source is not a PMX model!')
+                self.report(type={'ERROR'}, message=translate("源模型不是 PMX 模型！"))
                 return False
             pmx_armature = find_pmx_armature(pmx_root)
             if pmx_armature is None:
                 self.report(type={'ERROR'},
-                            message=bpy.app.translations.pgettext_iface("Armature not found in {}!").format(
-                                pmx_root.name))
+                            message=translate("在 {} 中未找到骨架！").format(pmx_root.name))
                 return False
             pmx_objects = find_pmx_objects(pmx_armature)
             if len(pmx_objects) == 0:
                 self.report(type={'ERROR'},
-                            message=bpy.app.translations.pgettext_iface("Mesh not found in {}!").format(
-                                pmx_root.name))
+                            message=translate("在 {} 中未找到网格！").format(pmx_root.name))
                 return False
             abc_objects = find_abc_objects()
             if len(abc_objects) == 0:
-                self.report(type={'ERROR'}, message=f'ABC mesh not found!')
+                self.report(type={'ERROR'}, message=translate("未找到 ABC 网格！"))
                 return False
 
             toon_shading_flag = props.toon_shading_flag
@@ -247,66 +247,67 @@ class TransferPresetOperator(bpy.types.Operator):
             # 排除面部定位器对操作流程的影响
             if toon_shading_flag:
                 if face_locator is None:
-                    self.report(type={'ERROR'}, message=f'Face locator required!')
+                    self.report(type={'ERROR'}, message=translate("请选择面部定位器！"))
                     return False
                 # 先仅考虑骨骼父级的情况
                 if face_locator.parent_type != 'BONE':
                     self.report(type={'ERROR'},
-                                message=bpy.app.translations.pgettext_iface(
-                                    "Invalid parent type for face locator! Required: BONE, Found: {}").format(
+                                message=translate(
+                                    "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}").format(
                                     face_locator.parent_type))
                     return False
                 vg_name = face_locator.parent_bone
                 if vg_name is None or vg_name == '':
-                    self.report(type={'ERROR'}, message=f'Face locator not parented to bone!')
+                    self.report(type={'ERROR'},
+                                message=translate("面部定位器未绑定到父级骨骼！"))
                     return False
 
             if auto_face_location is False:
                 if face_object is None:
-                    self.report(type={'ERROR'}, message=f'Face object required!')
+                    self.report(type={'ERROR'}, message=translate("请选择面部物体！"))
                     return False
                 if face_object.type != "MESH":
-                    self.report(type={'ERROR'}, message=f'The face object must be a mesh object!')
+                    self.report(type={'ERROR'},
+                                message=translate("面部物体必须是网格物体！"))
                     return False
                 if face_vg is None or face_vg == '':
-                    self.report(type={'ERROR'}, message=f'Face vertex group required!')
+                    self.report(type={'ERROR'}, message=translate("请选择面部顶点组！"))
                     return False
         elif direction == 'PMX2PMX':
             if props.source is None:
-                self.report(type={'ERROR'}, message=f'Source model required!')
+                self.report(type={'ERROR'}, message=translate("请选择源模型！"))
                 return False
             if props.target is None:
-                self.report(type={'ERROR'}, message=f'Target model required!')
+                self.report(type={'ERROR'}, message=translate("请选择目标模型！"))
                 return False
             source_root = find_pmx_root_with_child(props.source)
             target_root = find_pmx_root_with_child(props.target)
             if source_root is None:
-                self.report(type={'ERROR'}, message=f'Source is not a PMX model!')
+                self.report(type={'ERROR'}, message=translate("源模型不是 PMX 模型！"))
                 return False
             if target_root is None:
-                self.report(type={'ERROR'}, message=f'Target is not a PMX model!')
+                self.report(type={'ERROR'}, message=translate("目标模型不是 PMX 模型！"))
                 return False
             if source_root == target_root:
-                self.report(type={'ERROR'}, message=f'Source and target are identical!')
+                self.report(type={'ERROR'}, message=translate("源模型与目标模型不能相同！"))
                 return False
-            for r in [source_root,target_root]:
+            for r in [source_root, target_root]:
                 pmx_armature = find_pmx_armature(r)
                 if pmx_armature is None:
                     self.report(type={'ERROR'},
-                                message=bpy.app.translations.pgettext_iface("Armature not found in {}!").format(
-                                    r.name))
+                                message=translate("在 {} 中未找到骨架！").format(r.name))
                     return False
         elif direction == 'ABC2ABC':
             abc_filepath = props.abc_filepath
             if not abc_filepath:
-                self.report(type={'ERROR'}, message=f'Cache file path required!')
+                self.report(type={'ERROR'}, message=translate("请选择缓存文件！"))
                 return False
             # abspath 对非空字符串必定返回非空，必须显式判断文件是否存在
             if not os.path.exists(bpy.path.abspath(abc_filepath)):
-                self.report(type={'ERROR'}, message=f'Cache file not found!')
+                self.report(type={'ERROR'}, message=translate("缓存文件不存在！"))
                 return False
             if "abc" not in os.path.splitext(abc_filepath)[1]:
-                self.report(type={'ERROR'}, message=f'ABC cache file path required!')
+                self.report(type={'ERROR'}, message=translate("请选择 ABC 缓存文件！"))
                 return False
 
         return True
@@ -433,19 +434,17 @@ def get_face_area(operator, mapping, props):
                 face_obj = target
                 break
         if face_obj is None:
-            msg = bpy.app.translations.pgettext_iface(
-                "Could not find a face object named \"{}\" in the PMX model, "
-                "or the ABC model is missing a corresponding object for \"{}\". Please check."
-            ).format(face_object.name, face_object.name)
+            msg = translate(
+                "在 PMX 模型中未找到名为“{}”的面部物体，或 ABC 模型缺少与之对应的物体，请检查。"
+            ).format(face_object.name)
             operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
 
         vg_index = face_object.vertex_groups.find(face_vg)
         count, source_face_vert_location, _ = get_weight_one_vertex_info(face_object.data, vg_index)
         if count < 3:
-            msg = bpy.app.translations.pgettext_iface(
-                "In the face object \"{}\", "
-                "fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."
+            msg = translate(
+                "在面部物体“{}”的顶点组“{}”中，权重为 1 且不重合的顶点少于三个。"
             ).format(face_object.name, face_vg)
             operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
@@ -482,9 +481,8 @@ def get_face_area(operator, mapping, props):
         if face_flag:
             face_obj = face_min_z_obj
         else:
-            msg = bpy.app.translations.pgettext_iface(
-                "In the PMX model, "
-                "fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."
+            msg = translate(
+                "在 PMX 模型的顶点组“{}”中，权重为 1 且不重合的顶点少于三个。"
             ).format(vg_name)
             operator.report(type={'ERROR'}, message=msg)
             return None, None, None, False
@@ -514,9 +512,8 @@ def get_face_area(operator, mapping, props):
     face_area = max(islands, key=len) if islands else None
     if face_area is None:
         operator.report(type={'ERROR'},
-                        message=f"Face object matching failed. "
-                                f"The rest poses of the source and target models must be exactly the same. "
-                                f"Please check.")
+                        message=translate(
+                            "面部物体匹配失败。源模型与目标模型的初始姿态必须完全一致，请检查。"))
         return None, None, None, False
 
     return face_obj, face_area, bm, True
@@ -548,7 +545,6 @@ def matching(sources, targets, direction, tolerance=0):
 
     注：名称指对象名称；材质名称、MMD 材质名称可能被编辑替换，因此不参与校验。
     """
-    start_time = time.time()
     # 目标在入参中的顺序，异常提示中用于稳定展示候选顺序
     target_order = {target: index for index, target in enumerate(targets)}
     # 最终配对结果，格式为 {源物体: 目标物体}
@@ -1034,12 +1030,14 @@ def reset_cache_param(operator, props):
     else:
         msg = ''
         if non_compliant_list:
-            msg = msg + f'以下物体缓存信息无效：\n{non_compliant_list}\n'
+            msg = msg + translate("以下物体缓存信息无效：") + f'\n{non_compliant_list}\n'
         false_keys = [key for key, value in target_obj_flag_map.items() if not value]
         if false_keys:
-            msg = msg + f'以下物体配对失败，请检查网格顶点数或缓存文件名称：\n{false_keys}'
+            msg = msg + translate(
+                "以下物体配对失败，请检查网格顶点数或缓存文件名称：") + f'\n{false_keys}'
         operator.report({'WARNING'}, msg)
-        operator.report({'WARNING'}, f'存在未成功配对对象，点击查看报告↑↑↑')
+        operator.report({'WARNING'},
+                        translate("存在未成功配对对象，点击查看报告↑↑↑"))
 
 
 def match_info(source_infos, target_infos):
@@ -1223,7 +1221,7 @@ def report_warnings(operator, warning_map):
     for category, records in warning_map.items():
         header = WARNING_HEADERS.get(category, category)
         # 记录格式为（源名称，目标名称，其它信息...），其它信息仅记录不输出
-        lines = [bpy.app.translations.pgettext_iface(header)]
+        lines = [translate(header)]
         lines.extend("{} → {}".format(record[0], record[1]) for record in records)
         operator.report(type={'WARNING'}, message="\n".join(lines))
 

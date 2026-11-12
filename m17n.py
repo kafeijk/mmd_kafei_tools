@@ -37,33 +37,6 @@ translation_dict = {
         ("*", "Affected materials: {}"): "受影响材质：{}",
         ("*", "Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑"): "检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑",
 
-        # transfer_preset_operators
-        ("*", "Source model required!"): "请输入源模型！",
-        ("*", "Target model required!"): "请输入目标模型！",
-        ("*", "Source is not a PMX model!"): "源模型不是PMX模型！",
-        ("*", "Target is not a PMX model!"): "目标模型不是PMX模型！",
-        ("*", "Source and target are identical!"): "源模型与目标模型相同！",
-        ("*", "ABC mesh not found!"): "未找到ABC网格对象！",
-        ("*", "Face locator required!"): "请输入面部定位器对象！",
-        ("*", "Face locator not parented to bone!"): "面部定位器未绑定到父级骨骼！",
-        ("*", "Face object required!"): "请输入面部对象！",
-        ("*", "The face object must be a mesh object!"): "面部对象必须为网格类型对象！",
-        ("*", "Face vertex group required!"): "请输入面部顶点组！",
-        ("*", "Cache file path required!"): "请输入缓存文件地址！",
-        ("*", "Cache file not found!"): "缓存文件地址不存在！",
-        ("*", "ABC cache file path required!"): "请输入ABC缓存文件地址！",
-        ("*", "Armature not found in {}!"): "在{}中未找到模型骨架！",
-        ("*", "Mesh not found in {}!"): "在{}中未找到网格对象！",
-        ("*", "Invalid parent type for face locator! Required: BONE, Found: {}"): "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
-        # transfer_preset_operators msg
-        ("*", "Pairing completed, time elapsed: {} seconds"): "配对完成，用时: {} 秒",
-        ("*", "Model pairing failed. Successful pairs: 0, source model object count: {}{}, target model object count: {}, please check."): "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。",
-        ("*", " (excluding face locators)"): "（不含面部定位器）",
-        ("*", "Could not find a face object named \"{}\" in the PMX model, or the ABC model is missing a corresponding object for \"{}\". Please check."): "未在PMX模型中找到名为“{}”的面部对象，或ABC模型中缺少“{}”的配对对象，请检查。",
-        ("*", "In the face object \"{}\", fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."): "在面部对象“{}”中，未找到属于顶点组“{}”且权重为1的至少三个不重合的顶点。",
-        ("*", "In the PMX model, fewer than three non-overlapping vertices were found in vertex group \"{}\" with weight 1."): "在PMX模型中未找到属于顶点组“{}”且权重为1的至少三个非重合顶点。",
-        ("*", "Face object matching failed. The rest poses of the source and target models must be exactly the same. Please check."): "面部对象匹配失败，源模型与目标模型的静置姿态需完全一致，请检查。",
-
         # Quick Operation msg
         ("*", "Removed {} vertice(s)"): "移除了 {} 个顶点",
         ("*", "Check completed, click to view the report ↑↑↑"): "检测完成，点击查看报告↑↑↑",
@@ -620,6 +593,47 @@ translation_dict = {
             "Individual failures are usually caused by the model files; "
             "please check them separately. See file details above ↑↑↑",
 
+        # Transfer preset
+        ("*", "请选择源模型！"): "Source model required!",
+        ("*", "请选择目标模型！"): "Target model required!",
+        ("*", "源模型不是 PMX 模型！"): "Source is not a PMX model!",
+        ("*", "目标模型不是 PMX 模型！"): "Target is not a PMX model!",
+        ("*", "源模型与目标模型不能相同！"): "Source and target must not be identical!",
+        ("*", "未找到 ABC 网格！"): "ABC mesh not found!",
+        ("*", "请选择面部定位器！"): "Face locator required!",
+        ("*", "面部定位器未绑定到父级骨骼！"): "Face locator is not parented to a bone!",
+        ("*", "请选择面部物体！"): "Face object required!",
+        ("*", "面部物体必须是网格物体！"): "The face object must be a mesh object!",
+        ("*", "请选择面部顶点组！"): "Face vertex group required!",
+        ("*", "请选择缓存文件！"): "Cache file required!",
+        ("*", "缓存文件不存在！"): "Cache file does not exist!",
+        ("*", "请选择 ABC 缓存文件！"): "ABC cache file required!",
+        ("*", "在 {} 中未找到骨架！"): "Armature not found in {}!",
+        ("*", "在 {} 中未找到网格！"): "Mesh not found in {}!",
+        ("*", "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}"):
+            "Invalid parent type for the face locator! Supported type: BONE, current type: {}",
+        ("*", "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。"):
+            "Model pairing failed. Successful pairs: 0, source model object count: {}{}, "
+            "target model object count: {}. Please check.",
+        ("*", "（不含面部定位器）"): " (excluding face locators)",
+        ("*", "未在 PMX 模型中找到名为“{}”的面部物体，或 ABC 模型缺少与之对应的物体，请检查。"):
+            "Could not find a face object named \"{}\" in the PMX model, "
+            "or the ABC model is missing the corresponding object. Please check.",
+        ("*", "在面部物体“{}”的顶点组“{}”中，权重为 1 且不重合的顶点少于三个。"):
+            "In the face object \"{}\", fewer than three non-overlapping vertices with weight 1 "
+            "were found in vertex group \"{}\".",
+        ("*", "在 PMX 模型的顶点组“{}”中，权重为 1 且不重合的顶点少于三个。"):
+            "In the PMX model, fewer than three non-overlapping vertices with weight 1 "
+            "were found in vertex group \"{}\".",
+        ("*", "面部物体匹配失败。源模型与目标模型的初始姿态必须完全一致，请检查。"):
+            "Face object matching failed. The rest poses of the source and target models must be "
+            "exactly the same. Please check.",
+        ("*", "以下物体缓存信息无效："): "The following objects have invalid cache information:",
+        ("*", "以下物体配对失败，请检查网格顶点数或缓存文件名称："):
+            "Pairing failed for the following objects. Check vertex counts or cache file names:",
+        ("*", "存在未成功配对对象，点击查看报告↑↑↑"):
+            "Some objects were not paired. Click to view the report ↑↑↑",
+
         # Transfer preset warning
         ("*", "以下内容存在配对异常，请检查配对结果："):
             "The following meshes have pairing issues; please check the pairing result:",
@@ -627,9 +641,9 @@ translation_dict = {
         ("*", "多对一"): "many-to-one",
         ("*", "（未传递）"): " (not transferred)",
         ("*", "（以第一个匹配结果为准）"): " (the first match is used)",
-        ("*", "已传递。存在异常配对，详见↑↑↑"):
-            "Transferred. Abnormal pairings exist; see details above ↑↑↑",
-        ("*", "已传递"): "Transferred",
+        ("*", "已传递，总耗时 {:.2f} 秒"): "Transferred in {:.2f} seconds",
+        ("*", "已传递，总耗时 {:.2f} 秒。存在异常配对，详见↑↑↑"):
+            "Transferred in {:.2f} seconds. Abnormal pairings exist; see details above ↑↑↑",
         ("*", "以下内容拓扑信息不一致，已跳过UV传递："):
             "The following meshes have mismatched topology, so UV transfer was skipped:",
         ("*", "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV："):
