@@ -12,7 +12,14 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import PAIRING_TOLERANCE, PMX_IMPORT_SCALE, PMX_NAME_PATTERN, PRECISION
+from ..constants import (
+    DUPLICATE_SUFFIX_PATTERN,
+    MAX_ID_NAME_LENGTH,
+    PAIRING_TOLERANCE,
+    PMX_IMPORT_SCALE,
+    PMX_NAME_PATTERN,
+    PRECISION,
+)
 
 from ..utils import (
     case_insensitive_replace,
@@ -90,13 +97,18 @@ class TransferPresetOperator(bpy.types.Operator):
             props.direction, source_objects, target_objects,
             source_root, source_armature, target_root, target_armature
         )
+        direction = props.direction
         visibility_map = show_objects(display_list)
 
         # 5. 设置面部定位器后，按固定顺序传递各类数据
         process_locator(face_obj, face_area, bm, props)
         self.transfer_all_data(source_root, source_armature, target_armature, source_target_map, props)
 
-        # 6. 恢复原有可见性并输出结果提示
+        # 6. 移除目标模型名称中的重名后缀（可选）
+        if direction == 'PMX2PMX' and props.remove_suffix_flag:
+            remove_duplicate_suffix(source_root, target_root)
+
+        # 7. 恢复原有可见性并输出结果提示
         for obj, visibility in visibility_map.items():
             set_visibility(obj, visibility)
         self.report_transfer_result()
@@ -635,6 +647,112 @@ def get_normalized_name(obj):
     """去掉PMX名称前缀与重名后缀，用于名称一致性比较"""
     match = PMX_NAME_PATTERN.match(obj.name)
     return match.group('name') if match else obj.name
+
+
+def get_available_name(collection, name):
+    """返回集合中可用的名称，已被占用时追加 .001、.002 等后缀"""
+    if name not in collection:
+        return name
+    index = 1
+    while f'{name}.{index:03d}' in collection:
+        index += 1
+    return f'{name}.{index:03d}'
+
+
+def get_id_collection(id_block):
+    """返回 ID 数据块所属的 bpy.data 集合"""
+    if isinstance(id_block, bpy.types.Object):
+        return bpy.data.objects
+    if isinstance(id_block, bpy.types.Mesh):
+        return bpy.data.meshes
+    if isinstance(id_block, bpy.types.Armature):
+        return bpy.data.armatures
+    if isinstance(id_block, bpy.types.Material):
+        return bpy.data.materials
+    return bpy.data.images
+
+
+def swap_id_names(id_block, other):
+    """交换两个 ID 的名称，先改临时名避免 Blender 自动追加后缀"""
+    name = id_block.name
+    other_name = other.name
+    id_block.name = get_available_name(get_id_collection(id_block), 'KAFEI_SWAP_TEMP')
+    other.name = name
+    id_block.name = other_name
+
+
+def get_material_images(materials):
+    """收集材质节点树中实际使用的贴图"""
+    images = set()
+    for material in materials:
+        if not material.use_nodes or material.node_tree is None:
+            continue
+        for node in material.node_tree.nodes:
+            if node.type == 'TEX_IMAGE' and node.image is not None:
+                images.add(node.image)
+    return images
+
+
+def get_model_ids(root):
+    """收集模型根下的对象、网格/骨架数据、材质与材质使用的贴图"""
+    objects = {root, *root.children_recursive}
+    datas = {obj.data for obj in objects if obj.type in {'MESH', 'ARMATURE'} and obj.data}
+    materials = set()
+    for obj in objects:
+        if obj.type == 'MESH':
+            materials.update(material for material in obj.data.materials if material is not None)
+    return objects, datas, materials, get_material_images(materials)
+
+
+def remove_suffix_in_group(id_blocks, source_ids, allow_swap, require_extension=False):
+    """移除一组 ID 名称中的重名后缀，多轮处理以应对 .001.001 这类嵌套后缀
+
+    基名空闲时直接改名，被源模型占用且允许交换时交换，其余情况静默跳过。
+    require_extension 用于贴图：只处理「图像.png.001」这种后缀位于扩展名之后的名称，
+    去掉后缀后必须仍带扩展名，否则视为原名称不改。
+    """
+    for _ in range(8):
+        changed = False
+        for id_block in sorted(id_blocks, key=lambda item: item.name):
+            match = DUPLICATE_SUFFIX_PATTERN.match(id_block.name)
+            if match is None:
+                continue
+            base = match.group('base')
+            if require_extension and not os.path.splitext(base)[1]:
+                continue
+            if len(base.encode('utf-8')) >= MAX_ID_NAME_LENGTH:
+                continue
+            collection = get_id_collection(id_block)
+            if base not in collection:
+                id_block.name = base
+                changed = True
+                continue
+            holder = collection[base]
+            if holder in id_blocks:
+                # 目标模型内部本来就存在同名条目（如逐个网格的 mesh data），按规则跳过
+                continue
+            if allow_swap and holder in source_ids:
+                swap_id_names(id_block, holder)
+                changed = True
+        if not changed:
+            break
+
+
+def remove_duplicate_suffix(source_root, target_root):
+    """
+    移除目标模型对象、数据、材质与贴图中的重名后缀
+
+    基名空闲时直接改名；被源模型占用时交换名称；被目标自身占用或第三方数据占用时跳过。
+    材质无论是否开启材质传递都会处理目标当前材质槽中的材质；开启传递后目标材质即源材质，
+    与源共用数据块，此时按「目标内部同名」跳过，不会改动预设自身名称。
+    贴图只处理「图像.png.001」这类后缀位于扩展名之后、且与源模型贴图同名的名称。
+    """
+    objects, datas, materials, images = get_model_ids(target_root)
+    source_objects, source_datas, source_materials, source_images = get_model_ids(source_root)
+    remove_suffix_in_group(objects, source_objects, True)
+    remove_suffix_in_group(datas, source_datas, True)
+    remove_suffix_in_group(materials, source_materials, True)
+    remove_suffix_in_group(images, source_images, True, require_extension=True)
 
 
 def verify_vertex_sample(source, target, direction, ratio=0.05):

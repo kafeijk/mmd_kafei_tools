@@ -72,7 +72,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         update=lambda self, context: self.check_selection(context, "uv_flag")
     )
     vgs_flag: bpy.props.BoolProperty(
-        name="自定义顶点组",
+        name="顶点组",
         description="传递自定义顶点组及对应权重\n自定义顶点组指的是排在 mmd_vertex_order 之后的顶点组",
         default=True,
         update=lambda self, context: self.check_selection(context, "vgs_flag")
@@ -89,6 +89,12 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         description="传递自定义拆边法向数据",
         default=True,
         update=lambda self, context: self.check_selection(context, "normal_flag")
+    )
+    remove_suffix_flag: bpy.props.BoolProperty(
+        name="移除重名后缀",
+        description="传递后移除目标模型对象、数据、材质与贴图名称中的 .001 等重名后缀\n"
+                    "与源模型同名时交换名称，目标模型内部同名或与其他数据冲突时跳过",
+        default=True,
     )
     toon_shading_flag: bpy.props.BoolProperty(
         name="三渲二",

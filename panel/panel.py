@@ -110,6 +110,8 @@ class TransferPresetPanel(bpy.types.Panel):
             transfer_param_col.prop(props, "uv_flag")
             transfer_param_col.prop(props, "vgs_flag")
             transfer_param_col.prop(props, "modifiers_flag")
+            if direction == 'PMX2PMX':
+                transfer_param_col.prop(props, "remove_suffix_flag")
 
             if direction == 'PMX2ABC':
                 transfer_param_col.prop(props, "normal_flag")

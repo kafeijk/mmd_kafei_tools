@@ -632,6 +632,13 @@ translation_dict = {
         ("*", "存在未成功配对对象，点击查看报告↑↑↑"):
             "Some objects were not paired. Click to view the report ↑↑↑",
 
+        # Transfer preset remove duplicate suffix
+        ("*", "移除重名后缀"): "Remove duplicate name suffixes",
+        ("*", "传递后移除目标模型对象、数据、材质与贴图名称中的 .001 等重名后缀\n"
+               "与预设模型同名时交换名称，目标内部同名或与其他数据冲突时跳过"):
+            "Remove suffixes such as .001 from the target model's objects, data, materials "
+            "and textures after transfer.\nNames are swapped with the source model when they "
+            "conflict; duplicates within the target or conflicts with other data are skipped",
         # Transfer preset warning
         ("*", "以下内容存在配对异常，请检查配对结果："):
             "The following meshes have pairing issues; please check the pairing result:",
