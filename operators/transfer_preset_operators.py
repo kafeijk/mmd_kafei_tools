@@ -272,18 +272,18 @@ class TransferPresetOperator(bpy.types.Operator):
                     self.report(type={'ERROR'},
                                 message=translate("面部定位器未绑定到父级骨骼！"))
                     return False
-
-            if auto_face_location is False:
-                if face_object is None:
-                    self.report(type={'ERROR'}, message=translate("请选择面部物体！"))
-                    return False
-                if face_object.type != "MESH":
-                    self.report(type={'ERROR'},
-                                message=translate("面部物体必须是网格物体！"))
-                    return False
-                if face_vg is None or face_vg == '':
-                    self.report(type={'ERROR'}, message=translate("请选择面部顶点组！"))
-                    return False
+                # 仅三渲二会使用手动指定的面部物体与顶点组
+                if auto_face_location is False:
+                    if face_object is None:
+                        self.report(type={'ERROR'}, message=translate("请选择面部物体！"))
+                        return False
+                    if face_object.type != "MESH":
+                        self.report(type={'ERROR'},
+                                    message=translate("面部物体必须是网格物体！"))
+                        return False
+                    if face_vg is None or face_vg == '':
+                        self.report(type={'ERROR'}, message=translate("请选择面部顶点组！"))
+                        return False
         elif direction == 'PMX2PMX':
             if props.source is None:
                 self.report(type={'ERROR'}, message=translate("请选择源模型！"))
