@@ -767,9 +767,11 @@ def reset_cache_param(operator, props):
             source2_objs = target_obj.parent.children
             source2_infos = []
             for source2_obj in source2_objs:
-                if target_info == source2_obj:
+                if source2_obj.name == target_name:
                     continue
-                source2_infos.append(obj_info_map[source2_obj.name])
+                source2_info = obj_info_map.get(source2_obj.name)
+                if source2_info is not None:
+                    source2_infos.append(source2_info)
             # 自己和自己配对（由于之前已经配对过一次，所以这里配对使用的是旧number顺序）
             if match_info(source2_infos, target_infos):
                 link_cache(source2_infos, target_infos, target_obj_flag_map)
