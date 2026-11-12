@@ -62,12 +62,11 @@ class TransferPresetOperator(bpy.types.Operator):
             reset_cache_param(self, props)
             return True
 
-        # PMX2PMX、PMX2ABC 的处理
         return self.do_transfer_preset(props)
 
     def do_transfer_preset(self, props):
         """
-        PMX → ABC / PMX → PMX 的传递流程：配对 → 面部定位 → 逐项传递 → 结果提示
+        PMX → ABC 、 PMX → PMX 的传递流程：配对 → 面部定位 → 逐项传递 → 结果提示
 
         PMX → ABC 操作频率较高，仅用名称配对即可；
         PMX → PMX 需要适应换头等网格顺序/内容变动，使用顶点数量与位置校验，并借助误差参数尽量多配对；
@@ -204,12 +203,8 @@ class TransferPresetOperator(bpy.types.Operator):
                 source_target_map = dict(zip(source_objects, target_objects))
             else:
                 source_target_map, self.pair_issue_list = matching(source_objects, target_objects, direction)
-        else:  # PMX2PMX
-            # 通过名称可以进行快速的配对，但是，如果pmx网格内容/顺序修改了，无法进行 abc -> pmx 的反向配对
-            # 通过顶点数量进行配对，可能会出现顶点数相同但网格内容不同的情况，如左目右目（但几率非常低）
-            # 通过顶点数进行初步判断，再通过顶点局部位置是否相同（含误差）进行二次判断（相较其他方法慢一些），可以排除无关物体带来的影响，可以尽可能的双向配对
-            # unit_test_compare可以对两个MESH进行比较，但是结果是String类型的描述，而且描述比较模糊无法获取到完整的信息
-            # 不再提供是否进行强校验的参数，PMX2ABC默认名称配对，PMX2PMX默认强校验
+        else:
+            # PMX2PMX
             source_root, source_armature, source_objects = setup_pmx(props.source)
             target_root, target_armature, target_objects = setup_pmx(props.target)
             source_target_map, self.pair_issue_list = matching(source_objects, target_objects, direction,
@@ -529,15 +524,24 @@ def get_face_area(operator, mapping, props):
 
 
 def matching(sources, targets, direction, tolerance=0):
-    """尽可能地对物体配对，返回 ({源物体: 目标物体}, 一对多匹配记录)
+    """
+    尽可能地对物体配对，返回 ({源物体: 目标物体}, 一对多匹配记录)，兼容 PMX2ABC
 
     配对优先级：
-    1. 名称一致且loop数一致：唯一候选经5%顶点邻域抽样校验通过后直接配对；
-       多个候选先用单材质贴图内容筛选，再用27邻域全量匹配
-    2. 名称一致但loop数不一致（换头等网格编辑）或名称不一致：用27邻域全量匹配
+    1. 名称一致且loop数一致且5%顶点邻域抽样校验通过后直接配对（名称与loop数一致已经够了，加5%邻域抽检防止极端案例，例如左右眼分属不同对象但命名相同）
+       如果有多个候选，用贴图内容筛选（如发和发+，脸和腮红。仅面均属于材质槽中单个材质时，校验该材质中被使用的名为 mmd_base_tex 的图像节点）
+       如果仍然有多个候选，再用27邻域全量匹配
+       如果仍然有多个候选，记录为一对多，不参与预设传递
+    2. 名称一致但loop数不一致（换头等网格编辑），27邻域全量匹配，误差20%以内均算配对成功。
+       名称不一致：用27邻域全量匹配
+       如果有多个候选，记录为一对多，不参与预设传递
+    3. 整理一对多关系，如果一对多关系中，targets一致，则合并 sources，如果 len(sources) == len(targets)，则提升为多对多，视为这些对象均一致，任意两两配对即可，无需关注顺序。
+
     配对关系按 source → target 的方向判定：
     多对多（多个源的候选集合完全相同）允许，按顺序任意两两配对；
     一对多（一个源对应多个目标）、多对一（多个源对应同一个目标）视为异常，相关物体不传递
+
+    注：名称指的是对象名称，材质名称、材质MMD名称可能会受到编辑替换的影响，因此不会用于校验
     """
     start_time = time.time()
     # 目标在入参中的顺序，多对多配对时用于稳定排序
