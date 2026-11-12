@@ -101,10 +101,8 @@ class TransferPresetPanel(bpy.types.Panel):
 
         direction = props.direction
         if direction in ['PMX2ABC', 'PMX2PMX']:
-            if direction == 'PMX2ABC':
-                param_col.prop(props, "source_pmx2abc")
-            else:
-                param_col.prop(props, "source")
+            param_col.prop(props, "source")
+            if direction == 'PMX2PMX':
                 param_col.prop(props, "target")
 
             transfer_param_col = param_col.column()

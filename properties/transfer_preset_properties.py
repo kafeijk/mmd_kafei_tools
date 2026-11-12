@@ -42,11 +42,6 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         description="提供预设的模型",
         type=bpy.types.Object
     )
-    source_pmx2abc: bpy.props.PointerProperty(
-        name="源模型",
-        description="提供预设的模型",
-        type=bpy.types.Object
-    )
     target: bpy.props.PointerProperty(
         name="目标模型",
         description="接受预设的模型",

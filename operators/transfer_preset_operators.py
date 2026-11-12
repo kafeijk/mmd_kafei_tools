@@ -202,7 +202,7 @@ class TransferPresetOperator(bpy.types.Operator):
         target_armature = None
         if direction == 'PMX2ABC':
             # 源模型
-            source_root, source_armature, source_objects = setup_pmx(props.source_pmx2abc)
+            source_root, source_armature, source_objects = setup_pmx(props.source)
             # 源模型中排除面部定位器
             if toon_shading_flag and face_locator and face_locator in source_objects:
                 source_objects.remove(face_locator)
@@ -241,10 +241,9 @@ class TransferPresetOperator(bpy.types.Operator):
 
     def check_pmx2abc_props(self, props):
         """PMX → ABC：源 PMX 与 ABC 网格均需存在"""
-        source_pmx2abc = props.source_pmx2abc
-        if source_pmx2abc is None:
+        if props.source is None:
             return self.check_fail("请选择源模型！")
-        pmx_root = find_pmx_root_with_child(source_pmx2abc)
+        pmx_root = find_pmx_root_with_child(props.source)
         if pmx_root is None:
             return self.check_fail("源模型不是 PMX 模型！")
         pmx_armature = find_pmx_armature(pmx_root)
