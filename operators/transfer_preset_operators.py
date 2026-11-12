@@ -311,7 +311,7 @@ class TransferPresetOperator(bpy.types.Operator):
         # abspath 对非空字符串必定返回非空，必须显式判断文件是否存在
         if not os.path.exists(bpy.path.abspath(abc_filepath)):
             return self.check_fail("缓存文件不存在！")
-        if "abc" not in os.path.splitext(abc_filepath)[1]:
+        if os.path.splitext(abc_filepath)[1].lower() != ".abc":
             return self.check_fail("请选择 ABC 缓存文件！")
         return True
 
