@@ -78,8 +78,8 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         update=lambda self, context: self.check_selection(context, "uv_flag")
     )
     vgs_flag: bpy.props.BoolProperty(
-        name="顶点组",
-        description="传递自定义顶点组及对应权重",
+        name="自定义顶点组",
+        description="传递自定义顶点组及对应权重\n自定义顶点组指的是排在 mmd_vertex_order 之后的顶点组",
         default=True,
         update=lambda self, context: self.check_selection(context, "vgs_flag")
 

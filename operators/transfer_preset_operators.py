@@ -145,11 +145,28 @@ class TransferPresetOperator(bpy.types.Operator):
             'one_to_many': translate("（未传递）"),
             'many_to_one': translate("（以第一个匹配结果为准）"),
         }
+        # 多对一按目标归组，源列表以第一个配对成功的源开头，明确最终以谁为准
+        many_to_one_groups = {}
+        for kind, source_name, target_name, *rest in self.pair_issue_list:
+            if kind != 'many_to_one':
+                continue
+            sources = many_to_one_groups.setdefault(target_name, [rest[0]])
+            if source_name not in sources:
+                sources.append(source_name)
+
         lines = [translate("以下内容存在配对异常，请检查配对结果：")]
-        for kind, source_name, target_names in self.pair_issue_list:
+        for kind, source_name, target_names, *rest in self.pair_issue_list:
             label = labels.get(kind, kind)
             note = notes.get(kind, '')
-            lines.append(f'{label} {source_name} → {target_names}{note}')
+            if kind == 'many_to_one':
+                # 同一个目标只输出一行：源列表 → 目标，第一个匹配的源排在最前
+                sources = many_to_one_groups.pop(target_names, None)
+                if sources is None:
+                    continue
+                source_text = ", ".join(f'"{name}"' for name in sources)
+                lines.append(f'{label} {source_text} → "{target_names}"{note}')
+            else:
+                lines.append(f'{label} "{source_name}" → {target_names}{note}')
         self.report({'WARNING'}, "\n".join(lines))
         self.report({'WARNING'}, translate(
             "已传递，总耗时 {:.2f} 秒。存在异常配对，详见↑↑↑").format(elapsed))
@@ -519,7 +536,8 @@ def matching(sources, targets, direction):
 
     返回 (映射表, 配对异常记录)：
         映射表：{源物体: 目标物体}
-        异常记录：[(类别, 源名称, 目标名称或列表), ...]，类别为 one_to_many / many_to_one
+        异常记录：[(类别, 源名称, 目标名称或列表[, 第一个匹配的源名称]), ...]，
+                 类别为 one_to_many / many_to_one；多对一额外记录第一个匹配的源名称，用于提示中排在源列表最前
 
     配对优先级（名称与 loop 数一致已足够可靠，额外加 5% 邻域抽检防止极端案例，例如左右眼分属不同对象但命名相同）：
     1. 名称一致且 loop 数一致：先对全部候选做 5% 顶点邻域抽样校验
@@ -545,7 +563,9 @@ def matching(sources, targets, direction):
     source_target_map = {}
     # 已被占用的目标集合
     used_targets = set()
-    # 配对异常记录，元素为 (类别, 源名称, 目标名称或列表)
+    # 目标物体 → 第一个配对成功的源物体，多对一提示中用于标明首个匹配结果
+    target_owner = {}
+    # 配对异常记录，元素为 (类别, 源名称, 目标名称或列表[, 第一个匹配的源名称])
     pair_issues = []
     # 第一轮没有配对的源物体，按名称情况区分后续使用的匹配方式
     # 名称一致但loop数不一致（换头等网格编辑）：允许误差
@@ -556,10 +576,11 @@ def matching(sources, targets, direction):
     def assign(source, target):
         """配对；目标已被占用时视为多对一，以第一个匹配到的结果为准，仅记录异常"""
         if target in used_targets:
-            pair_issues.append(('many_to_one', source.name, target.name))
+            pair_issues.append(('many_to_one', source.name, target.name, target_owner[target].name))
             return
         source_target_map[source] = target
         used_targets.add(target)
+        target_owner[target] = source
 
     def assign_by_candidates(source, candidates):
         """候选唯一时配对；多个候选视为一对多异常，不传递"""
@@ -611,10 +632,10 @@ def matching(sources, targets, direction):
 
 
 def join_names(objects, target_order=None):
-    """把物体名称拼接成提示文本；传入目标顺序时按该顺序排序"""
+    """把物体名称拼接成提示文本（名称用双引号包裹）；传入目标顺序时按该顺序排序"""
     if target_order is not None:
         objects = sorted(objects, key=target_order.get)
-    return ", ".join(obj.name for obj in objects)
+    return ", ".join(f'"{obj.name}"' for obj in objects)
 
 
 def get_normalized_name(obj):
