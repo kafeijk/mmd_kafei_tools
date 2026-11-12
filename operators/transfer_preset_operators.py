@@ -617,10 +617,6 @@ def matching(sources, targets, direction, tolerance=0):
     # 第三轮：名称不一致，做精确全量匹配。兼容 PMX2ABC，必定会走全量校验
     for source in pending_exact:
         assign_by_candidates(source, match_by_vertices(source, targets, direction))
-
-    msg = bpy.app.translations.pgettext_iface("Pairing completed, time elapsed: {} seconds").format(
-        f"{time.time() - start_time:.2f}")
-    print(msg)
     return source_target_map, pair_issues
 
 
