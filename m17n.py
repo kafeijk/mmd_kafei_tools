@@ -621,12 +621,12 @@ translation_dict = {
             "please check them separately. See file details above ↑↑↑",
 
         # Transfer preset warning
-        ("*", "以下内容存在多对多/一对多/多对一匹配，一对多与多对一不传递："):
-            "The following meshes have many-to-many, one-to-many or many-to-one matches. "
-            "One-to-many and many-to-one items were not transferred:",
-        ("*", "多对多"): "many-to-many",
+        ("*", "以下内容存在配对异常，请检查配对结果："):
+            "The following meshes have pairing issues; please check the pairing result:",
         ("*", "一对多"): "one-to-many",
         ("*", "多对一"): "many-to-one",
+        ("*", "（未传递）"): " (not transferred)",
+        ("*", "（以第一个匹配结果为准）"): " (the first match is used)",
         ("*", "已传递。存在异常配对，详见↑↑↑"):
             "Transferred. Abnormal pairings exist; see details above ↑↑↑",
         ("*", "已传递"): "Transferred",

@@ -132,25 +132,24 @@ class TransferPresetOperator(bpy.types.Operator):
         report_warnings(self, warning_map)
 
     def report_transfer_result(self):
-        """存在配对异常（多对多/一对多/多对一）时先输出明细，再给出总提示"""
+        """存在配对异常（一对多/多对一）时先输出明细，再给出总提示"""
         if not self.pair_issue_list:
             self.report({'INFO'}, bpy.app.translations.pgettext_iface("已传递"))
             return
 
         labels = {
-            'many_to_many': bpy.app.translations.pgettext_iface("多对多"),
             'one_to_many': bpy.app.translations.pgettext_iface("一对多"),
             'many_to_one': bpy.app.translations.pgettext_iface("多对一"),
         }
-        lines = [bpy.app.translations.pgettext_iface(
-            "以下内容存在多对多/一对多/多对一匹配，一对多与多对一不传递：")]
-        for kind, left, right in self.pair_issue_list:
+        notes = {
+            'one_to_many': bpy.app.translations.pgettext_iface("（未传递）"),
+            'many_to_one': bpy.app.translations.pgettext_iface("（以第一个匹配结果为准）"),
+        }
+        lines = [bpy.app.translations.pgettext_iface("以下内容存在配对异常，请检查配对结果：")]
+        for kind, source_name, target_names in self.pair_issue_list:
             label = labels.get(kind, kind)
-            if kind == 'many_to_one':
-                # 多对一：多个源对应同一个目标，以「目标 ← 源列表」展示
-                lines.append(f'{label} {right} ← {left}')
-            else:
-                lines.append(f'{label} {left} → {right}')
+            note = notes.get(kind, '')
+            lines.append(f'{label} {source_name} → {target_names}{note}')
         self.report({'WARNING'}, "\n".join(lines))
         self.report({'WARNING'},
                     bpy.app.translations.pgettext_iface("已传递。存在异常配对，详见↑↑↑"))
@@ -525,34 +524,59 @@ def get_face_area(operator, mapping, props):
 
 def matching(sources, targets, direction, tolerance=0):
     """
-    尽可能地对物体配对，返回 ({源物体: 目标物体}, 一对多匹配记录)，兼容 PMX2ABC
+    尽可能地对物体配对，兼容 PMX2ABC。
 
-    配对优先级：
-    1. 名称一致且loop数一致且5%顶点邻域抽样校验通过后直接配对（名称与loop数一致已经够了，加5%邻域抽检防止极端案例，例如左右眼分属不同对象但命名相同）
-       如果有多个候选，用贴图内容筛选（如发和发+，脸和腮红。仅面均属于材质槽中单个材质时，校验该材质中被使用的名为 mmd_base_tex 的图像节点）
-       如果仍然有多个候选，再用27邻域全量匹配
-       如果仍然有多个候选，记录为一对多，不参与预设传递
-    2. 名称一致但loop数不一致（换头等网格编辑），27邻域全量匹配，误差20%以内均算配对成功。
-       名称不一致：用27邻域全量匹配
-       如果有多个候选，记录为一对多，不参与预设传递
-    3. 整理一对多关系，如果一对多关系中，targets一致，则合并 sources，如果 len(sources) == len(targets)，则提升为多对多，视为这些对象均一致，任意两两配对即可，无需关注顺序。
+    返回 (映射表, 配对异常记录)：
+        映射表：{源物体: 目标物体}
+        异常记录：[(类别, 源名称, 目标名称或列表), ...]，类别为 one_to_many / many_to_one
+
+    配对优先级（名称与 loop 数一致已足够可靠，额外加 5% 邻域抽检防止极端案例，例如左右眼分属不同对象但命名相同）：
+    1. 名称一致且 loop 数一致：先对全部候选做 5% 顶点邻域抽样校验
+       - 只剩 1 个候选：直接配对
+       - 仍有多个候选：用贴图内容筛选（如发与发+、脸与腮红）
+         仅当所有面都属于材质槽中的同一个材质时，校验该材质中标签为 Mmd Base Tex 的图像节点
+         （图像需与激活的输出节点连通、去重后唯一，比较图像内容而非材质名）
+       - 仍多个候选：27 邻域全量匹配
+       - 仍多个候选：记录为一对多，不参与预设传递
+    2. 名称一致但 loop 数不一致（换头等网格编辑）：27 邻域全量匹配，误差 tolerance 以内算配对成功
+       名称不一致：27 邻域精确全量匹配，不套用误差
+       多个候选：记录为一对多，不参与预设传递
 
     配对关系按 source → target 的方向判定：
-    多对多（多个源的候选集合完全相同）允许，按顺序任意两两配对；
-    一对多（一个源对应多个目标）、多对一（多个源对应同一个目标）视为异常，相关物体不传递
+        一对多（一个源对应多个目标）：异常，不传递。一对多提升到多对多太极端太复杂了，不考虑。
+        多对一（多个源对应同一个目标）：以第一个匹配到的结果为准，仅记录提示（匹配条件已足够严格，能同时命中的源本身一致）
 
-    注：名称指的是对象名称，材质名称、材质MMD名称可能会受到编辑替换的影响，因此不会用于校验
+    注：名称指对象名称；材质名称、MMD 材质名称可能被编辑替换，因此不参与校验。
     """
     start_time = time.time()
-    # 目标在入参中的顺序，多对多配对时用于稳定排序
+    # 目标在入参中的顺序，异常提示中用于稳定展示候选顺序
     target_order = {target: index for index, target in enumerate(targets)}
-    # 源物体 -> 候选目标列表（名称/贴图/顶点校验后仍未唯一确定的会保留多个候选）
-    candidate_map = {}
-    # 第一轮没有候选的源物体，按名称情况区分第二轮使用的匹配方式
+    # 最终配对结果，格式为 {源物体: 目标物体}
+    source_target_map = {}
+    # 已被占用的目标集合
+    used_targets = set()
+    # 配对异常记录，元素为 (类别, 源名称, 目标名称或列表)
+    pair_issues = []
+    # 第一轮没有配对的源物体，按名称情况区分后续使用的匹配方式
     # 名称一致但loop数不一致（换头等网格编辑）：允许误差
     pending_tolerance = []
     # 名称不一致或名称+loop一致但校验未通过：精确匹配
     pending_exact = []
+
+    def assign(source, target):
+        """配对；目标已被占用时视为多对一，以第一个匹配到的结果为准，仅记录异常"""
+        if target in used_targets:
+            pair_issues.append(('many_to_one', source.name, target.name))
+            return
+        source_target_map[source] = target
+        used_targets.add(target)
+
+    def assign_by_candidates(source, candidates):
+        """候选唯一时配对；多个候选视为一对多异常，不传递"""
+        if len(candidates) == 1:
+            assign(source, candidates[0])
+        elif candidates:
+            pair_issues.append(('one_to_many', source.name, join_names(candidates, target_order)))
 
     # 第一轮：名称 + loop数 + 5%顶点邻域抽样，常规模型绝大多数可以在这一轮直接完成配对
     for source in sources:
@@ -566,7 +590,7 @@ def matching(sources, targets, direction, tolerance=0):
         if candidates:
             candidates = [target for target in candidates if verify_vertex_sample(source, target, direction)]
         if len(candidates) == 1:
-            candidate_map[source] = candidates
+            assign(source, candidates[0])
             continue
         if candidates:
             # 抽样后仍有多候选时，单材质网格用材质贴图内容区分（如发与发+，面与腮红等等网格完全一致但材质不同的情形）
@@ -575,7 +599,7 @@ def matching(sources, targets, direction, tolerance=0):
             if len(candidates) > 1:
                 candidates = match_by_vertices(source, candidates, direction)
             if candidates:
-                candidate_map[source] = candidates
+                assign_by_candidates(source, candidates)
             else:
                 pending_exact.append(source)
             continue
@@ -586,81 +610,18 @@ def matching(sources, targets, direction, tolerance=0):
             # 兼容 PMX2ABC，必定会走全量校验
             pending_exact.append(source)
 
-    # 最终配对结果，格式为 {源物体: 目标物体}
-    source_target_map = {}
-    # 已被占用的目标集合
-    used_targets = set()
-    # 配对异常记录，元素为 (类别, 左值, 右值)，由调用方在结束时汇总提示
-    pair_issues = []
-    resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
-
     # 第二轮：名称一致但loop数不一致（换头等网格编辑），带误差做全量匹配
-    # 仅针对第一轮未被占用的目标，避免低置信匹配把已确定的目标拖入多对一异常
-    available_targets = [target for target in targets if target not in used_targets]
-    candidate_map = {}
     for source in pending_tolerance:
-        candidates = match_by_vertices(source, available_targets, direction, tolerance=tolerance)
-        if candidates:
-            candidate_map[source] = candidates
-    resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
+        assign_by_candidates(source, match_by_vertices(source, targets, direction, tolerance=tolerance))
 
     # 第三轮：名称不一致，做精确全量匹配。兼容 PMX2ABC，必定会走全量校验
-    available_targets = [target for target in targets if target not in used_targets]
-    candidate_map = {}
     for source in pending_exact:
-        candidates = match_by_vertices(source, available_targets, direction)
-        if candidates:
-            candidate_map[source] = candidates
-    resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
+        assign_by_candidates(source, match_by_vertices(source, targets, direction))
 
     msg = bpy.app.translations.pgettext_iface("Pairing completed, time elapsed: {} seconds").format(
         f"{time.time() - start_time:.2f}")
     print(msg)
     return source_target_map, pair_issues
-
-
-def resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order):
-    """把候选集合解析为最终配对
-
-    多对多：候选集合完全相同的多个源，且源数量与目标数量一致时按目标顺序两两配对（允许）
-    一对多：候选集合大于1且无法等价为多对多，异常，不传递
-    多对一：同一个目标被多个源候选，异常，不传递
-    """
-    # 按候选集合分组，集合相同的源视为等价（多对多的判定依据）
-    groups = {}
-    for source, candidates in candidate_map.items():
-        groups.setdefault(frozenset(candidates), []).append(source)
-
-    # 一对一候选，按目标聚合，用于识别多对一
-    single_claimants = {}
-    for candidate_key, group_sources in groups.items():
-        if len(candidate_key) == 1:
-            target = next(iter(candidate_key))
-            single_claimants.setdefault(target, []).extend(group_sources)
-            continue
-        # 候选集合相同且源数量与目标数量一致时，提升为多对多，任意两两配对
-        if len(group_sources) == len(candidate_key):
-            ordered_targets = sorted(candidate_key, key=target_order.get)
-            for source, target in zip(group_sources, ordered_targets):
-                if target in used_targets:
-                    pair_issues.append(('many_to_one', target.name, source.name))
-                    continue
-                source_target_map[source] = target
-                used_targets.add(target)
-            pair_issues.append(('many_to_many', join_names(group_sources),
-                                join_names(ordered_targets, target_order)))
-            continue
-        # 数量不一致时无法等价，仍按一对多异常处理，逐个记录且不传递
-        for source in group_sources:
-            pair_issues.append(('one_to_many', source.name, join_names(candidate_key, target_order)))
-
-    for target, claimants in single_claimants.items():
-        if target in used_targets or len(claimants) > 1:
-            # 多对一：多个源争用同一个目标（或目标已被多对多占用），异常，不传递
-            pair_issues.append(('many_to_one', target.name, join_names(claimants)))
-            continue
-        source_target_map[claimants[0]] = target
-        used_targets.add(target)
 
 
 def join_names(objects, target_order=None):
