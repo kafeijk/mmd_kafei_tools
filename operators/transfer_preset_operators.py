@@ -1269,6 +1269,8 @@ def copy_uv_layers(source, target, direction):
     if direction == "PMX2PMX":
         for uv_layer in reversed(target_mesh.uv_layers):
             target_mesh.uv_layers.remove(uv_layer)
+        # 已全部删除，后续按「目标原本无 UV」处理，激活层偏移为 0
+        target_uv_count = 0
 
     for uv_layer in source_mesh.uv_layers:
         # 新建uv
