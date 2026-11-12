@@ -44,11 +44,11 @@ class TransferPresetOperator(bpy.types.Operator):
         props = context.scene.mmd_kafei_tools_transfer_preset
         if not self.check_props(props):
             return {'CANCELLED'}
-        if not self.main(context):
+        if not self.transfer_preset(context):
             return {'CANCELLED'}
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def main(self, context):
+    def transfer_preset(self, context):
         props = context.scene.mmd_kafei_tools_transfer_preset
         # 配对阶段的异常记录，传递结束时统一提示
         self.pair_issue_list = []
@@ -57,12 +57,15 @@ class TransferPresetOperator(bpy.types.Operator):
         if props.direction != 'PMX2PMX':
             props.tolerance = 0
 
+        # ABC2ABC 流程独立
         if props.direction == 'ABC2ABC':
             reset_cache_param(self, props)
             return True
-        return self.transfer_preset_model(props)
 
-    def transfer_preset_model(self, props):
+        # PMX2PMX、PMX2ABC 的处理
+        return self.do_transfer_preset(props)
+
+    def do_transfer_preset(self, props):
         """
         PMX → ABC / PMX → PMX 的传递流程：配对 → 面部定位 → 逐项传递 → 结果提示
 
