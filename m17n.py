@@ -621,6 +621,15 @@ translation_dict = {
             "please check them separately. See file details above ↑↑↑",
 
         # Transfer preset warning
+        ("*", "以下内容存在多对多/一对多/多对一匹配，一对多与多对一不传递："):
+            "The following meshes have many-to-many, one-to-many or many-to-one matches. "
+            "One-to-many and many-to-one items were not transferred:",
+        ("*", "多对多"): "many-to-many",
+        ("*", "一对多"): "one-to-many",
+        ("*", "多对一"): "many-to-one",
+        ("*", "已传递。存在异常配对，详见↑↑↑"):
+            "Transferred. Abnormal pairings exist; see details above ↑↑↑",
+        ("*", "已传递"): "Transferred",
         ("*", "以下内容拓扑信息不一致，已跳过UV传递："):
             "The following meshes have mismatched topology, so UV transfer was skipped:",
         ("*", "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV："):

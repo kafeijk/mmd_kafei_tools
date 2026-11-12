@@ -1,5 +1,7 @@
 import contextlib
+import array
 import contextvars
+import hashlib
 import math
 import os
 import re
@@ -53,6 +55,8 @@ class TransferPresetOperator(bpy.types.Operator):
         # 三渲二仅支持pmx -> abc
         scene = context.scene
         props = scene.mmd_kafei_tools_transfer_preset
+        # 配对阶段的一对多匹配记录，用于结束时的提示
+        self.pair_issue_list = []
 
         # tolerance仅在PMX2PMX时生效
         direction = props.direction
@@ -117,6 +121,28 @@ class TransferPresetOperator(bpy.types.Operator):
             # 恢复原有可见性
             for obj, visibility in visibility_map.items():
                 set_visibility(obj, visibility)
+
+            # 配对结果提示：存在多对多/一对多/多对一时先输出明细，再给出总提示
+            if self.pair_issue_list:
+                labels = {
+                    'many_to_many': bpy.app.translations.pgettext_iface("多对多"),
+                    'one_to_many': bpy.app.translations.pgettext_iface("一对多"),
+                    'many_to_one': bpy.app.translations.pgettext_iface("多对一"),
+                }
+                lines = [bpy.app.translations.pgettext_iface(
+                    "以下内容存在多对多/一对多/多对一匹配，一对多与多对一不传递：")]
+                for kind, left, right in self.pair_issue_list:
+                    label = labels.get(kind, kind)
+                    if kind == 'many_to_one':
+                        # 多对一：多个源对应同一个目标，以「目标 ← 源列表」展示
+                        lines.append(f'{label} {right} ← {left}')
+                    else:
+                        lines.append(f'{label} {left} → {right}')
+                self.report({'WARNING'}, "\n".join(lines))
+                self.report({'WARNING'},
+                            bpy.app.translations.pgettext_iface("已传递。存在异常配对，详见↑↑↑"))
+            else:
+                self.report({'INFO'}, bpy.app.translations.pgettext_iface("已传递"))
         elif direction in ['ABC2ABC']:
             reset_cache_param(self, props)
         return True
@@ -168,7 +194,7 @@ class TransferPresetOperator(bpy.types.Operator):
             if len(source_objects) == len(target_objects):
                 source_target_map = dict(zip(source_objects, target_objects))
             else:
-                source_target_map = matching(source_objects, target_objects, direction)
+                source_target_map, self.pair_issue_list = matching(source_objects, target_objects, direction)
         else:  # PMX2PMX
             # 通过名称可以进行快速的配对，但是，如果pmx网格内容/顺序修改了，无法进行 abc -> pmx 的反向配对
             # 通过顶点数量进行配对，可能会出现顶点数相同但网格内容不同的情况，如左目右目（但几率非常低）
@@ -177,9 +203,8 @@ class TransferPresetOperator(bpy.types.Operator):
             # 不再提供是否进行强校验的参数，PMX2ABC默认名称配对，PMX2PMX默认强校验
             source_root, source_armature, source_objects = setup_pmx(props.source)
             target_root, target_armature, target_objects = setup_pmx(props.target)
-            source_target_map = matching(
-                source_objects, target_objects, direction, tolerance=tolerance
-            )
+            source_target_map, self.pair_issue_list = matching(source_objects, target_objects, direction,
+                                                               tolerance=tolerance)
         return (source_root, source_armature, source_objects,
                 target_root, target_armature, target_objects, source_target_map)
 
@@ -495,87 +520,289 @@ def get_face_area(operator, mapping, props):
 
 
 def matching(sources, targets, direction, tolerance=0):
-    """尽可能的对物体配对
-        4w面  循环80w次  耗时0.7秒
-        13w面 循环230w次 耗时2.3秒 20w面应该是常用模型的较大值了
-        50w面 循环800w次 耗时10秒
+    """尽可能地对物体配对，返回 ({源物体: 目标物体}, 一对多匹配记录)
+
+    配对优先级：
+    1. 名称一致且loop数一致：唯一候选经5%顶点邻域抽样校验通过后直接配对；
+       多个候选先用单材质贴图内容筛选，再用27邻域全量匹配
+    2. 名称一致但loop数不一致（换头等网格编辑）或名称不一致：用27邻域全量匹配
+    配对关系按 source → target 的方向判定：
+    多对多（多个源的候选集合完全相同）允许，按顺序任意两两配对；
+    一对多（一个源对应多个目标）、多对一（多个源对应同一个目标）视为异常，相关物体不传递
     """
     start_time = time.time()
-    source_targets_map = {}
+    # 目标在入参中的顺序，多对多配对时用于稳定排序
+    target_order = {target: index for index, target in enumerate(targets)}
+    # 源物体 -> 候选目标列表（名称/贴图/顶点校验后仍未唯一确定的会保留多个候选）
+    candidate_map = {}
+    # 第一轮没有候选的源物体，留到第二轮用顶点位置做全量匹配
+    pending_sources = []
 
-    target_flag_map = {}
-    for target in targets:
-        target_flag_map[target] = False
-    set_source_targets_map(direction, sources, targets, source_targets_map, target_flag_map)
-
-    for target, flag in target_flag_map.items():
-        if flag:
+    # 第一轮：名称 + loop数，常规模型绝大多数可以在这一轮直接完成配对
+    for source in sources:
+        source_name = get_normalized_name(source)
+        source_loop_count = len(source.data.loops)
+        candidates = [
+            target for target in targets
+            if get_normalized_name(target) == source_name and len(target.data.loops) == source_loop_count
+        ]
+        # 名称与loop数一致仍可能是位置完全不同的物体（如左右眼分属不同网格），先用5%顶点做邻域抽样校验
+        if candidates:
+            candidates = [target for target in candidates if verify_vertex_sample(source, target, direction)]
+        if len(candidates) == 1:
+            candidate_map[source] = candidates
             continue
-        set_source_targets_map(direction, sources, [target], source_targets_map, target_flag_map, tolerance=tolerance)
+        if candidates:
+            # 抽样后仍有多候选时，单材质网格用材质贴图内容区分（如发与发+，面与腮红等等网格完全一致但材质不同的情形）
+            candidates = filter_by_material_texture(source, candidates)
+            # 如果依然存在多个候选，则全量比对
+            if len(candidates) > 1:
+                candidates = match_by_vertices(source, candidates, direction)
+            if candidates:
+                candidate_map[source] = candidates
+            else:
+                pending_sources.append(source)
+            continue
+        pending_sources.append(source)
 
-    # 遍历source_target_maps，如果key存在多个target（如发+、衣+等内容和发、衣校验的结果是一模一样的），则对这些内容进行二次校验
-    # 如果key和value的名称相同，才进行配对，放入source_target_map（PMX2PMX的情况下）
-    # 即使这样二次校验了，也只是尽可能的去配对，无法完全配对上
+    # 最终配对结果，格式为 {源物体: 目标物体}
     source_target_map = {}
-    for source, target_list in source_targets_map.items():
-        if direction == "PMX2ABC":
-            source_target_map[source] = target_list[0]
-        else:  # PMX2PMX
-            if len(target_list) > 1:
-                for target in target_list:
-                    source_match = PMX_NAME_PATTERN.match(source.name)
-                    target_match = PMX_NAME_PATTERN.match(target.name)
-                    source_name_normal = source_match.group('name') if source_match else source.name
-                    target_name_normal = target_match.group('name') if target_match else target.name
-                    if source_name_normal == target_name_normal:
-                        source_target_map[source] = target
-                if not source_target_map.get(source, None):
-                    source_target_map[source] = target_list[0]
-            elif target_list:
-                source_target_map[source] = target_list[0]
+    # 已被占用的目标集合
+    used_targets = set()
+    # 配对异常记录，元素为 (类别, 左值, 右值)，由调用方在结束时汇总提示
+    pair_issues = []
+    resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
+
+    # 第二轮：名称不一致、拓扑被修改或第一轮未配对时，用顶点位置做全量匹配
+    # 仅针对第一轮未被占用的目标，避免低置信匹配把已确定的目标拖入多对一异常
+    available_targets = [target for target in targets if target not in used_targets]
+    candidate_map = {}
+    for source in pending_sources:
+        candidates = match_by_vertices(source, available_targets, direction, tolerance=tolerance)
+        if candidates:
+            candidate_map[source] = candidates
+    resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order)
+
     msg = bpy.app.translations.pgettext_iface("Pairing completed, time elapsed: {} seconds").format(
         f"{time.time() - start_time:.2f}")
     print(msg)
-    return source_target_map
+    return source_target_map, pair_issues
 
 
-def set_source_targets_map(direction, sources, targets, source_targets_map, target_flag_map, tolerance=0):
-    for source in sources:
-        for target in targets:
-            # 考虑到后面会针对每个顶点的位置来匹配，这里仅比较顶点数
-            source_v_count = len(source.data.vertices)
-            target_v_count = len(target.data.vertices)
-            if tolerance == 0:
-                if source_v_count != target_v_count:
-                    continue
-            else:
-                if abs(source_v_count - target_v_count) / max(abs(source_v_count), abs(target_v_count)) > tolerance:
-                    continue
+def resolve_candidates(candidate_map, source_target_map, pair_issues, used_targets, target_order):
+    """把候选集合解析为最终配对
 
-            vertices = {}
-            for vert in source.data.vertices:
-                for i in range(-1, 2):
-                    for j in range(-1, 2):
-                        for k in range(-1, 2):
-                            key = (
-                                truncate(vert.co.x) + i * 1,
-                                truncate(vert.co.y) + j * 1,
-                                truncate(vert.co.z) + k * 1)
-                            if key not in vertices:
-                                vertices[key] = 1
-                            else:
-                                vertices[key] = vertices[key] + 1
+    多对多：候选集合完全相同的多个源，按目标顺序两两配对（允许）
+    一对多：候选集合大于1且找不到等价的源，异常，不传递
+    多对一：同一个目标被多个源候选，异常，不传递
+    """
+    # 按候选集合分组，集合相同的源视为等价（多对多的判定依据）
+    groups = {}
+    for source, candidates in candidate_map.items():
+        groups.setdefault(frozenset(candidates), []).append(source)
 
-            match_count = 0
-            for vert in target.data.vertices:
-                key = gen_key(vert, direction[-3:])
-                if key in vertices:
-                    match_count += 1
-            if (tolerance == 0 and match_count / len(target.data.vertices) == 1) or (
-                    tolerance != 0 and match_count / len(target.data.vertices) >= (1 - tolerance)):
-                target_flag_map[target] = True
-                # target是个列表，如果大于1，则还要按照名称来匹配
-                source_targets_map.setdefault(source, []).append(target)
+    # 一对一候选，按目标聚合，用于识别多对一
+    single_claimants = {}
+    for candidate_key, group_sources in groups.items():
+        if len(candidate_key) == 1:
+            target = next(iter(candidate_key))
+            single_claimants.setdefault(target, []).extend(group_sources)
+            continue
+        if len(group_sources) == 1:
+            # 一对多且没有等价的源，异常，不传递
+            source = group_sources[0]
+            pair_issues.append(('one_to_many', source.name, join_names(candidate_key, target_order)))
+            continue
+        # 多对多等价：按目标顺序任意两两配对
+        ordered_targets = sorted(candidate_key, key=target_order.get)
+        for source, target in zip(group_sources, ordered_targets):
+            if target in used_targets:
+                pair_issues.append(('many_to_one', target.name, source.name))
+                continue
+            source_target_map[source] = target
+            used_targets.add(target)
+        pair_issues.append(('many_to_many', join_names(group_sources),
+                            join_names(ordered_targets, target_order)))
+
+    for target, claimants in single_claimants.items():
+        if target in used_targets or len(claimants) > 1:
+            # 多对一：多个源争用同一个目标（或目标已被多对多占用），异常，不传递
+            pair_issues.append(('many_to_one', target.name, join_names(claimants)))
+            continue
+        source_target_map[claimants[0]] = target
+        used_targets.add(target)
+
+
+def join_names(objects, target_order=None):
+    """把物体名称拼接成提示文本；传入目标顺序时按该顺序排序"""
+    if target_order is not None:
+        objects = sorted(objects, key=target_order.get)
+    return ", ".join(obj.name for obj in objects)
+
+
+def get_normalized_name(obj):
+    """去掉PMX名称前缀与重名后缀，用于名称一致性比较"""
+    match = PMX_NAME_PATTERN.match(obj.name)
+    return match.group('name') if match else obj.name
+
+
+def verify_vertex_sample(source, target, direction, ratio=0.05):
+    """按比例抽样源顶点，在目标顶点的27邻域中做存在性校验
+
+    名称与loop数一致只能说明命名和面角数量相同，不能排除位置完全不同的极端情况（如面部）。
+    这里抽样5%的源顶点，要求每个抽样点都能在目标的27邻域（±1精度格）中找到对应顶点。
+    """
+    source_vertices = source.data.vertices
+    vertex_count = len(source_vertices)
+    if vertex_count == 0 or len(target.data.vertices) == 0:
+        return False
+    sample_count = max(3, int(vertex_count * ratio))
+    if sample_count >= vertex_count:
+        sample_indices = range(vertex_count)
+    else:
+        step = vertex_count / sample_count
+        sample_indices = [int(index * step) for index in range(sample_count)]
+    # 目标顶点只按精确格记录，抽样点自身负责探测27邻域，避免构建27倍大小的字典
+    target_keys = {gen_key(vert, direction[-3:]) for vert in target.data.vertices}
+    for index in sample_indices:
+        co = source_vertices[index].co
+        x = truncate(co.x)
+        y = truncate(co.y)
+        z = truncate(co.z)
+        found = False
+        for i in (-1, 0, 1):
+            for j in (-1, 0, 1):
+                for k in (-1, 0, 1):
+                    if (x + i, y + j, z + k) in target_keys:
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                break
+        if not found:
+            return False
+    return True
+
+
+def get_vertex_neighborhood(mesh):
+    """构建顶点27邻域位置表，用于顶点位置的全量匹配"""
+    vertices = {}
+    for vert in mesh.vertices:
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                for k in range(-1, 2):
+                    key = (
+                        truncate(vert.co.x) + i,
+                        truncate(vert.co.y) + j,
+                        truncate(vert.co.z) + k)
+                    vertices[key] = vertices.get(key, 0) + 1
+    return vertices
+
+
+def match_by_vertices(source, targets, direction, tolerance=0):
+    """27邻域全量匹配：用源顶点的邻域位置表校验目标顶点，返回匹配到的目标物体列表
+
+    tolerance 为「误差」参数（0~1，仅PMX2PMX使用）：
+    1. 顶点数相对差 |源-目标| / max(源, 目标) 不得超过 tolerance，否则直接跳过该目标；
+    2. 目标顶点命中源27邻域的比例需达到 1 - tolerance，否则视为不匹配。
+    tolerance 为 0 时要求顶点数完全一致且全部目标顶点命中。
+    """
+    source_v_count = len(source.data.vertices)
+    if source_v_count == 0:
+        return []
+    # 源物体的邻域位置表只构建一次，供所有候选目标复用
+    source_vertices = get_vertex_neighborhood(source.data)
+    matched = []
+    for target in targets:
+        target_v_count = len(target.data.vertices)
+        if target_v_count == 0:
+            continue
+        # 顶点数不完全一致时，允许的顶点数相对误差由tolerance决定
+        if tolerance == 0:
+            if source_v_count != target_v_count:
+                continue
+        elif abs(source_v_count - target_v_count) / max(source_v_count, target_v_count) > tolerance:
+            continue
+        match_count = 0
+        for vert in target.data.vertices:
+            if gen_key(vert, direction[-3:]) in source_vertices:
+                match_count += 1
+        if tolerance == 0:
+            if match_count == target_v_count:
+                matched.append(target)
+        elif match_count / target_v_count >= 1 - tolerance:
+            matched.append(target)
+    return matched
+
+
+def get_single_material(obj):
+    """返回网格所有面实际使用的唯一材质；面分属多个材质或没有面时返回None"""
+    mesh = obj.data
+    if not mesh.polygons:
+        return None
+    material_index = mesh.polygons[0].material_index
+    for polygon in mesh.polygons:
+        if polygon.material_index != material_index:
+            return None
+    if material_index >= len(mesh.materials):
+        return None
+    return mesh.materials[material_index]
+
+
+def get_image_signature(image, cache):
+    """计算图像内容签名（尺寸 + 像素哈希），用于判断贴图内容是否一致"""
+    signature = cache.get(image.name)
+    if signature is not None:
+        return signature
+    width, height = image.size
+    if width == 0 or height == 0:
+        # 图像未加载或文件丢失，无法比较内容
+        signature = ('missing', image.name)
+    else:
+        try:
+            buffer = array.array('f', [0.0]) * (width * height * 4)
+            image.pixels.foreach_get(buffer)
+            signature = (width, height, hashlib.md5(memoryview(buffer)).hexdigest())
+        except (RuntimeError, TypeError):
+            signature = ('unreadable', image.name)
+    cache[image.name] = signature
+    return signature
+
+
+def get_material_texture_signature(material, cache):
+    """返回材质中已连接贴图节点的图像内容签名；无贴图或图像不可读时返回None"""
+    if material is None or not material.use_nodes or material.node_tree is None:
+        return None
+    signatures = []
+    for node in material.node_tree.nodes:
+        if node.type != 'TEX_IMAGE' or node.image is None:
+            continue
+        # 忽略未连接的孤立贴图节点
+        if not any(output.is_linked for output in node.outputs):
+            continue
+        signature = get_image_signature(node.image, cache)
+        if signature[0] in {'missing', 'unreadable'}:
+            return None
+        signatures.append(signature)
+    if not signatures:
+        return None
+    return tuple(sorted(signatures, key=str))
+
+
+def filter_by_material_texture(source, candidates):
+    """单材质网格按材质贴图内容筛选候选，任一侧无法比较时返回原候选"""
+    cache = {}
+    source_signature = get_material_texture_signature(get_single_material(source), cache)
+    if source_signature is None:
+        return candidates
+    matched = []
+    for candidate in candidates:
+        target_signature = get_material_texture_signature(get_single_material(candidate), cache)
+        if target_signature == source_signature:
+            matched.append(candidate)
+    # 贴图都不一致时不做排除，交由顶点位置匹配处理
+    return matched or candidates
 
 
 def gen_key(vert, object_type):
