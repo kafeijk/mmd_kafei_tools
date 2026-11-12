@@ -12,7 +12,7 @@ import bpy
 
 from mathutils import Vector
 
-from ..constants import PMX_IMPORT_SCALE, PMX_NAME_PATTERN, PRECISION
+from ..constants import PAIRING_TOLERANCE, PMX_IMPORT_SCALE, PMX_NAME_PATTERN, PRECISION
 
 from ..utils import (
     case_insensitive_replace,
@@ -55,10 +55,6 @@ class TransferPresetOperator(bpy.types.Operator):
         # 配对阶段的异常记录，传递结束时统一提示
         self.pair_issue_list = []
 
-        # 误差参数仅在 PMX2PMX 时生效，其它方向清零
-        if props.direction != 'PMX2PMX':
-            props.tolerance = 0
-
         # ABC2ABC 流程独立
         if props.direction == 'ABC2ABC':
             reset_cache_param(self, props)
@@ -71,7 +67,7 @@ class TransferPresetOperator(bpy.types.Operator):
         PMX → ABC 、 PMX → PMX 的传递流程：配对 → 面部定位 → 逐项传递 → 结果提示
 
         PMX → ABC 操作频率较高，仅用名称配对即可；
-        PMX → PMX 需要适应换头等网格顺序/内容变动，使用顶点数量与位置校验，并借助误差参数尽量多配对；
+        PMX → PMX 需要适应换头等网格顺序/内容变动，使用顶点数量与位置校验，并借助内部常量 PAIRING_TOLERANCE 尽量多配对；
         三渲二仅支持 PMX → ABC。
         """
         # 1. 源网格与目标网格配对
@@ -182,7 +178,6 @@ class TransferPresetOperator(bpy.types.Operator):
             return root, armature, objects
 
         direction = props.direction
-        tolerance = props.tolerance
         face_locator = props.face_locator
         toon_shading_flag = props.toon_shading_flag
 
@@ -208,8 +203,7 @@ class TransferPresetOperator(bpy.types.Operator):
             # PMX2PMX
             source_root, source_armature, source_objects = setup_pmx(props.source)
             target_root, target_armature, target_objects = setup_pmx(props.target)
-            source_target_map, self.pair_issue_list = matching(source_objects, target_objects, direction,
-                                                               tolerance=tolerance)
+            source_target_map, self.pair_issue_list = matching(source_objects, target_objects, direction)
         return (source_root, source_armature, source_objects,
                 target_root, target_armature, target_objects, source_target_map)
 
@@ -519,7 +513,7 @@ def get_face_area(operator, mapping, props):
     return face_obj, face_area, bm, True
 
 
-def matching(sources, targets, direction, tolerance=0):
+def matching(sources, targets, direction):
     """
     尽可能地对物体配对，兼容 PMX2ABC。
 
@@ -535,7 +529,7 @@ def matching(sources, targets, direction, tolerance=0):
          （图像需与激活的输出节点连通、去重后唯一，比较图像内容而非材质名）
        - 仍多个候选：27 邻域全量匹配
        - 仍多个候选：记录为一对多，不参与预设传递
-    2. 名称一致但 loop 数不一致（换头等网格编辑）：27 邻域全量匹配，误差 tolerance 以内算配对成功
+    2. 名称一致但 loop 数不一致（换头等网格编辑）：27 邻域全量匹配，误差在内部常量 PAIRING_TOLERANCE（0.2）以内算配对成功
        名称不一致：27 邻域精确全量匹配，不套用误差
        多个候选：记录为一对多，不参与预设传递
 
@@ -608,7 +602,7 @@ def matching(sources, targets, direction, tolerance=0):
 
     # 第二轮：名称一致但loop数不一致（换头等网格编辑），带误差做全量匹配
     for source in pending_tolerance:
-        assign_by_candidates(source, match_by_vertices(source, targets, direction, tolerance=tolerance))
+        assign_by_candidates(source, match_by_vertices(source, targets, direction, tolerance=PAIRING_TOLERANCE))
 
     # 第三轮：名称不一致，做精确全量匹配。兼容 PMX2ABC，必定会走全量校验
     for source in pending_exact:

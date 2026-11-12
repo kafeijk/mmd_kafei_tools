@@ -81,7 +81,6 @@ translation_dict = {
         ("*", "强制跟随"): "Force Follow",
         ("*", "缓存文件"): "Cache File",
         ("*", "仅选中"): "Selected Only",
-        ("*", "误差"): "Tolerance",
 
         # Scene Settings
         ("*", "场景设置"): "Scene Settings",
@@ -307,7 +306,6 @@ translation_dict = {
         ("*", "面部对象的顶点组"): "Vertex group of face object",
         ("*", "缓存文件地址"): "File path of the cache file",
         ("*", "影响范围为选中物体所属模型"): "Limit the effect to the model containing the selected objects",
-        ("*", "匹配过程中，顶点数、顶点位置的误差百分比。"): "Percentage of tolerance in vertex count and position during matching",
         ("*", "复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用"): "Duplicate the face object and make the locator follow it, in order to avoid the issue where the original face object cannot be followed due to Geometry Nodes. Enable this option if needed",
         ("*", "将源模型的材质等数据传递到目标模型上"): "Transfer materials and other data from the source model to the target model",
 

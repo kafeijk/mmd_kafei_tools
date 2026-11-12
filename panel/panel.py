@@ -136,8 +136,6 @@ class TransferPresetPanel(bpy.types.Panel):
                     transfer_param_col.enabled = False
                 else:
                     transfer_param_col.enabled = True
-            else:
-                param_col.prop(props, "tolerance")
         else:
             param_col.prop(props, "abc_filepath")
             param_col.prop(props, "selected_only")

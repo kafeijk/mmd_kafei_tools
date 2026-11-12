@@ -31,6 +31,8 @@ BATCH_TASK_RENDER_PREVIEW = "render_preview"
 TMP_COLLECTION_NAME = "KAFEI临时集合"
 # 默认精度
 PRECISION = 0.0001
+# 预设传递配对误差：顶点数相对差与 27 邻域命中率阈值（仅 PMX → PMX 使用，不对外提供）
+PAIRING_TOLERANCE = 0.2
 # PMX(MMD) 与 Blender 的单位换算倍数：导入按 0.08 缩放，导出按 1/0.08 缩放
 PMX_IMPORT_SCALE = 0.08
 PMX_EXPORT_SCALE = 1 / PMX_IMPORT_SCALE
