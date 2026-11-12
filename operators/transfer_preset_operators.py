@@ -49,103 +49,109 @@ class TransferPresetOperator(bpy.types.Operator):
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def main(self, context):
-        # pmx -> abc 操作频率较高，仅用名称配对即可
-        # pmx -> pmx 在换头类角色上材质/网格顺序内容变动的情况下 能够很好地适应。
-        # 后者频率较低，使用强校验（顶点数量、位置要一致），但要尽可能配对更多的物体，如提供一个容忍度，大于这个数值的顶点数一致即可，以解决可能存在的未知问题
-        # 三渲二仅支持pmx -> abc
-        scene = context.scene
-        props = scene.mmd_kafei_tools_transfer_preset
-        # 配对阶段的一对多匹配记录，用于结束时的提示
+        props = context.scene.mmd_kafei_tools_transfer_preset
+        # 配对阶段的异常记录，传递结束时统一提示
         self.pair_issue_list = []
 
-        # tolerance仅在PMX2PMX时生效
-        direction = props.direction
-        if direction != 'PMX2PMX':
+        # 误差参数仅在 PMX2PMX 时生效，其它方向清零
+        if props.direction != 'PMX2PMX':
             props.tolerance = 0
 
-        if direction in ['PMX2ABC', 'PMX2PMX']:
-            # 将源网格与目标网格进行配对
-            (source_root, source_armature, source_objects, target_root, target_armature, target_objects,
-             source_target_map) = self.get_source_target_map(props)
-
-            # 提前拦截因操作顺序不当导致的问题
-            # 源模型和目标模型如果没有完全匹配，仍可以继续执行，但如果完全不匹配，则停止继续执行
-            res = self.check_source_target_map(source_target_map, source_objects, target_objects, props)
-            if res is False:
-                return False
-
-            # 三渲二面部定位器处理 - 获取面部对象
-            face_obj, face_area, bm, continue_flag = get_face_area(self, source_target_map, props)
-
-            # 提前拦截因操作顺序不当导致的问题
-            if not continue_flag:
-                if bm:
-                    bm.free()
-                return False
-
-            # 记录源物体和目标物体的可见性，并取消隐藏
-            display_list = (
-                    source_objects + target_objects +
-                    [source_root, source_armature] +
-                    ([target_root, target_armature] if direction == 'PMX2PMX' else [])
-            )
-            visibility_map = show_objects(display_list)
-
-            # 三渲二面部定位器处理 - 设置面部定位器
-            process_locator(face_obj, face_area, bm, props)
-
-            # 记录传递过程中的警告，最后由report_warnings统一提示
-            with collect_warnings() as warning_map:
-                # 传递源物体UV到目标物体上
-                link_uv(source_target_map, props)
-
-                # 关联源物体材质到目标物体上（含多材质槽的面映射）
-                link_materials(source_target_map, props)
-
-                # 传递源物体顶点组及顶点权重到目标物体上（正序）
-                link_vertices_group(source_armature, target_armature, source_target_map, props)
-                link_vertices_weight(source_armature, target_armature, source_target_map, props)
-
-                # 传递源物体修改器到目标物体上（保留网格序列缓存修改器，删除骨架修改器）
-                link_modifiers(source_target_map, props)
-
-                # 传递源物体自定义拆边法向到目标物体上
-                link_normal(source_target_map, props)
-
-                # 为ABC模型创建父级对象，方便后续操作与管理
-                create_abc_parent(source_root, source_target_map, props)
-
-            # 统一提示传递过程中记录的警告
-            report_warnings(self, warning_map)
-
-            # 恢复原有可见性
-            for obj, visibility in visibility_map.items():
-                set_visibility(obj, visibility)
-
-            # 配对结果提示：存在多对多/一对多/多对一时先输出明细，再给出总提示
-            if self.pair_issue_list:
-                labels = {
-                    'many_to_many': bpy.app.translations.pgettext_iface("多对多"),
-                    'one_to_many': bpy.app.translations.pgettext_iface("一对多"),
-                    'many_to_one': bpy.app.translations.pgettext_iface("多对一"),
-                }
-                lines = [bpy.app.translations.pgettext_iface(
-                    "以下内容存在多对多/一对多/多对一匹配，一对多与多对一不传递：")]
-                for kind, left, right in self.pair_issue_list:
-                    label = labels.get(kind, kind)
-                    if kind == 'many_to_one':
-                        # 多对一：多个源对应同一个目标，以「目标 ← 源列表」展示
-                        lines.append(f'{label} {right} ← {left}')
-                    else:
-                        lines.append(f'{label} {left} → {right}')
-                self.report({'WARNING'}, "\n".join(lines))
-                self.report({'WARNING'},
-                            bpy.app.translations.pgettext_iface("已传递。存在异常配对，详见↑↑↑"))
-            else:
-                self.report({'INFO'}, bpy.app.translations.pgettext_iface("已传递"))
-        elif direction in ['ABC2ABC']:
+        if props.direction == 'ABC2ABC':
             reset_cache_param(self, props)
+            return True
+        return self.transfer_preset_model(props)
+
+    def transfer_preset_model(self, props):
+        """
+        PMX → ABC / PMX → PMX 的传递流程：配对 → 面部定位 → 逐项传递 → 结果提示
+
+        PMX → ABC 操作频率较高，仅用名称配对即可；
+        PMX → PMX 需要适应换头等网格顺序/内容变动，使用顶点数量与位置校验，并借助误差参数尽量多配对；
+        三渲二仅支持 PMX → ABC。
+        """
+        # 1. 源网格与目标网格配对
+        (source_root, source_armature, source_objects, target_root, target_armature, target_objects,
+         source_target_map) = self.get_source_target_map(props)
+
+        # 2. 完全无法配对时提前终止，避免后续无意义操作
+        if not self.check_source_target_map(source_target_map, source_objects, target_objects, props):
+            return False
+
+        # 3. 三渲二面部定位器处理：先确定面部对象，失败则终止
+        face_obj, face_area, bm, continue_flag = get_face_area(self, source_target_map, props)
+        if not continue_flag:
+            if bm:
+                bm.free()
+            return False
+
+        # 4. 显示相关物体并记录原可见性，流程结束后恢复
+        display_list = self.get_display_list(
+            props.direction, source_objects, target_objects,
+            source_root, source_armature, target_root, target_armature
+        )
+        visibility_map = show_objects(display_list)
+
+        # 5. 设置面部定位器后，按固定顺序传递各类数据
+        process_locator(face_obj, face_area, bm, props)
+        self.transfer_all_data(source_root, source_armature, target_armature, source_target_map, props)
+
+        # 6. 恢复原有可见性并输出结果提示
+        for obj, visibility in visibility_map.items():
+            set_visibility(obj, visibility)
+        self.report_transfer_result()
         return True
+
+    @staticmethod
+    def get_display_list(direction, source_objects, target_objects,
+                         source_root, source_armature, target_root, target_armature):
+        """需要临时显示并在结束后恢复可见性的对象列表"""
+        objects = source_objects + target_objects + [source_root, source_armature]
+        if direction == 'PMX2PMX':
+            objects += [target_root, target_armature]
+        return objects
+
+    def transfer_all_data(self, source_root, source_armature, target_armature, source_target_map, props):
+        """按固定顺序传递各类数据，过程中记录的警告由 report_warnings 统一提示"""
+        with collect_warnings() as warning_map:
+            # 传递UV
+            link_uv(source_target_map, props)
+            # 关联材质（含多材质槽的面映射）
+            link_materials(source_target_map, props)
+            # 传递顶点组及顶点权重（正序）
+            link_vertices_group(source_armature, target_armature, source_target_map, props)
+            link_vertices_weight(source_armature, target_armature, source_target_map, props)
+            # 传递修改器（保留网格序列缓存修改器，删除骨架修改器）
+            link_modifiers(source_target_map, props)
+            # 传递自定义拆边法向
+            link_normal(source_target_map, props)
+            # 为ABC模型创建父级对象，方便后续操作与管理
+            create_abc_parent(source_root, source_target_map, props)
+        report_warnings(self, warning_map)
+
+    def report_transfer_result(self):
+        """存在配对异常（多对多/一对多/多对一）时先输出明细，再给出总提示"""
+        if not self.pair_issue_list:
+            self.report({'INFO'}, bpy.app.translations.pgettext_iface("已传递"))
+            return
+
+        labels = {
+            'many_to_many': bpy.app.translations.pgettext_iface("多对多"),
+            'one_to_many': bpy.app.translations.pgettext_iface("一对多"),
+            'many_to_one': bpy.app.translations.pgettext_iface("多对一"),
+        }
+        lines = [bpy.app.translations.pgettext_iface(
+            "以下内容存在多对多/一对多/多对一匹配，一对多与多对一不传递：")]
+        for kind, left, right in self.pair_issue_list:
+            label = labels.get(kind, kind)
+            if kind == 'many_to_one':
+                # 多对一：多个源对应同一个目标，以「目标 ← 源列表」展示
+                lines.append(f'{label} {right} ← {left}')
+            else:
+                lines.append(f'{label} {left} → {right}')
+        self.report({'WARNING'}, "\n".join(lines))
+        self.report({'WARNING'},
+                    bpy.app.translations.pgettext_iface("已传递。存在异常配对，详见↑↑↑"))
 
     def check_source_target_map(self, source_target_map, source_objects, target_objects, props):
         if not source_target_map:
