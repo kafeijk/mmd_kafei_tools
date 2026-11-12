@@ -545,6 +545,7 @@ def matching(sources, targets, direction):
                  类别为 one_to_many / many_to_one；多对一额外记录第一个匹配的源名称，用于提示中排在源列表最前
 
     配对优先级（名称与 loop 数一致已足够可靠，额外加 5% 邻域抽检防止极端案例，例如左右眼分属不同对象但命名相同）：
+    0. 源与目标都只有一个网格：名称可能完全不同（如 000_颜 对 娜维娅_mesh），直接按 PAIRING_TOLERANCE 做 27 邻域全量匹配
     1. 名称一致且 loop 数一致：先对全部候选做 5% 顶点邻域抽样校验
        - 只剩 1 个候选：直接配对
        - 仍有多个候选：用贴图内容筛选（如发与发+、脸与腮红）
@@ -593,6 +594,13 @@ def matching(sources, targets, direction):
             assign(source, candidates[0])
         elif candidates:
             pair_issues.append(('one_to_many', source.name, join_names(candidates, target_order)))
+
+    # 源与目标都只有一个网格时，名称可能完全不同（如 000_颜 对 娜维娅_mesh），直接按误差全量匹配
+    if len(sources) == 1 and len(targets) == 1:
+        assign_by_candidates(
+            sources[0],
+            match_by_vertices(sources[0], targets, direction, tolerance=PAIRING_TOLERANCE))
+        return source_target_map, pair_issues
 
     # 第一轮：名称 + loop数 + 5%顶点邻域抽样，常规模型绝大多数可以在这一轮直接完成配对
     for source in sources:
