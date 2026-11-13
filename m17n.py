@@ -665,6 +665,9 @@ translation_dict = {
         ("*", "以下内容多材质槽传递不完整，请检查网格拓扑与初始姿态："):
             "Multiple material slots were not fully transferred for the following meshes. "
             "Check mesh topology and rest pose:",
+        ("*", "以下内容多材质槽传递未成功，请检查网格拓扑与初始姿态："):
+            "Multiple material slots were not transferred successfully for the following meshes. "
+            "Check mesh topology and rest pose:",
 
 
         # Other

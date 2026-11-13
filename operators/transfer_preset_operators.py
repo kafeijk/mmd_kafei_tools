@@ -1403,6 +1403,7 @@ WARNING_HEADERS = {
     "loop_mismatch": "以下内容拓扑信息不一致，已跳过UV传递：",
     "uv_limit": "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV：",
     "material_mismatch": "以下内容多材质槽传递不完整，请检查网格拓扑与初始姿态：",
+    "material_mismatch_single": "以下内容多材质槽传递未成功，请检查网格拓扑与初始姿态：",
 }
 
 
@@ -1599,6 +1600,7 @@ def link_single_mesh_materials(source, target, direction):
             target_poly.material_index = target_index
     else:
         source_center_poly_map, source_poly_material_map = get_source_face_maps(source_mesh)
+        match_count = 0
         for target_poly in target_mesh.polygons:
             source_poly = source_center_poly_map.get(get_target_face_key(target_poly, direction))
             if source_poly is None:
@@ -1606,8 +1608,12 @@ def link_single_mesh_materials(source, target, direction):
             material_slot = material_slot_map.get(source_poly_material_map[source_poly])
             if material_slot is None:
                 continue
+            match_count += 1
             target_poly.material_index = material_slot
-        # 单网格一对一允许目标基于原模型修改，未匹配的面保留目标材质属于正常情况，不输出 material_mismatch
+
+        # 部分未匹配属于目标基于原模型修改后的正常情况，不提示；一个面都没对上时才提示
+        if match_count == 0:
+            add_warning("material_mismatch_single", (source.name, target.name))
 
     remove_unused_materials(target_mesh, appended_indexes)
 
