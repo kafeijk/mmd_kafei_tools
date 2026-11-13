@@ -1,18 +1,45 @@
 import bpy
 from ..utils import find_pmx_armature, find_pmx_root_with_child
 
+# 各传递方向的默认选项，切换方向或勾选三渲二时统一应用
+DEFAULT_FLAGS = {
+    'PMX2PMX': {
+        'material_flag': True,
+        'uv_flag': False,
+        'vgs_flag': True,
+        'modifiers_flag': True,
+        'remove_suffix_flag': True,
+    },
+    'PMX2ABC': {
+        'material_flag': True,
+        'uv_flag': True,
+        'vgs_flag': True,
+        'modifiers_flag': True,
+        'normal_flag': True,
+    },
+}
+
+
+def apply_default_flags(props, enable_only=False):
+    """按当前方向应用默认选项；enable_only=True 时只勾选推荐项，不取消用户已勾选的选项"""
+    flags = DEFAULT_FLAGS.get(props.direction, {})
+    # 先开启后关闭，避免中途触发空选项保护
+    for name, value in flags.items():
+        if value:
+            setattr(props, name, value)
+    if enable_only:
+        return
+    for name, value in flags.items():
+        if not value:
+            setattr(props, name, value)
+
 
 def auto_fill(self, context):
     if not self.toon_shading_flag:
         return
 
-    # PMX2ABC 三渲二会接管全部传递项；PMX2PMX 只处理面部定位器，保持原有开关
-    if self.direction == 'PMX2ABC':
-        self.material_flag = True
-        self.uv_flag = True
-        self.vgs_flag = True
-        self.modifiers_flag = True
-        self.normal_flag = True
+    # 勾选三渲二时只勾选该方向的推荐项，不会关闭三渲二或取消已勾选的选项
+    apply_default_flags(self, enable_only=True)
 
     if self.face_locator is not None:
         return
@@ -32,18 +59,9 @@ def auto_fill(self, context):
 
 
 def update_preset(self, context):
-    if self.direction == 'PMX2PMX':
-        self.material_flag = True
-        self.uv_flag = False
-        self.vgs_flag = True
-        self.modifiers_flag = True
-        self.toon_shading_flag = False
-    elif self.direction == 'PMX2ABC':
-        self.material_flag = True
-        self.uv_flag = True
-        self.vgs_flag = True
-        self.modifiers_flag = True
-        self.normal_flag = True
+    """切换方向时按默认选项重置，并关闭三渲二"""
+    apply_default_flags(self)
+    self.toon_shading_flag = False
 
 
 class TransferPresetProperty(bpy.types.PropertyGroup):
