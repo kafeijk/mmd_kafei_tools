@@ -61,6 +61,8 @@ class TransferPresetOperator(bpy.types.Operator):
         self.start_time = time.time()
         # 配对阶段的异常记录，传递结束时统一提示
         self.pair_issue_list = []
+        # 传递阶段的警告（UV/材质等），与配对异常合并输出
+        self.transfer_warning_lines = []
 
         # ABC2ABC 流程独立
         if props.direction == 'ABC2ABC':
@@ -129,7 +131,7 @@ class TransferPresetOperator(bpy.types.Operator):
 
     def transfer_all_data(self, source_root, source_armature, target_armature, source_target_map, props,
                           single_mesh=False):
-        """按固定顺序传递各类数据，过程中记录的警告由 report_warnings 统一提示"""
+        """按固定顺序传递各类数据，过程中记录的警告由 report_transfer_result 统一合并提示"""
         with collect_warnings() as warning_map:
             # 传递UV
             link_uv(source_target_map, props)
@@ -144,15 +146,25 @@ class TransferPresetOperator(bpy.types.Operator):
             link_normal(source_target_map, props)
             # 为ABC模型创建父级对象，方便后续操作与管理
             create_abc_parent(source_root, source_target_map, props)
-        report_warnings(self, warning_map)
+        self.transfer_warning_lines = get_warning_lines(warning_map)
 
     def report_transfer_result(self):
-        """输出总耗时；存在配对异常（一对多/多对一）时先输出明细，再给出总提示"""
+        """输出总耗时；存在配对异常或传递异常时，合并为一条明细警告后再给出统一总提示"""
         elapsed = time.time() - self.start_time
-        if not self.pair_issue_list:
+        # 配对异常与传递异常合并到同一条警告中输出
+        lines = self.get_pair_issue_lines() + self.transfer_warning_lines
+        if not lines:
             self.report({'INFO'},
                         translate("已传递，总耗时 {:.2f} 秒").format(elapsed))
             return
+        self.report({'WARNING'}, "\n".join(lines))
+        self.report({'WARNING'}, translate(
+            "已传递，总耗时 {:.2f} 秒。存在异常传递，详见↑↑↑").format(elapsed))
+
+    def get_pair_issue_lines(self):
+        """配对异常明细行；无异常时返回空列表"""
+        if not self.pair_issue_list:
+            return []
 
         labels = {
             'one_to_many': translate("一对多"),
@@ -184,9 +196,7 @@ class TransferPresetOperator(bpy.types.Operator):
                 lines.append(f'{label} {source_text} → "{target_names}"{note}')
             else:
                 lines.append(f'{label} "{source_name}" → {target_names}{note}')
-        self.report({'WARNING'}, "\n".join(lines))
-        self.report({'WARNING'}, translate(
-            "已传递，总耗时 {:.2f} 秒。存在异常配对，详见↑↑↑").format(elapsed))
+        return lines
 
     def check_source_target_map(self, source_target_map, source_objects, target_objects, props):
         if not source_target_map:
@@ -1392,7 +1402,7 @@ def add_warning(category, record):
         records.append(record)
 
 
-# 警告类别 -> 提示标题（中文为msgid，英文在m17n的en_US中翻译），具体记录内容由report_warnings格式化
+# 警告类别 -> 提示标题（中文为msgid，英文在m17n的en_US中翻译），具体记录内容由 get_warning_lines 格式化
 WARNING_HEADERS = {
     "loop_mismatch": "以下内容拓扑信息不一致，已跳过UV传递：",
     "uv_limit": "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV：",
@@ -1400,14 +1410,14 @@ WARNING_HEADERS = {
 }
 
 
-def report_warnings(operator, warning_map):
-    """把传递过程中收集到的警告按类别汇总提示"""
+def get_warning_lines(warning_map):
+    """把传递过程中收集的警告按类别格式化为行列表，与其他提示合并后统一输出"""
+    lines = []
     for category, records in warning_map.items():
-        header = WARNING_HEADERS.get(category, category)
+        lines.append(translate(WARNING_HEADERS.get(category, category)))
         # 记录格式为（源名称，目标名称，其它信息...），其它信息仅记录不输出
-        lines = [translate(header)]
         lines.extend("{} → {}".format(record[0], record[1]) for record in records)
-        operator.report(type={'WARNING'}, message="\n".join(lines))
+    return lines
 
 
 def remove_same_name_uv_layers(source, target):

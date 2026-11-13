@@ -655,8 +655,8 @@ translation_dict = {
         ("*", "（未传递）"): " (not transferred)",
         ("*", "（以第一个匹配结果为准）"): " (the first match is used)",
         ("*", "已传递，总耗时 {:.2f} 秒"): "Transferred in {:.2f} seconds",
-        ("*", "已传递，总耗时 {:.2f} 秒。存在异常配对，详见↑↑↑"):
-            "Transferred in {:.2f} seconds. Abnormal pairings exist; see details above ↑↑↑",
+        ("*", "已传递，总耗时 {:.2f} 秒。存在异常传递，详见↑↑↑"):
+            "Transferred in {:.2f} seconds. Abnormal transfers exist; see details above ↑↑↑",
         ("*", "以下内容拓扑信息不一致，已跳过UV传递："):
             "The following meshes have mismatched topology, so UV transfer was skipped:",
         ("*", "以下内容传递UV时达到最大上限，如有异常，请在执行前清除目标物体自身UV："):
