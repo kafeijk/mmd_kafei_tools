@@ -1599,7 +1599,6 @@ def link_single_mesh_materials(source, target, direction):
             target_poly.material_index = target_index
     else:
         source_center_poly_map, source_poly_material_map = get_source_face_maps(source_mesh)
-        match_count = 0
         for target_poly in target_mesh.polygons:
             source_poly = source_center_poly_map.get(get_target_face_key(target_poly, direction))
             if source_poly is None:
@@ -1607,11 +1606,8 @@ def link_single_mesh_materials(source, target, direction):
             material_slot = material_slot_map.get(source_poly_material_map[source_poly])
             if material_slot is None:
                 continue
-            match_count += 1
             target_poly.material_index = material_slot
-
-        if match_count != len(source_mesh.polygons):
-            add_warning("material_mismatch", (source.name, target.name))
+        # 单网格一对一允许目标基于原模型修改，未匹配的面保留目标材质属于正常情况，不输出 material_mismatch
 
     remove_unused_materials(target_mesh, appended_indexes)
 
