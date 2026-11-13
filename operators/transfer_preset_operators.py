@@ -102,7 +102,9 @@ class TransferPresetOperator(bpy.types.Operator):
 
         # 5. 设置面部定位器后，按固定顺序传递各类数据
         process_locator(face_obj, face_area, bm, props)
-        self.transfer_all_data(source_root, source_armature, target_armature, source_target_map, props)
+        single_mesh = len(source_objects) == 1 and len(target_objects) == 1
+        self.transfer_all_data(source_root, source_armature, target_armature, source_target_map, props,
+                               single_mesh)
         # PMX → PMX 的三渲二只处理面部定位器，改挂到目标骨架的同名骨骼
         transfer_face_locator(source_armature, target_armature, props)
 
@@ -125,13 +127,14 @@ class TransferPresetOperator(bpy.types.Operator):
             objects += [target_root, target_armature]
         return objects
 
-    def transfer_all_data(self, source_root, source_armature, target_armature, source_target_map, props):
+    def transfer_all_data(self, source_root, source_armature, target_armature, source_target_map, props,
+                          single_mesh=False):
         """按固定顺序传递各类数据，过程中记录的警告由 report_warnings 统一提示"""
         with collect_warnings() as warning_map:
             # 传递UV
             link_uv(source_target_map, props)
             # 关联材质（含多材质槽的面映射）
-            link_materials(source_target_map, props)
+            link_materials(source_target_map, props, single_mesh)
             # 传递顶点组及顶点权重（正序）
             link_vertices_group(source_armature, target_armature, source_target_map, props)
             link_vertices_weight(source_armature, target_armature, source_target_map, props)
@@ -592,7 +595,8 @@ def matching(sources, targets, direction):
                  类别为 one_to_many / many_to_one；多对一额外记录第一个匹配的源名称，用于提示中排在源列表最前
 
     配对优先级（名称与 loop 数一致已足够可靠，额外加 5% 邻域抽检防止极端案例，例如左右眼分属不同对象但命名相同）：
-    0. 源与目标都只有一个网格：名称可能完全不同（如 000_颜 对 娜维娅_mesh），直接按 PAIRING_TOLERANCE 做 27 邻域全量匹配
+    0. 源与目标都只有一个网格：一对一直接配对，不做名称/几何校验（如 000_颜 对 娜维娅_mesh），
+       以适配任何基于原模型修改后的模型
     1. 名称一致且 loop 数一致：先对全部候选做 5% 顶点邻域抽样校验
        - 只剩 1 个候选：直接配对
        - 仍有多个候选：用贴图内容筛选（如发与发+、脸与腮红）
@@ -642,11 +646,10 @@ def matching(sources, targets, direction):
         elif candidates:
             pair_issues.append(('one_to_many', source.name, join_names(candidates, target_order)))
 
-    # 源与目标都只有一个网格时，名称可能完全不同（如 000_颜 对 娜维娅_mesh），直接按误差全量匹配
+    # 源与目标都只有一个网格时直接配对：一对一本就无歧义，不做几何校验，
+    # 以适配任何基于原模型修改后的模型（如 000_颜 对 娜维娅_mesh）
     if len(sources) == 1 and len(targets) == 1:
-        assign_by_candidates(
-            sources[0],
-            match_by_vertices(sources[0], targets, direction, tolerance=PAIRING_TOLERANCE))
+        assign(sources[0], targets[0])
         return source_target_map, pair_issues
 
     # 第一轮：名称 + loop数 + 5%顶点邻域抽样，常规模型绝大多数可以在这一轮直接完成配对
@@ -1476,63 +1479,158 @@ def copy_uv_layers(source, target, direction):
     target_mesh.uv_layers[source_render_index + index_offset].active_render = True
 
 
-def link_materials(source_target_map, props):
-    """关联源物体材质到目标物体上，并按面质心映射多材质槽"""
+def get_source_face_maps(source_mesh):
+    """源面质心 27 邻域 → 源面索引；源面索引 → 材质槽索引"""
+    center_map = {}
+    material_map = {}
+    for source_poly in source_mesh.polygons:
+        material_map[source_poly.index] = source_poly.material_index
+        # 将质心坐标（局部）进行精度误差处理，得到的结果保存在map中
+        # 坐标值 / PRECISION后截断保留整数，误差为±1，因此额外覆盖一圈邻域
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                for k in range(-1, 2):
+                    key = (
+                        truncate(source_poly.center.x) + i,
+                        truncate(source_poly.center.y) + j,
+                        truncate(source_poly.center.z) + k)
+                    center_map[key] = source_poly.index
+    return center_map, material_map
+
+
+def get_target_face_key(target_poly, direction):
+    """目标面质心键；abc 模型导入时按 PMX_IMPORT_SCALE 缩放，需要换算回 pmx 的尺度"""
+    if direction[-3:] == 'ABC':
+        return (
+            truncate(target_poly.center.x * PMX_IMPORT_SCALE),
+            truncate(target_poly.center.y * PMX_IMPORT_SCALE),
+            truncate(target_poly.center.z * PMX_IMPORT_SCALE))
+    return (
+        truncate(target_poly.center.x),
+        truncate(target_poly.center.y),
+        truncate(target_poly.center.z))
+
+
+def link_materials(source_target_map, props, single_mesh=False):
+    """关联源物体材质到目标物体上
+
+    仅当源与目标都只有一个网格时（single_mesh）：不清空目标材质，源材质按顺序追加到目标材质之后，
+    按面质心匹配后移除目标原有材质中未使用的槽位，适配基于原模型修改过的目标；
+    其余情况保持原逻辑：清空目标材质并追加源材质，多材质槽按面质心映射。
+    """
     if not props.material_flag:
         return
 
     direction = props.direction
     for source, target in source_target_map.items():
-        # 复制材质槽
-        target.data.materials.clear()
-        for material in source.data.materials:
-            target.data.materials.append(material)
+        if single_mesh:
+            link_single_mesh_materials(source, target, direction)
+        else:
+            link_materials_by_replace(source, target, direction)
 
-        # 单材质槽不需要逐面映射
-        if len(source.material_slots) <= 1:
+
+def link_materials_by_replace(source, target, direction):
+    """清空目标材质后追加源材质，多材质槽按面质心映射"""
+    target_mesh = target.data
+    source_mesh = source.data
+    target_mesh.materials.clear()
+    for material in source_mesh.materials:
+        target_mesh.materials.append(material)
+
+    # 单材质槽不需要逐面映射
+    if len(source.material_slots) <= 1:
+        return
+
+    # 通过面的质心坐标（局部）来确定源和目标的映射关系，以此来关联材质。
+    # 需要说明的是，针对大多数模型，只有单材质槽，因此不会进入后续代码。
+    # 只有人为设置源物体为多材质时，才会进入后续代码（部分三渲二的材质槽含描边材质，但描边材质不会赋予到面上）。
+    # 因此，虽然面质心可能会受重合面影响，但那只存在于重合面属于同一网格且为不同材质，非正常逻辑。
+    source_center_poly_map, source_poly_material_map = get_source_face_maps(source_mesh)
+    match_count = 0
+    for target_poly in target_mesh.polygons:
+        source_poly = source_center_poly_map.get(get_target_face_key(target_poly, direction))
+        if source_poly is None:
             continue
+        match_count += 1
+        target_poly.material_index = source_poly_material_map[source_poly]
 
-        # 通过面的质心坐标（局部）来确定源和目标的映射关系，以此来关联材质。
-        # 需要说明的是，针对大多数模型，只有单材质槽，因此不会进入后续代码。
-        # 只有人为设置源物体为多材质时，才会进入后续代码（部分三渲二的材质槽含描边材质，但描边材质不会赋予到面上）。
-        # 因此，虽然面质心可能会受重合面影响，但那只存在于重合面属于同一网格且为不同材质，非正常逻辑。
+    if match_count != len(source_mesh.polygons):
+        add_warning("material_mismatch", (source.name, target.name))
 
-        # 源物体质心与面的map，源物体面与对应材质的map
-        source_center_poly_map = {}
-        source_poly_material_map = {}
-        for source_poly in source.data.polygons:
-            source_poly_material_map[source_poly.index] = source_poly.material_index
-            # 将质心坐标（局部）进行精度误差处理，得到的结果保存在map中
-            # 坐标值 / PRECISION后截断保留整数，误差为±1，因此额外覆盖一圈邻域
-            for i in range(-1, 2):
-                for j in range(-1, 2):
-                    for k in range(-1, 2):
-                        key = (
-                            truncate(source_poly.center.x) + i,
-                            truncate(source_poly.center.y) + j,
-                            truncate(source_poly.center.z) + k)
-                        source_center_poly_map[key] = source_poly.index
 
+def link_single_mesh_materials(source, target, direction):
+    """源与目标都只有一个网格：不清空目标材质，源材质追加后再按面匹配，最后清理目标未使用材质"""
+    source_mesh = source.data
+    target_mesh = target.data
+    if len(source_mesh.materials) == 0:
+        return
+
+    # 源材质严格按顺序追加到目标材质之后，不查找复用；
+    # 重复执行产生的同名旧副本会在结尾按「未使用」清理掉
+    # material_slot_map：源网格材质槽索引 -> 本次追加后的目标网格材质槽索引，用于把源面的材质索引换算成目标槽位
+    material_slot_map = {}
+    # appended_indexes：本次追加到目标上的材质槽索引，结尾清理未使用材质时需要保留这些槽位
+    appended_indexes = set()
+    for source_index, material in enumerate(source_mesh.materials):
+        if material is None:
+            continue
+        target_mesh.materials.append(material)
+        target_index = len(target_mesh.materials) - 1
+        appended_indexes.add(target_index)
+        material_slot_map[source_index] = target_index
+
+    if not material_slot_map:
+        return
+
+    # 单材质源的所有面都使用该材质，无需逐面匹配
+    if len(source_mesh.materials) == 1:
+        target_index = material_slot_map[0]
+        for target_poly in target_mesh.polygons:
+            target_poly.material_index = target_index
+    else:
+        source_center_poly_map, source_poly_material_map = get_source_face_maps(source_mesh)
         match_count = 0
-        for target_poly in target.data.polygons:
-            # abc模型导入时按PMX_IMPORT_SCALE缩放，质心坐标需要换算回pmx的尺度
-            if direction[-3:] == 'ABC':
-                key = (
-                    truncate(target_poly.center.x * PMX_IMPORT_SCALE),
-                    truncate(target_poly.center.y * PMX_IMPORT_SCALE),
-                    truncate(target_poly.center.z * PMX_IMPORT_SCALE))
-            else:
-                key = (
-                    truncate(target_poly.center.x),
-                    truncate(target_poly.center.y),
-                    truncate(target_poly.center.z))
-            if key in source_center_poly_map:
-                match_count += 1
-                source_poly = source_center_poly_map[key]
-                target_poly.material_index = source_poly_material_map[source_poly]
+        for target_poly in target_mesh.polygons:
+            source_poly = source_center_poly_map.get(get_target_face_key(target_poly, direction))
+            if source_poly is None:
+                continue
+            material_slot = material_slot_map.get(source_poly_material_map[source_poly])
+            if material_slot is None:
+                continue
+            match_count += 1
+            target_poly.material_index = material_slot
 
-        if match_count != len(source.data.polygons):
+        if match_count != len(source_mesh.polygons):
             add_warning("material_mismatch", (source.name, target.name))
+
+    remove_unused_materials(target_mesh, appended_indexes)
+
+
+def remove_unused_materials(mesh, keep_indexes):
+    """移除未被任何面使用、且不是本次追加的材质槽位，并修正面的材质索引
+
+    本次追加的源材质即使没有面使用也保留；其余未使用槽位（包括重复执行留下的同名旧副本）全部删除。
+    """
+    # used_indexes：仍被网格面引用（polygon.material_index）的材质槽索引
+    used_indexes = {polygon.material_index for polygon in mesh.polygons}
+    # index_map：旧材质槽索引 -> 清理后的新材质槽索引，用于同步修正面的 material_index
+    index_map = {}
+    # materials：保留下来的材质列表，顺序与原材质槽顺序一致，写回后槽位会整体前移
+    materials = []
+    for index, material in enumerate(mesh.materials):
+        if index not in used_indexes and index not in keep_indexes:
+            continue
+        index_map[index] = len(materials)
+        materials.append(material)
+    if len(materials) == len(mesh.materials):
+        return
+    for polygon in mesh.polygons:
+        polygon.material_index = index_map.get(polygon.material_index, polygon.material_index)
+    # 先移除尾部多余槽位再写回保留材质，避免 materials.clear() 把面的材质索引重置为 0
+    while len(mesh.materials) > len(materials):
+        mesh.materials.pop(index=len(mesh.materials) - 1)
+    for index, material in enumerate(materials):
+        mesh.materials[index] = material
 
 
 def link_vertices_group(source_armature, target_armature, mapping, props):
