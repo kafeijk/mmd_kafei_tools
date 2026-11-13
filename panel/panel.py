@@ -116,12 +116,15 @@ class TransferPresetPanel(bpy.types.Panel):
             if direction == 'PMX2ABC':
                 transfer_param_col.prop(props, "normal_flag")
 
-                param_col.prop(props, "toon_shading_flag")
-                if props.toon_shading_flag:
-                    toon_shading_box = param_col.box()
-                    toon_shading_col = toon_shading_box.column()
+            # PMX2ABC 与 PMX2PMX 都支持三渲二，后者只处理面部定位器
+            param_col.prop(props, "toon_shading_flag")
+            if props.toon_shading_flag:
+                toon_shading_box = param_col.box()
+                toon_shading_col = toon_shading_box.column()
 
-                    toon_shading_col.prop(props, "face_locator")
+                toon_shading_col.prop(props, "face_locator")
+
+                if direction == 'PMX2ABC':
                     toon_shading_col.prop(props, "auto_face_location")
 
                     if not props.auto_face_location:
@@ -133,9 +136,9 @@ class TransferPresetPanel(bpy.types.Panel):
 
                     toon_shading_col.prop(props, "force")
 
-                    transfer_param_col.enabled = False
-                else:
-                    transfer_param_col.enabled = True
+                transfer_param_col.enabled = direction == 'PMX2PMX'
+            else:
+                transfer_param_col.enabled = True
         else:
             param_col.prop(props, "abc_filepath")
             param_col.prop(props, "selected_only")

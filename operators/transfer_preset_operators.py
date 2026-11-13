@@ -75,7 +75,7 @@ class TransferPresetOperator(bpy.types.Operator):
 
         PMX → ABC 操作频率较高，仅用名称配对即可；
         PMX → PMX 需要适应换头等网格顺序/内容变动，使用顶点数量与位置校验，并借助内部常量 PAIRING_TOLERANCE 尽量多配对；
-        三渲二仅支持 PMX → ABC。
+        PMX → ABC 的三渲二会把定位器挂到面部顶点，PMX → PMX 的三渲二只把定位器改挂到目标骨架的同名骨骼。
         """
         # 1. 源网格与目标网格配对
         (source_root, source_armature, source_objects, target_root, target_armature, target_objects,
@@ -103,6 +103,8 @@ class TransferPresetOperator(bpy.types.Operator):
         # 5. 设置面部定位器后，按固定顺序传递各类数据
         process_locator(face_obj, face_area, bm, props)
         self.transfer_all_data(source_root, source_armature, target_armature, source_target_map, props)
+        # PMX → PMX 的三渲二只处理面部定位器，改挂到目标骨架的同名骨骼
+        transfer_face_locator(source_armature, target_armature, props)
 
         # 6. 移除目标模型名称中的重名后缀（可选）
         if direction == 'PMX2PMX' and props.remove_suffix_flag:
@@ -232,6 +234,9 @@ class TransferPresetOperator(bpy.types.Operator):
             # PMX2PMX
             source_root, source_armature, source_objects = setup_pmx(props.source)
             target_root, target_armature, target_objects = setup_pmx(props.target)
+            # 源模型中排除面部定位器（三渲二时单独改挂到目标骨架）
+            if toon_shading_flag and face_locator and face_locator in source_objects:
+                source_objects.remove(face_locator)
             source_target_map, self.pair_issue_list = matching(source_objects, target_objects, direction)
         return (source_root, source_armature, source_objects,
                 target_root, target_armature, target_objects, source_target_map)
@@ -270,8 +275,8 @@ class TransferPresetOperator(bpy.types.Operator):
             return self.check_toon_shading_props(props)
         return True
 
-    def check_toon_shading_props(self, props):
-        """三渲二：面部定位器必须有效，手动指定面部时校验面部物体与顶点组"""
+    def check_face_locator(self, props):
+        """面部定位器必须为骨骼父级并绑定到具体骨骼"""
         face_locator = props.face_locator
         if face_locator is None:
             return self.check_fail("请选择面部定位器！")
@@ -280,9 +285,14 @@ class TransferPresetOperator(bpy.types.Operator):
             return self.check_fail(
                 "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}",
                 face_locator.parent_type)
-        vg_name = face_locator.parent_bone
-        if vg_name is None or vg_name == '':
+        if not face_locator.parent_bone:
             return self.check_fail("面部定位器未绑定到父级骨骼！")
+        return True
+
+    def check_toon_shading_props(self, props):
+        """三渲二：面部定位器必须有效，手动指定面部时校验面部物体与顶点组"""
+        if not self.check_face_locator(props):
+            return False
         # 自动识别面部时不需要手动参数
         if props.auto_face_location:
             return True
@@ -309,9 +319,29 @@ class TransferPresetOperator(bpy.types.Operator):
             return self.check_fail("目标模型不是 PMX 模型！")
         if source_root == target_root:
             return self.check_fail("源模型与目标模型不能相同！")
-        for root in (source_root, target_root):
-            if find_pmx_armature(root) is None:
-                return self.check_fail("在 {} 中未找到骨架！", root.name)
+        source_armature = find_pmx_armature(source_root)
+        target_armature = find_pmx_armature(target_root)
+        if source_armature is None:
+            return self.check_fail("在 {} 中未找到骨架！", source_root.name)
+        if target_armature is None:
+            return self.check_fail("在 {} 中未找到骨架！", target_root.name)
+        if props.toon_shading_flag:
+            return self.check_pmx2pmx_toon_shading_props(
+                props, source_root, source_armature, target_armature)
+        return True
+
+    def check_pmx2pmx_toon_shading_props(self, props, source_root, source_armature, target_armature):
+        """三渲二：面部定位器需属于源模型，且其父级骨骼同时存在于源与目标骨架"""
+        if not self.check_face_locator(props):
+            return False
+        face_locator = props.face_locator
+        if find_pmx_root_with_child(face_locator) != source_root:
+            return self.check_fail("面部定位器“{}”不属于源模型！", face_locator.name)
+        bone_name = face_locator.parent_bone
+        if bone_name not in source_armature.data.bones:
+            return self.check_fail("在 {} 中未找到骨骼“{}”！", source_armature.name, bone_name)
+        if bone_name not in target_armature.data.bones:
+            return self.check_fail("在 {} 中未找到骨骼“{}”！", target_armature.name, bone_name)
         return True
 
     def check_abc2abc_props(self, props):
@@ -325,6 +355,23 @@ class TransferPresetOperator(bpy.types.Operator):
         if os.path.splitext(abc_filepath)[1].lower() != ".abc":
             return self.check_fail("请选择 ABC 缓存文件！")
         return True
+
+
+def transfer_face_locator(source_armature, target_armature, props):
+    """PMX → PMX 三渲二：将面部定位器由源骨架改挂到目标骨架的同名骨骼
+       以骨架对象为参照记录相对变换，改挂后按目标骨架还原，保证定位器相对骨架的朝向不变
+    """
+    if props.direction != 'PMX2PMX' or not props.toon_shading_flag:
+        return
+
+    locator = props.face_locator
+    bone_name = locator.parent_bone
+    relative_matrix = source_armature.matrix_world.inverted() @ locator.matrix_world
+
+    locator.parent = target_armature
+    locator.parent_type = 'BONE'
+    locator.parent_bone = bone_name
+    locator.matrix_world = target_armature.matrix_world @ relative_matrix
 
 
 def process_locator(face_obj, face_area, bm, props):

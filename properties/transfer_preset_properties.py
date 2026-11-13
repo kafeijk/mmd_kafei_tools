@@ -1,24 +1,34 @@
 import bpy
-from ..utils import find_pmx_armature, find_pmx_root
+from ..utils import find_pmx_armature, find_pmx_root_with_child
 
 
 def auto_fill(self, context):
-    if self.toon_shading_flag:
+    if not self.toon_shading_flag:
+        return
+
+    # PMX2ABC 三渲二会接管全部传递项；PMX2PMX 只处理面部定位器，保持原有开关
+    if self.direction == 'PMX2ABC':
         self.material_flag = True
         self.uv_flag = True
         self.vgs_flag = True
         self.modifiers_flag = True
         self.normal_flag = True
 
-        if self.face_locator is None:
-            root = find_pmx_root()
-            if root is None:
-                return
-            armature = find_pmx_armature(root)
-            if armature is None:
-                return
-            face_locator = next((child for child in armature.children if child.parent_type == 'BONE'), None)
-            self.face_locator = face_locator
+    if self.face_locator is not None:
+        return
+    # 优先按当前源模型查找骨骼父级对象；未选源模型时，仅当场景中只有一个 PMX 根对象才填充
+    if self.source is not None:
+        root = find_pmx_root_with_child(self.source)
+    else:
+        roots = [obj for obj in bpy.context.scene.objects if obj.mmd_type == 'ROOT']
+        root = roots[0] if len(roots) == 1 else None
+    if root is None:
+        return
+    armature = find_pmx_armature(root)
+    if armature is None:
+        return
+    self.face_locator = next(
+        (child for child in armature.children if child.parent_type == 'BONE'), None)
 
 
 def update_preset(self, context):

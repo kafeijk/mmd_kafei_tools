@@ -301,7 +301,12 @@ translation_dict = {
         ("*", "复制修改器"): "Copy modifiers",
         ("*", "传递自定义拆边法向数据"): "Transfer custom split normals data",
         ("*", "编辑三渲二预设中的相关参数设置"): "Edit the parameter settings of the toon shading preset",
-        ("*", "源物体中父级类型为骨骼的对象（该骨骼通常为“頭”），用于定位面部。默认情况下，该值会自动填充"): "An object in the source with a parent type of bone (typically '頭'), used to locate the face. By default, this value is automatically filled",
+        ("*", "源物体中父级类型为骨骼的对象（该骨骼通常为“頭”），用于定位面部。默认情况下，该值会自动填充\n"
+                "PMX → PMX 传递时，该对象会被改挂到目标骨架的同名骨骼上"):
+            "An object in the source with a parent type of bone (typically '頭'), used to locate "
+            "the face. By default, this value is automatically filled.\n"
+            "When transferring PMX → PMX, this object is re-parented to the same-named bone "
+            "of the target armature",
         ("*", "根据面部定位器识别面部顶点"): "Identify face vertices based on the face locator",
         ("*", "面部对象的顶点组"): "Vertex group of face object",
         ("*", "缓存文件地址"): "File path of the cache file",
@@ -608,6 +613,9 @@ translation_dict = {
         ("*", "请选择 ABC 缓存文件！"): "ABC cache file required!",
         ("*", "在 {} 中未找到骨架！"): "Armature not found in {}!",
         ("*", "在 {} 中未找到网格！"): "Mesh not found in {}!",
+        ("*", "面部定位器“{}”不属于源模型！"):
+            "The face locator \"{}\" does not belong to the source model!",
+        ("*", "在 {} 中未找到骨骼“{}”！"): "Bone \"{}\" not found in {}!",
         ("*", "面部定位器的父级类型不受支持！支持类型：骨骼（BONE），当前类型：{}"):
             "Invalid parent type for the face locator! Supported type: BONE, current type: {}",
         ("*", "模型配对失败。配对成功数：0，源模型物体数量：{}{}，目标模型物体数量：{}，请检查。"):
