@@ -1369,10 +1369,6 @@ def link_uv(source_target_map, props):
     if not props.uv_flag:
         return
 
-    # 移除之前生成的UV，避免重复执行时UV层数累加
-    for source, target in source_target_map.items():
-        remove_same_name_uv_layers(source, target)
-
     for source, target in source_target_map.items():
         copy_uv_layers(source, target, props.direction)
 
@@ -1439,10 +1435,14 @@ def copy_uv_layers(source, target, direction):
     # 如果loop值不一致，则跳过本次复制，但这不意味着错误
     # 比如3.x导入abc复制uv出问题，用2.x导入并拷贝到当前工程，执行插件依然可以进行后续逻辑
     if len(source_mesh.loops) != len(target_mesh.loops):
-        # 仅记录名称与loop信息，具体提示由report_warnings统一格式化
+        # 仅记录名称与loop信息，具体提示由 get_warning_lines 统一格式化
         add_warning("loop_mismatch",
                     (source.name, target.name, len(source_mesh.loops), len(target_mesh.loops)))
         return
+
+    # 确认可以复制后再移除目标中与源同名的UV层，避免重复执行时UV层数累加；
+    # 必须放在loop校验之后，否则拓扑不一致被跳过时目标UV已被提前删除
+    remove_same_name_uv_layers(source, target)
 
     # 记录源物体活动的UV、用于渲染的UV、原始uv数量，以及目标物体原始uv数量
     source_active_index = source_mesh.uv_layers.active_index
