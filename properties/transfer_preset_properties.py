@@ -105,6 +105,7 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         description="传递后移除目标模型对象、数据、材质与贴图名称中的 .001 等重名后缀\n"
                     "与源模型同名时交换名称，目标模型内部同名或与其他数据冲突时跳过",
         default=True,
+        update=lambda self, context: self.check_selection(context, "remove_suffix_flag")
     )
     toon_shading_flag: bpy.props.BoolProperty(
         name="三渲二",
@@ -163,15 +164,12 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
         del bpy.types.Scene.mmd_kafei_tools_transfer_preset
 
     def check_selection(self, context, changed_property):
-        """检查选项，至少保持一个选项被选中"""
-        if not (self.material_flag or self.uv_flag or self.vgs_flag or self.modifiers_flag or self.normal_flag):
-            if changed_property == "material_flag":
-                self.material_flag = True
-            elif changed_property == "uv_flag":
-                self.uv_flag = True
-            elif changed_property == "vgs_flag":
-                self.vgs_flag = True
-            elif changed_property == "modifiers_flag":
-                self.modifiers_flag = True
-            elif changed_property == "normal_flag":
-                self.normal_flag = True
+        """检查选项，至少保持一个选项被选中；PMX2PMX 不传递法向，法向不参与判断"""
+        names = ['material_flag', 'uv_flag', 'vgs_flag', 'modifiers_flag']
+        if self.direction == 'PMX2PMX':
+            # PMX2PMX 的「移除重名后缀」也是独立可用的选项
+            names.append('remove_suffix_flag')
+        else:
+            names.append('normal_flag')
+        if not any(getattr(self, name) for name in names):
+            setattr(self, changed_property, True)
