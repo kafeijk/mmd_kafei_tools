@@ -135,10 +135,6 @@ class TransferPresetPanel(bpy.types.Panel):
                         face_object_col.prop(props, "face_vg", icon='GROUP_VERTEX')
 
                     toon_shading_col.prop(props, "force")
-
-                transfer_param_col.enabled = direction == 'PMX2PMX'
-            else:
-                transfer_param_col.enabled = True
         else:
             param_col.prop(props, "abc_filepath")
             param_col.prop(props, "selected_only")
