@@ -1346,27 +1346,7 @@ def get_layout_bounds(world_vertices, visible_masks, head_bounds, report, warnin
 
 
 def build_three_view_setup(props, report, ancestor):
-    """
-    创建三视图布局。
-
-    处理步骤：
-    1. 清理上次的临时对象，手臂姿态恢复为静置，原模型 root 归零为恒等变换
-    2. 收集 root 下参与渲染的网格
-    3. 计算可见顶点掩码（「仅可见网格」决定是否忽略透明隐藏部位）
-    4. 收集顶点组数据（左右手/身体/頭）与头部包围盒
-    5. 应用手臂姿态，重新评估顶点，得到完整与可见包围盒
-    6. 按输出分辨率计算画面尺寸、特写宽度与三视图列宽
-    7. 计算三视图统一缩放，保证各视图高度一致
-    8. 计算各视图的横向分位中心，避免稀疏部件把主体挤偏
-    9. 建立临时集合
-    10. 创建侧视图、后视图副本（缩放/旋转由复制出的 root 承载）
-    11. 创建特写副本（头部占画面竖向比例、顶部对齐）
-    12. 原模型缩放归位作为主视图；仅特写模式则把原模型整体右移出相机视野
-    13. 用透明立方体布尔求交，裁掉特写超出列宽的部分
-    14. 创建布局相机并记录到临时集合
-
-    ancestor 由调用方（execute 中的 check_three_view_props）解析后传入。
-    """
+    """创建三视图布局"""
     scene = bpy.context.scene
 
     # 1. 清理上次执行产生的临时对象与手臂姿态；root 归零，避免重复执行累积缩放/位移
@@ -1545,7 +1525,7 @@ def build_three_view_setup(props, report, ancestor):
         reset_three_view(ancestor)
         raise
 
-    # 14. 布局相机：一张正交相机覆盖四栏，景深按模型高度估算（特写副本可能放大）
+    # 14. 布局相机：一张正交相机覆盖特写+三视图，景深按模型高度估算（特写副本可能放大）
     depth = model_height * max(2.0, closeup_scale)
     camera_data = bpy.data.cameras.new(THREE_VIEW_CAMERA_NAME)
     camera = bpy.data.objects.new(THREE_VIEW_CAMERA_NAME, camera_data)
