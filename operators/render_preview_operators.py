@@ -19,6 +19,7 @@ from ..constants import (
     HAND_GROUP_NAMES,
     HEAD_GROUP_NAMES,
     IMG_TYPE_EXT_MAP,
+    MATERIAL_ALPHA_EPSILON,
     THREE_VIEW_CAMERA_CLIP_MARGIN,
     THREE_VIEW_CAMERA_DISTANCE_MARGIN,
     THREE_VIEW_CAMERA_NAME,
@@ -34,7 +35,6 @@ from ..constants import (
     THREE_VIEW_OFFSCREEN_GAP,
     THREE_VIEW_TEMP_FLAG,
     THREE_VIEW_TEMP_SOURCE,
-    THREE_VIEW_VISIBLE_MIN_RATIO,
 )
 
 from ..utils import (
@@ -668,20 +668,62 @@ def bounds_from_vertices(vertex_map):
     )
 
 
+def find_shader_from_output(tree, node_name=None, node_type=None):
+    """
+    基于材质输出寻找着色器节点：返回直接连接到活动输出 Surface 的节点，没有则返回 None
+
+    node_name：节点名称，如 mmd_shader
+    node_type：节点类型（bl_idname），如 ShaderNodeBsdfPrincipled
+    两者同时给出时命中任意一个即可；只认直接连接，中间夹了别的节点不算。
+    """
+    for output in tree.nodes:
+        if output.type != 'OUTPUT_MATERIAL' or not output.is_active_output:
+            continue
+        for link in output.inputs['Surface'].links:
+            target = link.from_node
+            if node_type is not None and target.bl_idname == node_type:
+                return target
+            if node_name is not None and target.name == node_name:
+                return target
+    return None
+
+
+def get_socket_alpha(socket):
+    """读取输入接口 Alpha 的当前值；接口不存在时按 1.0（可见）处理"""
+    if socket is None:
+        return 1.0
+    # default_value 即为当前值
+    return float(socket.default_value)
+
+
 def is_material_visible(material):
-    """完全透明的材质（如隐藏的尾巴、影子）不参与布局与穿模判断"""
+    """材质是否可见"""
     if material is None:
         return True
-    mmd_material = getattr(material, "mmd_material", None)
-    if mmd_material is not None:
-        return mmd_material.alpha > 0.001
-    if getattr(material, "blend_method", "OPAQUE") != 'OPAQUE':
-        return getattr(material, "diffuse_color", (0, 0, 0, 1))[3] > 0.001
+
+    # OPAQUE 材质不做透明判断，一律可见
+    if getattr(material, "blend_method", None) == 'OPAQUE':
+        return True
+
+    tree = material.node_tree
+    if tree is None:
+        return True
+
+    # mmd_tools 材质：透明度由 mmd_shader 节点组的 Alpha 输入决定
+    shader = find_shader_from_output(tree, node_name="mmd_shader")
+    if shader is not None:
+        return get_socket_alpha(shader.inputs.get("Alpha")) >= MATERIAL_ALPHA_EPSILON
+
+    # 普通材质：材质输出直接连原理化 BSDF 时，看它的 Alpha
+    principled = find_shader_from_output(tree, node_type='ShaderNodeBsdfPrincipled')
+    if principled is not None:
+        return get_socket_alpha(principled.inputs.get("Alpha")) >= MATERIAL_ALPHA_EPSILON
+
     return True
 
 
 def get_face_material_indices(mesh):
-    """读取每个面的材质索引；直接读属性比 polygons.foreach_get 快约 80 倍"""
+    """读取每个面的材质索引"""
     count = len(mesh.polygons)
     indices = np.empty(count, dtype=np.int32)
     attribute = mesh.attributes.get("material_index")
@@ -705,40 +747,52 @@ def get_loop_vertices(mesh):
 
 
 def get_visible_vertex_mask(obj):
-    """按材质透明度求可见顶点掩码"""
+    """
+    按材质透明度求可见顶点掩码
+
+    返回长度等于顶点数的 bool 数组：True 表示该顶点属于至少一个可见面。
+    只被完全透明材质（alpha = 0，如隐藏的尾巴、影子）覆盖的顶点判为不可见。
+    """
     mesh = obj.data
     count = len(mesh.vertices)
+    # 默认全部可见；没有顶点或没有面时无从判断，直接返回全 True
     visible = np.ones(count, dtype=bool)
     if count == 0 or len(mesh.polygons) == 0:
         return visible
-    material_flags = np.array([is_material_visible(slot.material) for slot in obj.material_slots],
-                              dtype=bool)
+
+    # 每个材质槽是否可见（alpha > 0）——按槽位顺序得到 bool 数组
+    material_flags = np.array([is_material_visible(slot.material) for slot in obj.material_slots], dtype=bool)
+    # 每个面的材质索引（索引为面id，值为材质id）
     indices = get_face_material_indices(mesh)
     if len(material_flags):
+        # 面的材质索引可能超出槽位数量（材质被删过），补到最大索引，超出的位置按可见处理
         flags = np.ones(max(len(material_flags), int(indices.max()) + 1), dtype=bool)
         flags[:len(material_flags)] = material_flags
+        # 面索引 → 该面是否可见，用 indices 作为下标到 flags 里查表
         face_visible = flags[indices]
     else:
         face_visible = np.ones(len(mesh.polygons), dtype=bool)
+
+    # 没有透明面，所有顶点可见，直接返回
     if face_visible.all():
         return visible
+
+    # 顶点不可见只能通过“它所属的面全部不可见”判定：
+    # loop 是面的拐角，loops_vertex 记录每个 loop 指向的顶点索引
     loops_vertex = get_loop_vertices(mesh)
     loop_total = np.empty(len(mesh.polygons), dtype=np.int32)
     mesh.polygons.foreach_get('loop_total', loop_total)
+    # 把每个多边形重复其 loop 数，得到“第 i 个 loop 属于哪个面”的映射
     face_of_loop = np.repeat(np.arange(len(mesh.polygons)), loop_total)
+    # 取可见面覆盖的全部 loop 指向的顶点，一次性标记为可见
     visible = np.zeros(count, dtype=bool)
     visible[loops_vertex[face_visible[face_of_loop]]] = True
     return visible
 
 
-def collect_visible_masks(meshes):
-    """可见顶点掩码；若可见部分过少（材质全透明等异常），退回全部顶点"""
-    masks = {obj: get_visible_vertex_mask(obj) for obj in meshes}
-    total = sum(len(obj.data.vertices) for obj in meshes)
-    visible = sum(int(mask.sum()) for mask in masks.values())
-    if total == 0 or visible < total * THREE_VIEW_VISIBLE_MIN_RATIO:
-        return {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in meshes}
-    return masks
+def collect_visible_masks(objs):
+    """可见顶点掩码（{网格: bool 数组}）：True 表示该顶点属于可见面"""
+    return {obj: get_visible_vertex_mask(obj) for obj in objs}
 
 
 def robust_center(values):

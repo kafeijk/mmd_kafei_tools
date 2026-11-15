@@ -542,6 +542,8 @@ THREE_VIEW_TEMP_SOURCE = "kafei_source_root"
 THREE_VIEW_CLIP_CUBE_NAME = "KAFEI_CLIP_CUBE"
 THREE_VIEW_CLIP_MODIFIER_NAME = "KAFEI_CLIP"
 THREE_VIEW_CAMERA_NAME = "KAFEI_THREE_VIEW_CAMERA"
+# 材质 Alpha 判定为“不可见”的阈值
+MATERIAL_ALPHA_EPSILON = 1e-6
 
 # 手臂骨骼（MMD 名称，左腕/右腕）
 ARM_BONE_NAMES = ("左腕", "右腕")
@@ -587,8 +589,6 @@ THREE_VIEW_COLUMN_FIT = 0.95
 THREE_VIEW_CLOSEUP_HEAD_RATIO = 2 / 3
 # 横向居中使用的分位中心百分比（去掉两端的稀疏离群几何）
 THREE_VIEW_CENTER_PERCENTILE = 2.0
-# 可见几何判定：可见顶点少于该比例时退回全部顶点
-THREE_VIEW_VISIBLE_MIN_RATIO = 0.1
 # 特写裁剪立方体的深度余量
 THREE_VIEW_CLIP_DEPTH_MARGIN = 1.1
 # 相机：布局相机在角色前方的额外距离与裁剪范围余量
