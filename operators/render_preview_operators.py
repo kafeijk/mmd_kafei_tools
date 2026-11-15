@@ -605,7 +605,7 @@ def find_bone_name(armature, japanese_name):
     return None
 
 
-def expand_group_names(names):
+def expand_vg_names(names):
     names = set(names)
     for name in list(names):
         names.add(convertNameToLR(name))
@@ -814,19 +814,19 @@ def visible_world_vertices(world, masks):
     return result
 
 
-def get_vertex_masks(obj, left_names, right_names, non_body_names, head_names):
+def get_vertex_masks(obj, left_names, right_names, excluded_names, head_names):
     """一次 bmesh 遍历，按顶点组生成左右手、身体与头部的顶点掩码"""
     mesh = obj.data
     count = len(mesh.vertices)
     masks = {key: np.zeros(count, dtype=bool) for key in ('l', 'r', 'body', 'head')}
     if count == 0:
         return masks
-    group_names = {group.index: group.name for group in obj.vertex_groups}
-    left_groups = {index for index, name in group_names.items() if name in left_names}
-    right_groups = {index for index, name in group_names.items() if name in right_names}
-    body_excluded = {index for index, name in group_names.items() if name in non_body_names}
-    head_groups = {index for index, name in group_names.items() if name in head_names}
-    if not (left_groups or right_groups or head_groups):
+    vg_names = {vg.index: vg.name for vg in obj.vertex_groups}
+    left_vgs = {index for index, name in vg_names.items() if name in left_names}
+    right_vgs = {index for index, name in vg_names.items() if name in right_names}
+    excluded = {index for index, name in vg_names.items() if name in excluded_names}
+    head_vgs = {index for index, name in vg_names.items() if name in head_names}
+    if not (left_vgs or right_vgs or head_vgs):
         return masks
 
     bm = bmesh.new()
@@ -834,26 +834,26 @@ def get_vertex_masks(obj, left_names, right_names, non_body_names, head_names):
     deform = bm.verts.layers.deform.active
     if deform is not None:
         for vert in bm.verts:
-            groups = {index for index, weight in vert[deform].items() if weight > 0}
-            if not groups:
+            vgs = {index for index, weight in vert[deform].items() if weight > 0}
+            if not vgs:
                 continue
             index = vert.index
-            is_left = bool(groups & left_groups)
-            is_right = bool(groups & right_groups)
+            is_left = bool(vgs & left_vgs)
+            is_right = bool(vgs & right_vgs)
             if is_left:
                 masks['l'][index] = True
             if is_right:
                 masks['r'][index] = True
-            if not (is_left or is_right) and (groups - body_excluded):
+            if not (is_left or is_right) and (vgs - excluded):
                 masks['body'][index] = True
-            if groups & head_groups:
+            if vgs & head_vgs:
                 masks['head'][index] = True
     bm.free()
     return masks
 
 
-def collect_head_masks(group_data):
-    return {obj: masks['head'] for obj, masks in group_data.items()}
+def collect_head_masks(vg_data):
+    return {obj: masks['head'] for obj, masks in vg_data.items()}
 
 def get_mesh_loops(mesh):
     loops_vertex = get_loop_vertices(mesh)
@@ -892,15 +892,15 @@ def compact_faces(loops_vertex, loop_start, loop_total, face_mask):
     return {'verts': unique, 'faces': faces}
 
 
-def collect_vertex_group_data(meshes, visible_masks=None):
+def collect_vertex_vg_data(meshe_objs, visible_masks=None):
     """一次遍历得到手部/身体/头部顶点掩码，供手臂角度与头部尺寸共用"""
-    hand_names = expand_group_names(HAND_GROUP_NAMES)
-    hand_left = expand_group_names(name for name in HAND_GROUP_NAMES if '左' in name)
-    hand_right = expand_group_names(name for name in HAND_GROUP_NAMES if '右' in name)
-    excluded = expand_group_names(ARM_CHAIN_GROUP_NAMES) | ARM_EXCLUDED_GROUP_NAMES
+    hand_names = expand_vg_names(HAND_GROUP_NAMES)
+    hand_left = expand_vg_names(name for name in HAND_GROUP_NAMES if '左' in name)
+    hand_right = expand_vg_names(name for name in HAND_GROUP_NAMES if '右' in name)
+    excluded = expand_vg_names(ARM_CHAIN_GROUP_NAMES) | ARM_EXCLUDED_GROUP_NAMES
     data = {
         obj: get_vertex_masks(obj, hand_left, hand_right, hand_names | excluded, HEAD_GROUP_NAMES)
-        for obj in meshes
+        for obj in meshe_objs
     }
     for obj, masks in data.items():
         visible = visible_masks.get(obj) if visible_masks else None
@@ -912,14 +912,14 @@ def collect_vertex_group_data(meshes, visible_masks=None):
     return data
 
 
-def build_arm_collision_data(meshes, world, group_data=None, need_body=True):
+def build_arm_collision_data(meshes, world, vg_data=None, need_body=True):
     """按顶点组把网格拆分为左右手部、身体与头部，用于穿模检测"""
-    if group_data is None:
-        group_data = collect_vertex_group_data(meshes)
+    if vg_data is None:
+        vg_data = collect_vertex_vg_data(meshes)
 
     head_top = None
     for obj in meshes:
-        masks = group_data[obj]
+        masks = vg_data[obj]
         positions = world.get(obj)
         if positions is not None and len(positions) == len(obj.data.vertices) and masks['head'].any():
             top = float(positions[masks['head']][:, 2].max())
@@ -927,7 +927,7 @@ def build_arm_collision_data(meshes, world, group_data=None, need_body=True):
 
     items = []
     for obj in meshes:
-        masks = group_data[obj]
+        masks = vg_data[obj]
         loops_vertex, loop_start, loop_total = get_mesh_loops(obj.data)
         positions = world.get(obj)
         vertex_count = len(obj.data.vertices)
@@ -1079,7 +1079,7 @@ def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
     return last_good
 
 
-def apply_arm_rotation(armature, meshes, angle_setting, report, world=None, group_data=None):
+def apply_arm_rotation(armature, meshes, angle_setting, report, world=None, vg_data=None):
     """按参数旋转双臂；返回实际应用的角度"""
     if armature is None:
         report({'WARNING'}, translate("未找到骨架，已跳过手臂旋转。"))
@@ -1100,11 +1100,11 @@ def apply_arm_rotation(armature, meshes, angle_setting, report, world=None, grou
     if world is None:
         world = evaluate_world_vertices(meshes)
     if angle_setting == 'T_POSE':
-        items = build_arm_collision_data(meshes, world, group_data, False)
+        items = build_arm_collision_data(meshes, world, vg_data, False)
         applied = apply_arm_t_pose(armature, items, world)
         return applied or {name: 0 for name in bone_names}
 
-    items = build_arm_collision_data(meshes, world, group_data, angle_setting == 'AUTO')
+    items = build_arm_collision_data(meshes, world, vg_data, angle_setting == 'AUTO')
     body_bvhs = build_item_bvhs(items, 'body', world) if angle_setting == 'AUTO' else []
     bounds = bounds_from_vertices(world)
     body_center_x = (bounds[0] + bounds[1]) / 2
@@ -1307,12 +1307,12 @@ def build_three_view_setup(props, report, ancestor):
         visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in mesh_objs}
 
     # 4. 顶点组数据与头部包围盒（头部不受手腕旋转影响，可在旋转前计算）
-    group_data = collect_vertex_group_data(mesh_objs, visible_masks)
-    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(group_data))
+    vg_data = collect_vertex_vg_data(mesh_objs, visible_masks)
+    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data))
 
     # 5. 应用手臂姿态；旋转后重新评估顶点，得到最终包围盒
     arm_angles = apply_arm_rotation(
-        armature, mesh_objs, props.arm_angle, report, world_vertices, group_data) or {}
+        armature, mesh_objs, props.arm_angle, report, world_vertices, vg_data) or {}
     bpy.context.view_layer.update()
     if any(angle > 0 for angle in arm_angles.values()):
         world_vertices = evaluate_world_vertices(mesh_objs)
