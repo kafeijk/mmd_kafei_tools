@@ -39,7 +39,6 @@ from ..constants import (
 
 from ..utils import (
     check_batch_props,
-    convertNameToLR,
     deselect_all_objects,
     find_ancestor,
     find_armature,
@@ -597,21 +596,6 @@ def get_armature(ancestor=None):
     return find_armature(ancestor)
 
 
-def find_bone_name(armature, japanese_name):
-    converted = convertNameToLR(japanese_name)
-    for name in (converted, japanese_name):
-        if name in armature.pose.bones:
-            return name
-    return None
-
-
-def expand_vg_names(names):
-    names = set(names)
-    for name in list(names):
-        names.add(convertNameToLR(name))
-    return names
-
-
 def rotate_arm_bone(armature, bone_name, angle_degrees, sign, base_world=None):
     """绕世界 Y 轴旋转腕骨骼；base_world 为基础姿态下的世界矩阵，避免每次读取评估结果"""
     pose_bone = armature.pose.bones[bone_name]
@@ -894,10 +878,10 @@ def compact_faces(loops_vertex, loop_start, loop_total, face_mask):
 
 def collect_vertex_vg_data(meshe_objs, visible_masks=None):
     """一次遍历得到手部/身体/头部顶点掩码，供手臂角度与头部尺寸共用"""
-    hand_names = expand_vg_names(HAND_GROUP_NAMES)
-    hand_left = expand_vg_names(name for name in HAND_GROUP_NAMES if '左' in name)
-    hand_right = expand_vg_names(name for name in HAND_GROUP_NAMES if '右' in name)
-    excluded = expand_vg_names(ARM_CHAIN_GROUP_NAMES) | ARM_EXCLUDED_GROUP_NAMES
+    hand_names = set(HAND_GROUP_NAMES)
+    hand_left = {name for name in HAND_GROUP_NAMES if name.endswith('.L')}
+    hand_right = {name for name in HAND_GROUP_NAMES if name.endswith('.R')}
+    excluded = set(ARM_CHAIN_GROUP_NAMES) | ARM_EXCLUDED_GROUP_NAMES
     data = {
         obj: get_vertex_masks(obj, hand_left, hand_right, hand_names | excluded, HEAD_GROUP_NAMES)
         for obj in meshe_objs
@@ -1001,9 +985,8 @@ def get_hand_center(items, side, world):
 def apply_arm_t_pose(armature, items, world):
     """把双臂绕世界 Y 轴旋转到水平，得到 T 字姿态"""
     applied = {}
-    for side, japanese_name in (('l', '左腕'), ('r', '右腕')):
-        bone_name = find_bone_name(armature, japanese_name)
-        if bone_name is None:
+    for side, bone_name in zip(('l', 'r'), ARM_BONE_NAMES):
+        if bone_name not in armature.pose.bones:
             continue
         pose_bone = armature.pose.bones[bone_name]
         base_world = armature.matrix_world @ pose_bone.matrix
@@ -1081,7 +1064,7 @@ def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
 
 def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_data=None):
     """按参数旋转双臂；返回实际旋转角度"""
-    bone_names = [name for name in (find_bone_name(armature, jp) for jp in ARM_BONE_NAMES) if name]
+    bone_names = [name for name in ARM_BONE_NAMES if name in armature.pose.bones]
     if not bone_names:
         # 未找到腕骨骼，已跳过手臂旋转。（提示后续统一整合）
         return {}
@@ -1104,9 +1087,8 @@ def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_
     }
 
     applied = {}
-    for side, japanese_name in (('l', '左腕'), ('r', '右腕')):
-        bone_name = find_bone_name(armature, japanese_name)
-        if bone_name is None:
+    for side, bone_name in zip(('l', 'r'), ARM_BONE_NAMES):
+        if bone_name not in armature.pose.bones:
             continue
         sign = determine_inward_sign(armature, bone_name, items, side, body_center_x)
         if angle_setting == 'AUTO':
