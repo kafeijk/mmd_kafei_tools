@@ -1515,6 +1515,8 @@ def build_three_view_setup(props, report, ancestor):
         else:
             # 相机横向覆盖 [-frame_half_width, frame_half_width]，把模型左边缘推到右边界之外
             offscreen_gap = frame_width * THREE_VIEW_OFFSCREEN_GAP
+            # 目标位置 − 当前左边缘L
+            # L + shift_x = frame_half_width + offscreen_gap
             shift_x = frame_half_width + offscreen_gap - min(full_bounds[0], min_x)
             ancestor.matrix_world = mathutils.Matrix.Translation((shift_x, 0.0, 0.0))
 
