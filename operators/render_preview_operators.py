@@ -623,22 +623,35 @@ def rotate_arm_bone(armature, bone_name, angle_degrees, sign, base_world=None):
 
 
 def evaluate_world_vertices(objects):
-    """一次性读取评估后网格（含修改器与姿态）的世界坐标，{对象: (n, 3) 数组}"""
+    """
+    一次性读取评估后网格（含修改器与姿态）的世界坐标，{对象: (n, 3) 数组}
+
+    取的是“评估后”的网格：布尔、骨架、形态键等修改器的最终结果都在里面；
+    顶点用 foreach_get 整体拷出，再用 numpy 批量做矩阵变换，避免逐顶点访问 bpy。
+    """
     depsgraph = bpy.context.evaluated_depsgraph_get()
     result = {}
     for obj in objects:
         if obj.type != 'MESH':
             continue
+
         eval_obj = obj.evaluated_get(depsgraph)
         mesh = eval_obj.data
         count = len(mesh.vertices)
+        # 空网格：返回形状 (0, 3) 的空数组，下游的分位数/包围盒计算可直接跳过
         if count == 0:
             result[obj] = np.zeros((0, 3), dtype=np.float32)
             continue
+
+        # 先按一维缓冲整体拷出 (x, y, z, x, y, z, ...)，再重排成 (顶点数, 3)
         coords = np.empty(count * 3, dtype=np.float32)
         mesh.vertices.foreach_get('co', coords)
         coords = coords.reshape(count, 3)
+        # matrix_world 为 4x4 齐次矩阵：左上 3x3 是旋转+缩放，最后一列前三个是平移
         matrix = np.array(eval_obj.matrix_world, dtype=np.float32)
+        # 等价于逐点做 M @ v = R @ v + t（R 为 3x3，t 为平移）
+        # .T 为转置，作用是交换行和列
+        # Blender 的矩阵变换习惯使用列向量，而 NumPy 顶点坐标是按行排列的。
         result[obj] = coords @ matrix[:3, :3].T + matrix[:3, 3]
     return result
 
@@ -1229,28 +1242,28 @@ def build_three_view_setup(props, report, ancestor):
     reset_root_transform(ancestor)
 
     # 2. 收集参与渲染的网格
-    meshes = get_renderable_meshes(ancestor)
+    mesh_objs = get_renderable_meshes(ancestor)
 
     # 3. 可见顶点掩码：False 时使用全部顶点
     armature = get_armature(ancestor)
-    world = evaluate_world_vertices(meshes)
+    world_vertices = evaluate_world_vertices(mesh_objs)
     if props.visible_only:
-        visible_masks = collect_visible_masks(meshes)
+        visible_masks = collect_visible_masks(mesh_objs)
     else:
-        visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in meshes}
+        visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in mesh_objs}
 
     # 4. 顶点组数据与头部包围盒（头部不受手腕旋转影响，可在旋转前计算）
-    group_data = collect_vertex_group_data(meshes, visible_masks)
-    head_bounds = get_head_bounds(meshes, world, collect_head_masks(group_data))
+    group_data = collect_vertex_group_data(mesh_objs, visible_masks)
+    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(group_data))
 
     # 5. 应用手臂姿态；旋转后重新评估顶点，得到最终包围盒
     arm_angles = apply_arm_rotation(
-        armature, meshes, props.arm_angle, report, world, group_data) or {}
+        armature, mesh_objs, props.arm_angle, report, world_vertices, group_data) or {}
     bpy.context.view_layer.update()
     if any(angle > 0 for angle in arm_angles.values()):
-        world = evaluate_world_vertices(meshes)
-    full_bounds = bounds_from_vertices(world)
-    body_bounds = bounds_from_vertices(visible_world_vertices(world, visible_masks)) or full_bounds
+        world_vertices = evaluate_world_vertices(mesh_objs)
+    full_bounds = bounds_from_vertices(world_vertices)
+    body_bounds = bounds_from_vertices(visible_world_vertices(world_vertices, visible_masks)) or full_bounds
     if body_bounds is None:
         report({'ERROR'}, translate("未找到可渲染的网格。"))
         return None
@@ -1300,7 +1313,7 @@ def build_three_view_setup(props, report, ancestor):
     # 8. 横向居中用分位中心，避免稀疏部件（如薄光环、露出的一小截尾巴）把主体挤偏；
     #    绕世界 Z 轴旋转后，90° 视图的横向中心等于 -center_y，180° 等于 -center_x
     visible_points = np.concatenate([points for points in
-                                     visible_world_vertices(world, visible_masks).values()
+                                     visible_world_vertices(world_vertices, visible_masks).values()
                                      if len(points)]) if body_bounds else None
     if visible_points is not None and len(visible_points):
         center_x = robust_center(visible_points[:, 0])
@@ -1331,7 +1344,7 @@ def build_three_view_setup(props, report, ancestor):
                     mathutils.Matrix.Translation((translate_x, 0.0, translate_z))
                     @ mathutils.Matrix.Rotation(math.radians(angle), 4, 'Z')
                     @ mathutils.Matrix.Scale(view_scale, 4))
-                duplicate_model_objects(meshes, matrix, collection, source_root_name, ancestor)
+                duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, ancestor)
 
         # 11. 特写：头部（「頭」顶点组）占画面竖向 THREE_VIEW_CLOSEUP_HEAD_RATIO，顶部对齐
         closeup_scale = 1.0
@@ -1345,7 +1358,7 @@ def build_three_view_setup(props, report, ancestor):
                 mathutils.Matrix.Translation((translate_x, 0.0, translate_z))
                 @ mathutils.Matrix.Scale(closeup_scale, 4))
             closeup_objects = duplicate_model_objects(
-                meshes, closeup_matrix, collection, source_root_name, ancestor)
+                mesh_objs, closeup_matrix, collection, source_root_name, ancestor)
 
         # 12. 原模型作为主视图缩放到第一列；仅特写模式则把原模型整体右移出相机视野
         if show_views:
