@@ -11,7 +11,7 @@ from ..batch_utils import BatchProcessOperatorMixin, BatchProcessRunner
 from ..constants import (
     ARM_ANGLE_LIMIT,
     ARM_ANGLE_STEP,
-    ARM_BONE_NAMES,
+    ARM_NAMES,
     ARM_CHAIN_GROUP_NAMES,
     ARM_EXCLUDED_GROUP_NAMES,
     ARM_SIGN_TEST_ANGLE,
@@ -848,30 +848,57 @@ def get_mesh_loops(mesh):
     return loops_vertex, loop_start, loop_total
 
 
-def select_faces(loops_vertex, loop_start, loop_total, vertex_mask, world_z, max_z):
-    """选出所有顶点都属于指定顶点组、且不高于 max_z 的面"""
+def count_face_hits(loops_vertex, loop_start, loop_total, vertex_flags):
+    """统计每个面有多少个拐角满足 vertex_flags
+
+    vertex_flags：每个顶点一个布尔值（例如“属于该顶点组”“高于某高度”）。
+    reduceat 以 loop_start 为切分点分段累加，把“按顶点的值”汇总成“按面的数量”。
+    """
     if len(loop_total) == 0:
-        return np.zeros(0, dtype=bool)
-    face_hits = np.add.reduceat(vertex_mask[loops_vertex].astype(np.int32), loop_start)
-    faces = face_hits == loop_total
+        return np.zeros(0, dtype=np.int32)
+    return np.add.reduceat(vertex_flags[loops_vertex].astype(np.int32), loop_start)
+
+
+def select_faces(loops_vertex, loop_start, loop_total, vertex_mask, world_z, max_z):
+    """选出所有顶点都属于指定顶点组、且不高于 max_z 的面
+
+    loops_vertex：第 i 个 loop（面的拐角）指向的顶点索引
+    loop_start ：每个面的第一个 loop 在 loops_vertex 里的下标
+    loop_total ：每个面的 loop 数（三角形为 3，四边形为 4）
+    vertex_mask：每个顶点是否属于该顶点组
+    world_z    ：每个顶点的世界 Z 坐标，可为 None
+    max_z      ：面内顶点允许的最高 Z，超过则排除（用于忽略头部以上顶点）
+    """
+    # 每个拐角都命中 → 该面的所有顶点都在顶点组内
+    inside_hits = count_face_hits(loops_vertex, loop_start, loop_total, vertex_mask)
+    faces = inside_hits == loop_total
     if max_z is not None and world_z is not None:
-        above = np.add.reduceat((world_z[loops_vertex] > max_z).astype(np.int32), loop_start)
-        faces &= above == 0
+        # 面内有顶点高于 max_z → 排除该面
+        above_hits = count_face_hits(loops_vertex, loop_start, loop_total, world_z > max_z)
+        faces &= above_hits == 0
     return faces
 
 
 def compact_faces(loops_vertex, loop_start, loop_total, face_mask):
-    """把选中的面压缩为局部顶点索引，供 BVH 使用"""
+    """
+    把选中的面压缩为局部顶点索引，供 BVH 使用
+
+    返回 {'verts': 用到的全局顶点索引, 'faces': 以局部下标表示的多边形}
+    """
     selected = np.nonzero(face_mask)[0]
     if len(selected) == 0:
         return None
     starts = loop_start[selected]
     totals = loop_total[selected]
     loop_count = int(totals.sum())
+    # 选中面的 loop 是连续的，这里把它们在 loops_vertex 里的下标拼成一维：
+    # repeat(starts) 给出每个面起点，再逐个面加上 0,1,2... 的偏移
     offsets = np.repeat(starts, totals)
     offsets += np.arange(loop_count) - np.repeat(np.cumsum(totals) - totals, totals)
     vertex_indices = loops_vertex[offsets]
+    # 顶点去重并重映射为 0..n-1 的局部索引
     unique, inverse = np.unique(vertex_indices, return_inverse=True)
+    # 按每个面的 loop 数切分 inverse，得到以局部索引表示的面
     faces = [tuple(face.tolist()) for face in np.split(inverse.reshape(-1), np.cumsum(totals)[:-1])]
     return {'verts': unique, 'faces': faces}
 
@@ -896,13 +923,14 @@ def collect_vertex_vg_data(meshe_objs, visible_masks=None):
     return data
 
 
-def build_arm_collision_data(meshes, world, vg_data=None, need_body=True):
+def build_arm_collision_data(mesh_objs, world, vg_data=None, need_body=True):
     """按顶点组把网格拆分为左右手部、身体与头部，用于穿模检测"""
     if vg_data is None:
-        vg_data = collect_vertex_vg_data(meshes)
+        vg_data = collect_vertex_vg_data(mesh_objs)
 
+    # 头部顶部 Z：手部/身体的面若含高于此处的顶点则不计入，避免头发、头饰干扰穿模判断
     head_top = None
-    for obj in meshes:
+    for obj in mesh_objs:
         masks = vg_data[obj]
         positions = world.get(obj)
         if positions is not None and len(positions) == len(obj.data.vertices) and masks['head'].any():
@@ -910,17 +938,20 @@ def build_arm_collision_data(meshes, world, vg_data=None, need_body=True):
             head_top = top if head_top is None else max(head_top, top)
 
     items = []
-    for obj in meshes:
+    for obj in mesh_objs:
         masks = vg_data[obj]
         loops_vertex, loop_start, loop_total = get_mesh_loops(obj.data)
         positions = world.get(obj)
         vertex_count = len(obj.data.vertices)
+        # 顶点数与世界坐标对不上时放弃高度过滤，只按顶点组划分
         world_z = positions[:, 2] if positions is not None and len(positions) == vertex_count else None
         item = {'obj': obj, 'count': vertex_count, 'head_mask': masks['head']}
         parts = [('hand_l', masks['l']), ('hand_r', masks['r'])]
         if need_body:
+            # 求手臂的最大不穿模角度时才需要身体参与检测
             parts.append(('body', masks['body']))
         for key, mask in parts:
+            # 先筛出该部位的面，再压缩成局部顶点索引，供后续建 BVH
             face_mask = select_faces(loops_vertex, loop_start, loop_total, mask, world_z, head_top)
             part = compact_faces(loops_vertex, loop_start, loop_total, face_mask)
             item[key] = part if part is not None else {'verts': np.zeros(0, dtype=np.int64), 'faces': []}
@@ -985,7 +1016,7 @@ def get_hand_center(items, side, world):
 def apply_arm_t_pose(armature, items, world):
     """把双臂绕世界 Y 轴旋转到水平，得到 T 字姿态"""
     applied = {}
-    for side, bone_name in zip(('l', 'r'), ARM_BONE_NAMES):
+    for side, bone_name in zip(('l', 'r'), ARM_NAMES):
         if bone_name not in armature.pose.bones:
             continue
         pose_bone = armature.pose.bones[bone_name]
@@ -1064,30 +1095,32 @@ def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
 
 def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_data=None):
     """按参数旋转双臂；返回实际旋转角度"""
-    bone_names = [name for name in ARM_BONE_NAMES if name in armature.pose.bones]
-    if not bone_names:
-        # 未找到腕骨骼，已跳过手臂旋转。（提示后续统一整合）
+    arm_bone_names = [name for name in ARM_NAMES if name in armature.pose.bones]
+    # 未找到腕骨骼，跳过手臂旋转。（后续统一整合提示）
+    if not arm_bone_names:
         return {}
+
     if angle_setting == '0':
-        return {name: 0 for name in bone_names}
+        return {name: 0 for name in arm_bone_names}
 
     if world_vertices is None:
         world_vertices = evaluate_world_vertices(meshes)
+
     if angle_setting == 'T_POSE':
         items = build_arm_collision_data(meshes, world_vertices, vg_data, False)
         applied = apply_arm_t_pose(armature, items, world_vertices)
-        return applied or {name: 0 for name in bone_names}
+        return applied or {name: 0 for name in arm_bone_names}
 
     items = build_arm_collision_data(meshes, world_vertices, vg_data, angle_setting == 'AUTO')
     body_bvhs = build_item_bvhs(items, 'body', world_vertices) if angle_setting == 'AUTO' else []
     bounds = bounds_from_vertices(world_vertices)
     body_center_x = (bounds[0] + bounds[1]) / 2
     base_world = {
-        name: armature.matrix_world @ armature.pose.bones[name].matrix for name in bone_names
+        name: armature.matrix_world @ armature.pose.bones[name].matrix for name in arm_bone_names
     }
 
     applied = {}
-    for side, bone_name in zip(('l', 'r'), ARM_BONE_NAMES):
+    for side, bone_name in zip(('l', 'r'), ARM_NAMES):
         if bone_name not in armature.pose.bones:
             continue
         sign = determine_inward_sign(armature, bone_name, items, side, body_center_x)

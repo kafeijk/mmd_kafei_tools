@@ -546,7 +546,7 @@ THREE_VIEW_CAMERA_NAME = "KAFEI_THREE_VIEW_CAMERA"
 MATERIAL_ALPHA_EPSILON = 1e-6
 
 # 手臂骨骼（带 .L/.R 后缀）
-ARM_BONE_NAMES = ("腕.L", "腕.R")
+ARM_NAMES = ("腕.L", "腕.R")
 # 手部顶点组（ひじ / 手捩 / 手首 / 手指），用于穿模检测
 HAND_GROUP_NAMES = (
     'ひじ.L', '手捩.L', '手首.L',
