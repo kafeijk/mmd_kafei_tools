@@ -821,12 +821,12 @@ def get_vertex_masks(obj, left_names, right_names, excluded_names, head_names):
     masks = {key: np.zeros(count, dtype=bool) for key in ('l', 'r', 'body', 'head')}
     if count == 0:
         return masks
-    vg_names = {vg.index: vg.name for vg in obj.vertex_groups}
-    left_vgs = {index for index, name in vg_names.items() if name in left_names}
-    right_vgs = {index for index, name in vg_names.items() if name in right_names}
-    excluded = {index for index, name in vg_names.items() if name in excluded_names}
-    head_vgs = {index for index, name in vg_names.items() if name in head_names}
-    if not (left_vgs or right_vgs or head_vgs):
+    vg_name_map = {vg.index: vg.name for vg in obj.vertex_groups}
+    left_vg_indexes = {index for index, name in vg_name_map.items() if name in left_names}
+    right_vg_indexes = {index for index, name in vg_name_map.items() if name in right_names}
+    excluded_vg_indexes = {index for index, name in vg_name_map.items() if name in excluded_names}
+    head_vg_indexes = {index for index, name in vg_name_map.items() if name in head_names}
+    if not (left_vg_indexes or right_vg_indexes or head_vg_indexes):
         return masks
 
     bm = bmesh.new()
@@ -834,19 +834,19 @@ def get_vertex_masks(obj, left_names, right_names, excluded_names, head_names):
     deform = bm.verts.layers.deform.active
     if deform is not None:
         for vert in bm.verts:
-            vgs = {index for index, weight in vert[deform].items() if weight > 0}
-            if not vgs:
+            vg_indexes = {index for index, weight in vert[deform].items() if weight > 0}
+            if not vg_indexes:
                 continue
             index = vert.index
-            is_left = bool(vgs & left_vgs)
-            is_right = bool(vgs & right_vgs)
+            is_left = bool(vg_indexes & left_vg_indexes)
+            is_right = bool(vg_indexes & right_vg_indexes)
             if is_left:
                 masks['l'][index] = True
             if is_right:
                 masks['r'][index] = True
-            if not (is_left or is_right) and (vgs - excluded):
+            if not (is_left or is_right) and (vg_indexes - excluded_vg_indexes):
                 masks['body'][index] = True
-            if vgs & head_vgs:
+            if vg_indexes & head_vg_indexes:
                 masks['head'][index] = True
     bm.free()
     return masks
