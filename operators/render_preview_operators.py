@@ -1194,61 +1194,88 @@ def collect_model_armatures(meshes):
     return armatures
 
 
-def duplicate_model_objects(meshes, matrix, collection, source_root_name, root=None):
-    """复制 root/骨架/网格（共享数据）；缩放旋转由复制出的 root 承载"""
-    meshes = list(meshes)
+def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, root=None):
+    """
+    复制模型层级（最外层对象 / 骨架 / 网格），用于生成侧视图、后视图与特写
+
+    root 是模型最外层的对象，不限定类型：MMD 模型通常是空物体，其它模型可能是骨架或网格。
+    root 副本承载整体变换，其下的物体只需重新挂到副本下并保留局部变换。
+
+    obj.copy() 只复制对象，mesh 与 armature 数据仍是共享的，共用数据既省内存也省时间。
+    """
+    mesh_objs = list(mesh_objs)
     armature_map = {}
     copies = []
 
+    # 最外层对象副本承载整体变换
     root_copy = None
-    if root is not None and root.type == 'EMPTY':
+    if root is not None:
         root_copy = root.copy()
         root_copy.parent = None
         root_copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
         root_copy.matrix_world = matrix @ root.matrix_world
+        show_object(root_copy)
         collection.objects.link(root_copy)
         mark_temp_object(root_copy, source_root_name)
         copies.append(root_copy)
+        if root_copy.type == 'ARMATURE':
+            # 最外层就是骨架时，隐藏视口显示避免骨架线遮挡，并登记到映射表供网格绑定修改器
+            root_copy.hide_set(True)
+            armature_map[root] = root_copy
 
-    for armature in collect_model_armatures(meshes):
+    # 骨架：视口隐藏（避免遮挡模型）
+    for armature in collect_model_armatures(mesh_objs):
+        if armature in armature_map:
+            continue
         copy = armature.copy()
         if root_copy is not None and armature.parent is root:
+            # 原本直接挂在 root 下：保持局部变换，整体变换已由 root 副本承担
             copy.parent = root_copy
             copy.matrix_parent_inverse = armature.matrix_parent_inverse.copy()
             copy.matrix_basis = armature.matrix_basis.copy()
         else:
+            # 不挂在 root 下：断开父级，直接把整体变换写到世界矩阵
             copy.parent = None
             copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
             copy.matrix_world = matrix @ armature.matrix_world
-        copy.hide_render = False
         collection.objects.link(copy)
         copy.hide_set(True)
+        copy.hide_render = True
         mark_temp_object(copy, source_root_name)
         armature_map[armature] = copy
         copies.append(copy)
 
-    for mesh in meshes:
+    for mesh in mesh_objs:
+        # 最外层对象就是网格时，它已经作为 root 副本复制过
+        if mesh is root:
+            continue
         copy = mesh.copy()
+        # 网格通过骨架修改器关联骨架，复制后要把修改器重新指向复制出的骨架
         parent_armature = None
         for modifier in mesh.modifiers:
             if modifier.type == 'ARMATURE' and modifier.object in armature_map:
                 parent_armature = armature_map[modifier.object]
                 break
         if parent_armature is not None and mesh.parent is not None:
+            # 原本绑在骨架上：挂到副本骨架下并保持局部变换
             copy.parent = parent_armature
             copy.matrix_parent_inverse = mesh.matrix_parent_inverse.copy()
             copy.matrix_basis = mesh.matrix_basis.copy()
         else:
+            # 没有骨架或原本无父级：断开父级，整体变换直接写进世界矩阵
             copy.parent = None
             copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
             copy.matrix_world = matrix @ mesh.matrix_world
-        copy.hide_render = False
         collection.objects.link(copy)
+        show_object(copy)
+        mark_temp_object(copy, source_root_name)
+        copies.append(copy)
+
+    # 所有副本的骨架修改器统一指向副本骨架（含最外层本身是网格/骨架的情况）
+    for copy in copies:
         for modifier in copy.modifiers:
             if modifier.type == 'ARMATURE' and modifier.object in armature_map:
                 modifier.object = armature_map[modifier.object]
-        mark_temp_object(copy, source_root_name)
-        copies.append(copy)
     return copies
 
 
@@ -1448,7 +1475,7 @@ def build_three_view_setup(props, report, ancestor):
         #     缩放/旋转/位移由复制出的 root 承载，只按 min_z 对齐、不做垂直居中
         if show_views:
             for index, angle in enumerate((90, 180)):
-                # 第 index+1.5 列的中心：特写栏之后依次是主视图(0.5 列)、侧视图(1.5 列)、后视图(2.5 列)
+                # 模型 x 位置 target_x = 左侧边界 + 特写宽度 + (index + 1.5) * 单模型可用宽度
                 target_x = -frame_half_width + closeup_world + (index + 1.5) * column_world
                 # 旋转/缩放后模型中心位于 view_centers[angle] * view_scale，平移量 = 目标列中心 - 该位置
                 translate_x = target_x - view_centers[angle] * view_scale
