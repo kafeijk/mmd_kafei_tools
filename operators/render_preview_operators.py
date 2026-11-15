@@ -779,9 +779,17 @@ def collect_visible_masks(objs):
 
 
 def robust_center(values):
-    """分位中心：忽略两端的稀疏离群几何"""
+    """
+    分位中心：取坐标值 2%~98% 区间的中点，作为横向居中位置
+
+    直接取 (最小值 + 最大值) / 2 时，光环、露出的一小截尾巴这类稀疏几何会把中心拉偏
+    这里先用 np.percentile 掐掉两端各 THREE_VIEW_CENTER_PERCENTILE%的顶点，再取中点，让中心跟着顶点密集的主体部分走。
+
+    values 是某一条轴上的顶点坐标（世界坐标），返回浮点中心值。
+    """
     if len(values) == 0:
         return 0.0
+    # 掐掉两端的极值分位点，再取中点
     lower, upper = np.percentile(values, [THREE_VIEW_CENTER_PERCENTILE,
                                           100.0 - THREE_VIEW_CENTER_PERCENTILE])
     return float((lower + upper) / 2)
@@ -1412,22 +1420,32 @@ def build_three_view_setup(props, report, ancestor):
                         frame_height * THREE_VIEW_COLUMN_FIT / height, 1.0)
             view_scale = min(view_scale, scale)
 
-    # 8. 横向居中用分位中心，避免稀疏部件（如薄光环、露出的一小截尾巴）把主体挤偏；
-    #    绕世界 Z 轴旋转后，90° 视图的横向中心等于 -center_y，180° 等于 -center_x
-    visible_points = np.concatenate([points for points in
-                                     visible_world_vertices(world_vertices, visible_masks).values()
-                                     if len(points)]) if model_bounds else None
-    if visible_points is not None and len(visible_points):
+    # 8. 横向居中用分位中心（只统计可见顶点），避免稀疏部件（如薄光环、露出的一小截尾巴）把主体挤偏
+    # 相机 rotation_euler = (90°, 0, 0)，本地 -Z 指向世界 +Y：画面横向 = 世界 X，纵向 = 世界 Z，
+    # 因此“横向中心”就是模型中心在世界 X 上的坐标。
+    # 侧视图/后视图是绕世界 Z 轴旋转的副本（见步骤 10 的 Rotation(angle, 'Z')），绕 Z 转 θ 时
+    # x' = x·cosθ - y·sinθ，y' = x·sinθ + y·cosθ，于是中心 (center_x, center_y) 旋转后落到：
+    #   0°  ：( center_x,  center_y) → 横向  center_x
+    #   90° ：(-center_y,  center_x) → 横向 -center_y
+    #   180°：(-center_x, -center_y) → 横向 -center_x
+    # 纵向 Z 不受绕 Z 旋转影响，三种视图共用 view_center_z
+    visible_groups = [points for points in
+                      visible_world_vertices(world_vertices, visible_masks).values()
+                      if len(points)]
+    if visible_groups:
+        visible_points = np.concatenate(visible_groups)
+        # 中心点 center_x, center_y 是相对世界原点的坐标，本身就可能是正数或负数。
         center_x = robust_center(visible_points[:, 0])
         center_y = robust_center(visible_points[:, 1])
     else:
+        # 没有可见顶点（整模透明或顶点掩码对不上）时，退回可见包围盒中心
         center_x = (min_x + max_x) / 2
         center_y = (min_y + max_y) / 2
     view_centers = {0: center_x, 90: -center_y, 180: -center_x}
 
     # 纵向：以可见包围盒底部对齐，画面中心按缩放后的高度居中
-    view_center_z = min_z + view_scale * model_height / 2
-    frame_top = view_center_z + frame_height / 2
+    view_center_z = min_z + view_scale * model_height / 2  # 模型缩放后的竖向中点
+    frame_top = view_center_z + frame_height / 2  # 相机中心加半个画面高就是画面的上边界，给特写用
 
     # 9. 建立临时集合
     collection = create_three_view_collection()
@@ -1439,9 +1457,14 @@ def build_three_view_setup(props, report, ancestor):
         #     缩放/旋转/位移由复制出的 root 承载，只按 min_z 对齐、不做垂直居中
         if show_views:
             for index, angle in enumerate((90, 180)):
+                # 第 index+1.5 列的中心：特写栏之后依次是主视图(0.5 列)、侧视图(1.5 列)、后视图(2.5 列)
                 target_x = -frame_half_width + closeup_world + (index + 1.5) * column_world
+                # 旋转/缩放后模型中心位于 view_centers[angle] * view_scale，平移量 = 目标列中心 - 该位置
                 translate_x = target_x - view_centers[angle] * view_scale
+                # 缩放与旋转都以世界原点为中心，模型底部会随之抬到 min_z * view_scale，补回差量对齐到 min_z
                 translate_z = min_z * (1 - view_scale)
+                # 矩阵左乘依次作用于顶点：先缩放（对齐三视图高度），再绕世界 Z 轴旋转（换视角），
+                # 最后平移到目标列，所以写作 Translation @ Rotation @ Scale
                 matrix = (
                     mathutils.Matrix.Translation((translate_x, 0.0, translate_z))
                     @ mathutils.Matrix.Rotation(math.radians(angle), 4, 'Z')
