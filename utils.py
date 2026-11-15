@@ -559,6 +559,22 @@ def find_ancestor(obj):
     return ancestor
 
 
+def find_armature(obj):
+    """
+    递归查找 obj 的子对象，直到找到骨架（ARMATURE）对象。
+    返回第一个找到的骨架对象，如果没有找到则返回 None。
+    """
+    if obj.type == 'ARMATURE' and ".dummy_armature" not in obj.name:
+        return obj
+
+    for child in obj.children:
+        result = find_armature(child)
+        if result:
+            return result
+
+    return None
+
+
 def find_children(obj, obj_type=None):
     children = []
     if not obj_type:

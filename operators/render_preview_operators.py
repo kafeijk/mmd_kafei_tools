@@ -42,6 +42,7 @@ from ..utils import (
     convertNameToLR,
     deselect_all_objects,
     find_ancestor,
+    find_armature,
     find_children,
     find_pmx_armature,
     find_pmx_objects,
@@ -66,9 +67,8 @@ class GenPreviewCameraOperator(bpy.types.Operator):
         props = context.scene.mmd_kafei_tools_render_preview
         if is_three_view(props):
             ancestor = self.check_three_view_props(props)
+            # 校验失败直接返回
             if ancestor is None:
-                # 模型可能已被删除，清理残留的临时对象并恢复状态
-                reset_three_view()
                 return {'CANCELLED'}
             if not preview_three_view(props, self.report, ancestor):
                 return {'CANCELLED'}
@@ -480,13 +480,12 @@ def get_renderable_meshes(ancestor):
     return [obj for obj in objects if obj.type == 'MESH' and not obj.hide_render]
 
 
-_posed_armature_names = []
+def collect_ancestors():
+    """
+    收集选中对象对应的模型 root
 
-
-def check_three_view_props(props, report):
-    """三视图参数校验：解析并返回要渲染的模型，校验失败返回 None
-
-    必须选中模型才能执行；选中临时对象时，按临时对象记录的 root 名找回原模型。
+    三视图临时对象都带 kafei_temp 标记，选中时按记录的 root 名找回原模型，
+    不会把副本当成新模型。
     """
     ancestors = set()
     for obj in bpy.context.selected_objects:
@@ -499,17 +498,28 @@ def check_three_view_props(props, report):
         ancestor = find_ancestor(obj)
         if ancestor is not None:
             ancestors.add(ancestor)
-    collection = bpy.data.collections.get(THREE_VIEW_COLLECTION_NAME)
-    if collection is not None:
-        temp_objects = set(collection.objects)
-        ancestors = {ancestor for ancestor in ancestors if ancestor not in temp_objects}
+    return ancestors
+
+
+def check_three_view_props(props, report):
+    """
+    三视图参数校验：解析并返回要渲染的模型，校验失败返回 None
+
+    必须选中模型才能执行；选中临时对象时，按临时对象记录的 root 名找回原模型。
+    """
+    ancestors = collect_ancestors()
     if len(ancestors) > 1:
-        report({'ERROR'}, translate("三视图仅支持单个角色，请只选中一个模型。"))
+        report({'ERROR'}, translate("仅支持单个模型！"))
         return None
     if not ancestors:
-        report({'ERROR'}, translate("请先选中要渲染的模型。"))
+        report({'ERROR'}, translate("请选择模型！"))
         return None
-    return next(iter(ancestors))
+
+    ancestor = next(iter(ancestors))
+    if get_armature(ancestor) is None:
+        report({'ERROR'}, translate("未找到骨架！"))
+        return None
+    return ancestor
 
 
 def mark_temp_object(obj, source_root_name):
@@ -518,30 +528,34 @@ def mark_temp_object(obj, source_root_name):
 
 
 def cleanup_three_view_collection():
-    """删除三视图临时对象；集合内没有残留物体时才删除该集合
+    """
+    删除三视图临时对象；集合内没有残留物体时才删除该集合
 
-    只负责“删东西”，不负责恢复状态：临时对象带 kafei_temp 标记，
     若用户手工往临时集合里放过其它物体，则保留集合，避免误删。
     """
     for obj in list(bpy.data.objects):
         if obj.get(THREE_VIEW_TEMP_FLAG):
             bpy.data.objects.remove(obj, do_unlink=True)
+
     collection = bpy.data.collections.get(THREE_VIEW_COLLECTION_NAME)
     if collection is not None and len(collection.objects) == 0:
         bpy.data.collections.remove(collection)
 
 
-def reset_arm_poses():
-    """把手臂姿态复位为静置：清空旋转过的腕骨骼变换，不还原执行前的姿态"""
-    for armature_name in list(_posed_armature_names):
-        armature = bpy.data.objects.get(armature_name)
-        if armature is None or armature.type != 'ARMATURE':
-            continue
-        for japanese_name in ARM_BONE_NAMES:
-            bone_name = find_bone_name(armature, japanese_name)
-            if bone_name is not None:
-                armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
-    _posed_armature_names.clear()
+def reset_poses(ancestor=None):
+    """把骨架姿态复位为静置：清空每个骨骼的变换，不还原执行前的姿态
+
+    骨架获取：当前激活对象是骨架就用它，否则从 ancestor 向下查找；
+    两者都没有时复位场景内的全部骨架。
+    """
+    identity = mathutils.Matrix.Identity(4)
+    armature = get_armature(ancestor)
+    armatures = [armature] if armature is not None else [
+        obj for obj in bpy.context.scene.objects if obj.type == 'ARMATURE']
+    for item in armatures:
+        for pose_bone in item.pose.bones:
+            if pose_bone.matrix_basis != identity:
+                pose_bone.matrix_basis = identity
     bpy.context.view_layer.update()
 
 
@@ -555,10 +569,10 @@ def reset_root_transform(ancestor):
     bpy.context.view_layer.update()
 
 
-def reset_three_view():
-    """三视图统一复位：删临时对象，手臂姿态恢复为静置"""
+def reset_three_view(ancestor=None):
+    """三视图统一复位：删临时对象，骨架姿态恢复为静置"""
     cleanup_three_view_collection()
-    reset_arm_poses()
+    reset_poses(ancestor)
 
 
 def create_three_view_collection():
@@ -571,15 +585,14 @@ def create_three_view_collection():
     return collection
 
 
-def get_armature(ancestor):
-    if ancestor.type == 'ARMATURE':
-        return ancestor
-    if ancestor.mmd_type == 'ROOT':
-        armature = find_pmx_armature(ancestor)
-        if armature is not None:
-            return armature
-    armatures = find_children(ancestor, {'ARMATURE'})
-    return armatures[0] if armatures else None
+def get_armature(ancestor=None):
+    """获取模型骨架：当前激活对象是骨架时直接用，否则从 ancestor 向下查找"""
+    active = bpy.context.view_layer.objects.active
+    if active is not None and active.type == 'ARMATURE' and not active.get(THREE_VIEW_TEMP_FLAG):
+        return active
+    if ancestor is None:
+        return None
+    return find_armature(ancestor)
 
 
 def find_bone_name(armature, japanese_name):
@@ -1011,8 +1024,6 @@ def apply_arm_rotation(armature, meshes, angle_setting, report, world=None, grou
     # 直接复位为静置姿态（不记录执行前的姿态），再按参数旋转
     for bone_name in bone_names:
         armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
-    if armature.name not in _posed_armature_names:
-        _posed_armature_names.append(armature.name)
     bpy.context.view_layer.update()
     if angle_setting == '0':
         return {name: 0 for name in bone_names}
@@ -1211,7 +1222,7 @@ def build_three_view_setup(props, report, ancestor):
     scene = bpy.context.scene
 
     # 1. 清理上次执行产生的临时对象与手臂姿态；root 归零，避免重复执行累积缩放/位移
-    reset_three_view()
+    reset_three_view(ancestor)
     reset_root_transform(ancestor)
 
     # 2. 收集参与渲染的网格（排除隐藏渲染的对象）
@@ -1373,7 +1384,7 @@ def build_three_view_setup(props, report, ancestor):
                 modifier.object = cube
             bpy.context.view_layer.update()
     except Exception:
-        reset_three_view()
+        reset_three_view(ancestor)
         raise
 
     # 14. 布局相机：一张正交相机覆盖四栏，景深按模型高度估算（特写副本可能放大）

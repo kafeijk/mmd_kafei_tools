@@ -20,6 +20,7 @@ from ..utils import (
     copy_obj,
     deselect_all_objects,
     find_ancestor,
+    find_armature,
     find_pmx_root_with_child,
     find_rigid_body_parent,
     get_action_fcurves,
@@ -980,22 +981,6 @@ class LightSettingsOperator(bpy.types.Operator):
 def apply_light_transforms(lights, props):
     """按灯光参数更新三盏灯的位置与旋转"""
     LightSettingsOperator._apply_transforms(lights, props)
-
-
-def find_armature(obj):
-    """
-    递归查找 obj 的子对象，直到找到骨架（ARMATURE）对象。
-    返回第一个找到的骨架对象，如果没有找到则返回 None。
-    """
-    if obj.type == 'ARMATURE' and ".dummy_armature" not in obj.name:
-        return obj
-
-    for child in obj.children:
-        result = find_armature(child)
-        if result:
-            return result
-
-    return None
 
 
 class LoadRenderPresetOperator(bpy.types.Operator):
