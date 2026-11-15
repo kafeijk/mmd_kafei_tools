@@ -74,12 +74,11 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     )
     arm_angle: bpy.props.EnumProperty(
         name="手臂姿态",
-        description="手臂姿态：自动取不穿模的最大内旋角度，T-Pose 摆成 T 字姿态，也可指定内旋角度",
+        description="手臂姿态：自动取不穿模的最大内旋角度，T-Pose 摆成 T 字姿态，静置则保持绑定姿态",
         items=[
             ("AUTO", "自动", "自动计算不穿模的最大角度"),
             ("T_POSE", "T-Pose", "把手臂摆成 T 字姿态"),
-        ] + [
-            (str(angle), f"{angle}°", "") for angle in range(0, 91, 10)
+            ("REST", "静置", "保持静置姿态，不做手臂旋转"),
         ],
         default="AUTO",
     )

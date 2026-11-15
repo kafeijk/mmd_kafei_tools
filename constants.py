@@ -577,8 +577,6 @@ HEAD_GROUP_NAMES = {"頭"}
 # 手臂角度自动求解：粗搜索步长与角度上限（度）
 ARM_ANGLE_STEP = 10
 ARM_ANGLE_LIMIT = 90
-# 判断左右内旋方向时试探的角度（度）
-ARM_SIGN_TEST_ANGLE = 10
 
 # 布局：角色高度占画面高度的比例（留白）、单列内容占列宽/帧高的比例
 THREE_VIEW_FRAME_MARGIN = 0.95

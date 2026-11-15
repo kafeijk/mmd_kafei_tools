@@ -14,7 +14,6 @@ from ..constants import (
     ARM_NAMES,
     ARM_CHAIN_GROUP_NAMES,
     ARM_EXCLUDED_GROUP_NAMES,
-    ARM_SIGN_TEST_ANGLE,
     BATCH_TASK_RENDER_PREVIEW,
     HAND_GROUP_NAMES,
     HEAD_GROUP_NAMES,
@@ -985,100 +984,98 @@ def evaluate_hand_world(items, side):
     return evaluate_world_vertices(objects)
 
 
-def get_hand_center_x(items, side, world):
-    arrays = []
-    for item in items:
-        part = item[f'hand_{side}']
-        positions = world.get(item['obj'])
-        if not part['faces'] or positions is None or len(positions) != item['count']:
-            continue
-        arrays.append(positions[part['verts'], 0])
-    if not arrays:
-        return None
-    return float(np.concatenate(arrays).mean())
-
-
 def get_hand_center(items, side, world):
+    """手部中心点：把手部所有面用到的顶点世界坐标取平均
+
+    items：build_arm_collision_data 的结果
+    side ：'l' 或 'r'
+    world：{网格: (n, 3) 世界坐标}，没有手部面或顶点数对不上时跳过该网格
+    返回 mathutils.Vector；完全没有手部几何时返回 None
+    """
     arrays = []
     for item in items:
         part = item[f'hand_{side}']
         positions = world.get(item['obj'])
         if not part['faces'] or positions is None or len(positions) != item['count']:
             continue
+        # part['verts'] 是手部用到的顶点全局下标，直接取出它们的坐标
         arrays.append(positions[part['verts']])
     if not arrays:
         return None
     points = np.concatenate(arrays)
+    # 先把各网格的点拼起来再求质心，避免顶点少的网格被放大权重
     return mathutils.Vector((
         float(points[:, 0].mean()), float(points[:, 1].mean()), float(points[:, 2].mean())))
 
 
-def apply_arm_t_pose(armature, items, world):
-    """把双臂绕世界 Y 轴旋转到水平，得到 T 字姿态"""
+def get_bone_world_direction(armature, bone_name):
+    """腕骨骼 head → tail 的世界方向向量；骨骼不存在或长度过短时返回 None"""
+    pose_bone = armature.pose.bones.get(bone_name)
+    if pose_bone is None:
+        return None
+    direction = (armature.matrix_world @ pose_bone.tail
+                 - armature.matrix_world @ pose_bone.head)
+    return direction if direction.length > 1e-6 else None
+
+
+def apply_t_pose_arm_rotation(armature):
+    """
+    把双臂绕世界 Y 轴旋转到水平，得到 T 字姿态
+
+    直接看腕骨骼 head → tail 在 XZ 平面的投影与 X 轴的夹角，把它转成水平
+    """
     applied = {}
-    for side, bone_name in zip(('l', 'r'), ARM_NAMES):
-        if bone_name not in armature.pose.bones:
+    for bone_name in ARM_NAMES:
+        pose_bone = armature.pose.bones.get(bone_name)
+        if pose_bone is None:
             continue
-        pose_bone = armature.pose.bones[bone_name]
+        # 旋转前的世界矩阵：作为旋转支点
         base_world = armature.matrix_world @ pose_bone.matrix
-        center = get_hand_center(items, side, world)
-        if center is None:
+        direction = get_bone_world_direction(armature, bone_name)
+        if direction is None:
             continue
-        direction = center - base_world.translation
-        if direction.length < 1e-6:
-            continue
+        # 当前方向角（XZ 平面投影）；水平目标：朝 +X 是 0，朝 -X 是 π
         current = math.atan2(direction.z, direction.x)
         target = 0.0 if direction.x >= 0 else math.pi
         delta = current - target
+        # 归一化到 (-π, π]，避免绕远路旋转
         while delta > math.pi:
             delta -= 2 * math.pi
         while delta < -math.pi:
             delta += 2 * math.pi
+        # 已接近水平，无需旋转
         if abs(math.degrees(delta)) < 0.05:
             continue
-        rotate_arm_bone(armature, bone_name, math.degrees(abs(delta)),
-                        1 if delta > 0 else -1, base_world)
+        rotate_arm_bone(armature, bone_name, math.degrees(abs(delta)), 1 if delta > 0 else -1, base_world)
         applied[bone_name] = round(math.degrees(abs(delta)), 1)
     bpy.context.view_layer.update()
     return applied
 
 
-def determine_inward_sign(armature, bone_name, items, side, body_center_x):
-    pose_bone = armature.pose.bones[bone_name]
-    base_matrix = pose_bone.matrix_basis.copy()
-    base_world = armature.matrix_world @ pose_bone.matrix
-    best_sign = 1
-    best_distance = None
-    for sign in (1, -1):
-        rotate_arm_bone(armature, bone_name, ARM_SIGN_TEST_ANGLE, sign, base_world)
-        bpy.context.view_layer.update()
-        center_x = get_hand_center_x(items, side, evaluate_hand_world(items, side))
-        distance = abs(center_x - body_center_x) if center_x is not None else None
-        if distance is not None and (best_distance is None or distance < best_distance):
-            best_distance = distance
-            best_sign = sign
-    pose_bone.matrix_basis = base_matrix
-    bpy.context.view_layer.update()
-    return best_sign
-
-
 def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
-    """先按 ARM_ANGLE_STEP 步进找到穿模角度，再以 1° 为粒度二分，返回不穿模的最大角度"""
+    """
+    先按 ARM_ANGLE_STEP 步进找到穿模角度，再以 1° 为粒度二分，返回不穿模的最大角度
+
+    返回 0 表示任何角度都会穿模（或没有可检测的手部几何）。
+    """
     pose_bone = armature.pose.bones[bone_name]
     base_matrix = pose_bone.matrix_basis.copy()
     base_world = armature.matrix_world @ pose_bone.matrix
 
     def collides(angle):
+        """把手臂转到 angle 度，检测手部与身体是否相交"""
         rotate_arm_bone(armature, bone_name, angle, sign, base_world)
         bpy.context.view_layer.update()
         hand_bvhs = build_item_bvhs(items, f'hand_{side}', evaluate_hand_world(items, side))
         return has_collision(hand_bvhs, body_bvhs)
 
+    # 粗搜索：按 ARM_ANGLE_STEP 递增，记录最后一个不穿模的角度
     last_good = 0
     for angle in range(ARM_ANGLE_STEP, ARM_ANGLE_LIMIT + 1, ARM_ANGLE_STEP):
         if not collides(angle):
             last_good = angle
             continue
+        # 首个穿模角度落在 (last_good, angle] 区间内，二分到 1° 精度
         low, high = last_good, angle
         while high - low > 1:
             middle = (low + high) // 2
@@ -1088,9 +1085,36 @@ def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
                 low = middle
         last_good = low
         break
+    # 恢复试算造成的姿态变化
     pose_bone.matrix_basis = base_matrix
     bpy.context.view_layer.update()
     return last_good
+
+
+def apply_auto_arm_rotation(armature, items, body_bvhs):
+    """自动计算不穿模的最大内旋角度并旋转双臂"""
+    # 旋转前的世界矩阵，作为每个骨骼的旋转支点与初始朝向
+    base_world = {
+        name: armature.matrix_world @ armature.pose.bones[name].matrix for name in ARM_NAMES
+        if name in armature.pose.bones
+    }
+
+    applied = {}
+    for side, bone_name in zip(('l', 'r'), ARM_NAMES):
+        if bone_name not in armature.pose.bones:
+            continue
+        # 内旋方向：head → tail 在 XZ 平面的投影与 +Z 轴夹角为正说明在 +X 侧（左臂），绕 Y 轴正转
+        direction = get_bone_world_direction(armature, bone_name)
+        sign = 1 if direction is None or math.atan2(direction.x, direction.z) > 0 else -1
+        angle = compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs)
+        if angle > 0:
+            rotate_arm_bone(armature, bone_name, angle, sign, base_world[bone_name])
+        else:
+            # 任何角度都会穿模时保持静置
+            armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
+        bpy.context.view_layer.update()
+        applied[bone_name] = angle
+    return applied
 
 
 def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_data=None):
@@ -1100,41 +1124,22 @@ def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_
     if not arm_bone_names:
         return {}
 
-    if angle_setting == '0':
+    # 静置姿态（因为一开始全部骨骼都复位了，所以不用 KEEP 而是 REST）
+    if angle_setting == 'REST':
         return {name: 0 for name in arm_bone_names}
+
+    # 旋转手臂直至 T-pose
+    if angle_setting == 'T_POSE':
+        applied = apply_t_pose_arm_rotation(armature)
+        return applied or {name: 0 for name in arm_bone_names}
 
     if world_vertices is None:
         world_vertices = evaluate_world_vertices(meshes)
 
-    if angle_setting == 'T_POSE':
-        items = build_arm_collision_data(meshes, world_vertices, vg_data, False)
-        applied = apply_arm_t_pose(armature, items, world_vertices)
-        return applied or {name: 0 for name in arm_bone_names}
-
-    items = build_arm_collision_data(meshes, world_vertices, vg_data, angle_setting == 'AUTO')
-    body_bvhs = build_item_bvhs(items, 'body', world_vertices) if angle_setting == 'AUTO' else []
-    bounds = bounds_from_vertices(world_vertices)
-    body_center_x = (bounds[0] + bounds[1]) / 2
-    base_world = {
-        name: armature.matrix_world @ armature.pose.bones[name].matrix for name in arm_bone_names
-    }
-
-    applied = {}
-    for side, bone_name in zip(('l', 'r'), ARM_NAMES):
-        if bone_name not in armature.pose.bones:
-            continue
-        sign = determine_inward_sign(armature, bone_name, items, side, body_center_x)
-        if angle_setting == 'AUTO':
-            angle = compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs)
-        else:
-            angle = int(angle_setting)
-        if angle > 0:
-            rotate_arm_bone(armature, bone_name, angle, sign, base_world[bone_name])
-        else:
-            armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
-        bpy.context.view_layer.update()
-        applied[bone_name] = angle
-    return applied
+    # 旋转手臂 直至再旋转会使手臂与身体发生穿模
+    items = build_arm_collision_data(meshes, world_vertices, vg_data, True)
+    body_bvhs = build_item_bvhs(items, 'body', world_vertices)
+    return apply_auto_arm_rotation(armature, items, body_bvhs)
 
 
 def get_head_bounds(meshes, world, head_masks):
@@ -1280,6 +1285,40 @@ def place_layout_camera(camera, frame_width, center_z, min_y, max_y):
     camera.data.clip_end = distance + depth + THREE_VIEW_CAMERA_CLIP_MARGIN
 
 
+def get_layout_bounds(world_vertices, visible_masks, head_bounds, report, warnings):
+    """
+    计算布局所需的尺寸数据，数据不可用时返回 None
+
+    返回 (full_bounds, model_bounds, head_bounds, model_height, head_height)：
+    - full_bounds ：全部顶点的包围盒，含透明隐藏部位（特写裁剪的 Y 向深度用它）
+    - model_bounds ：可见顶点的包围盒，用于居中与统一缩放；可见点为空时退回完整包围盒
+    - head_bounds ：头部包围盒，没有「頭」顶点组时按模型高度估算，警告写入 warnings，
+      由调用方在执行结束时统一输出
+    - model_height / head_height：角色与头部的高度，用于计算画面尺寸与校验
+    """
+    full_bounds = bounds_from_vertices(world_vertices)
+    model_bounds = bounds_from_vertices(visible_world_vertices(world_vertices, visible_masks)) or full_bounds
+    if model_bounds is None:
+        report({'ERROR'}, translate("未找到可渲染的网格。"))
+        return None
+
+    if head_bounds is None:
+        # 没有「頭」顶点组：取可见包围盒顶部的固定比例作为头部区域
+        min_x, max_x, _, _, min_z, max_z = model_bounds
+        height = max_z - min_z
+        head_bounds = ((min_x + max_x) / 2, (min_x + max_x) / 2,
+                       max_z - height * THREE_VIEW_HEAD_FALLBACK_RATIO, max_z)
+        warnings.append(translate("未找到「頭」顶点组，已按模型高度估算头部区域。"))
+
+    model_height = model_bounds[5] - model_bounds[4]
+    head_height = head_bounds[3] - head_bounds[2]
+    # 高度非正说明包围盒退化，无法计算布局
+    if model_height <= 0 or head_height <= 0:
+        report({'ERROR'}, translate("未找到可渲染的网格。"))
+        return None
+    return full_bounds, model_bounds, head_bounds, model_height, head_height
+
+
 def build_three_view_setup(props, report, ancestor):
     """
     创建三视图布局。
@@ -1329,25 +1368,15 @@ def build_three_view_setup(props, report, ancestor):
     bpy.context.view_layer.update()
     if any(angle > 0 for angle in arm_angles.values()):
         world_vertices = evaluate_world_vertices(mesh_objs)
-    full_bounds = bounds_from_vertices(world_vertices)
-    body_bounds = bounds_from_vertices(visible_world_vertices(world_vertices, visible_masks)) or full_bounds
-    if body_bounds is None:
-        report({'ERROR'}, translate("未找到可渲染的网格。"))
-        return None
-    if head_bounds is None:
-        # 没有「頭」顶点组时，按模型高度估算头部区域
-        min_x, max_x, _, _, min_z, max_z = body_bounds
-        height = max_z - min_z
-        head_bounds = ((min_x + max_x) / 2, (min_x + max_x) / 2,
-                       max_z - height * THREE_VIEW_HEAD_FALLBACK_RATIO, max_z)
-        report({'WARNING'}, translate("未找到「頭」顶点组，已按模型高度估算头部区域。"))
 
-    min_x, max_x, min_y, max_y, min_z, max_z = body_bounds
-    model_height = max_z - min_z
-    head_height = head_bounds[3] - head_bounds[2]
-    if model_height <= 0 or head_height <= 0:
-        report({'ERROR'}, translate("未找到可渲染的网格。"))
+    # 5.1 统计完整/可见包围盒与头部包围盒，缺「頭」顶点组时按模型高度估算；
+    #     warnings 收集过程中产生的警告，等执行结束再统一输出
+    warnings = []
+    bounds = get_layout_bounds(world_vertices, visible_masks, head_bounds, report, warnings)
+    if bounds is None:
         return None
+    full_bounds, model_bounds, head_bounds, model_height, head_height = bounds
+    min_x, max_x, min_y, max_y, min_z, max_z = model_bounds
 
     # 6. 画面尺寸：角色高度占画面高度的 THREE_VIEW_FRAME_MARGIN；
     #    特写占左侧 closeup_scale 宽度，剩余宽度三等分给主视图/侧视图/后视图
@@ -1367,7 +1396,7 @@ def build_three_view_setup(props, report, ancestor):
     column_world = remaining_world / 3 if show_views else 0.0
 
     # 7. 三视图统一缩放：取宽/高约束下最小比例，保证三栏高度一致
-    rotated_bounds = [get_rotated_bounds(body_bounds, angle) for angle in (0, 90, 180)]
+    rotated_bounds = [get_rotated_bounds(model_bounds, angle) for angle in (0, 90, 180)]
     view_scale = 1.0
     if show_views:
         for bounds in rotated_bounds:
@@ -1381,7 +1410,7 @@ def build_three_view_setup(props, report, ancestor):
     #    绕世界 Z 轴旋转后，90° 视图的横向中心等于 -center_y，180° 等于 -center_x
     visible_points = np.concatenate([points for points in
                                      visible_world_vertices(world_vertices, visible_masks).values()
-                                     if len(points)]) if body_bounds else None
+                                     if len(points)]) if model_bounds else None
     if visible_points is not None and len(visible_points):
         center_x = robust_center(visible_points[:, 0])
         center_y = robust_center(visible_points[:, 1])
@@ -1474,7 +1503,8 @@ def build_three_view_setup(props, report, ancestor):
     collection.objects.link(camera)
     mark_temp_object(camera, source_root_name)
     place_layout_camera(camera, frame_width, view_center_z, -depth / 2, depth / 2)
-    return {'camera': camera, 'collection': collection, 'arm_angles': arm_angles}
+    return {'camera': camera, 'collection': collection, 'arm_angles': arm_angles,
+            'warnings': warnings}
 
 
 def preview_three_view(props, report, ancestor):
@@ -1484,6 +1514,9 @@ def preview_three_view(props, report, ancestor):
     bpy.context.scene.camera = setup['camera']
     if not bpy.app.background:
         switch_to_camera_view()
+    # 执行结束时统一输出警告，避免中途打断操作
+    for message in setup['warnings']:
+        report({'WARNING'}, message)
     return setup
 
 
@@ -1517,6 +1550,9 @@ def render_three_view(props, report, ancestor, output_filepath=None, cleanup=Fal
             scene.camera = original_camera
         else:
             scene.camera = setup['camera']
+        # 执行结束时统一输出警告，避免中途打断操作
+        for message in setup['warnings']:
+            report({'WARNING'}, message)
 
 def render(view_show):
     """
