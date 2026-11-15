@@ -1397,13 +1397,17 @@ def build_three_view_setup(props, report, ancestor):
     remaining_world = frame_width - closeup_world
     column_world = remaining_world / 3 if show_views else 0.0
 
-    # 7. 三视图统一缩放：取宽/高约束下最小比例，保证三栏高度一致
+    # 7. 三视图统一缩放：取宽/高约束下最小比例，保证三视图高度一致
     rotated_bounds = [get_rotated_bounds(model_bounds, angle) for angle in (0, 90, 180)]
     view_scale = 1.0
     if show_views:
         for bounds in rotated_bounds:
             width = bounds[1] - bounds[0]
             height = bounds[5] - bounds[4]
+            # 缩放后的尺寸不能超过可用尺寸，求 scale，width 为包围盒（实际）宽度，column_world * THREE_VIEW_COLUMN_FIT 为可用宽度
+            # scale * width <= column_world * COLUMN_FIT
+            # height 同理
+            # 注意 column_world 与 width 同语义，而非像素
             scale = min(column_world * THREE_VIEW_COLUMN_FIT / width,
                         frame_height * THREE_VIEW_COLUMN_FIT / height, 1.0)
             view_scale = min(view_scale, scale)
