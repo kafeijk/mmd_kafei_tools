@@ -44,6 +44,7 @@ from ..utils import (
     find_children,
     find_pmx_armature,
     find_pmx_objects,
+    get_collection,
     hide_object,
     import_pmx,
     is_mmd_rigid_body,
@@ -573,16 +574,6 @@ def reset_three_view(ancestor=None):
     """三视图统一复位：删临时对象，骨架姿态恢复为静置"""
     cleanup_three_view_collection()
     reset_poses(ancestor)
-
-
-def create_three_view_collection():
-    """返回三视图临时集合；已存在则复用，避免连带删除用户放进该集合的物体"""
-    collection = bpy.data.collections.get(THREE_VIEW_COLLECTION_NAME)
-    if collection is not None:
-        return collection
-    collection = bpy.data.collections.new(THREE_VIEW_COLLECTION_NAME)
-    bpy.context.scene.collection.children.link(collection)
-    return collection
 
 
 def get_armature(ancestor=None):
@@ -1447,8 +1438,8 @@ def build_three_view_setup(props, report, ancestor):
     view_center_z = min_z + view_scale * model_height / 2  # 模型缩放后的竖向中点
     frame_top = view_center_z + frame_height / 2  # 相机中心加半个画面高就是画面的上边界，给特写用
 
-    # 9. 建立临时集合
-    collection = create_three_view_collection()
+    # 9. 建立临时集合；已存在则复用，避免连带删除用户放进该集合的物体
+    collection = get_collection(THREE_VIEW_COLLECTION_NAME)
     source_root_name = ancestor.name
 
     closeup_objects = []
