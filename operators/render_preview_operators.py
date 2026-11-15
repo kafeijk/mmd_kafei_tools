@@ -48,6 +48,7 @@ from ..utils import (
     find_pmx_objects,
     hide_object,
     import_pmx,
+    is_mmd_rigid_body,
     recursive_search_img,
     restore_selection,
     select_and_activate,
@@ -474,11 +475,12 @@ def is_three_view(props):
 
 
 def get_renderable_meshes(ancestor):
-    """模型祖先下参与渲染的网格对象"""
+    """模型祖先下参与渲染的网格对象（排除隐藏与 mmd 刚体）"""
     objects = [ancestor] if ancestor.type == 'MESH' else []
     objects.extend(ancestor.children_recursive)
-    return [obj for obj in objects if obj.type == 'MESH' and not obj.hide_render]
-
+    return [obj for obj in objects
+            if obj.type == 'MESH' and not is_mmd_rigid_body(obj)
+            and not obj.hide_get() and not obj.hide_viewport]
 
 def collect_ancestors():
     """
@@ -519,6 +521,9 @@ def check_three_view_props(props, report):
     if get_armature(ancestor) is None:
         report({'ERROR'}, translate("未找到骨架！"))
         return None
+    if not get_renderable_meshes(ancestor):
+        report({'ERROR'}, translate("未找到可渲染的网格。"))
+        return None
     return ancestor
 
 
@@ -543,24 +548,21 @@ def cleanup_three_view_collection():
 
 
 def reset_poses(ancestor=None):
-    """把骨架姿态复位为静置：清空每个骨骼的变换，不还原执行前的姿态
-
-    骨架获取：当前激活对象是骨架就用它，否则从 ancestor 向下查找；
-    两者都没有时复位场景内的全部骨架。
-    """
-    identity = mathutils.Matrix.Identity(4)
+    """把骨架姿态复位为静置姿态"""
     armature = get_armature(ancestor)
-    armatures = [armature] if armature is not None else [
-        obj for obj in bpy.context.scene.objects if obj.type == 'ARMATURE']
-    for item in armatures:
-        for pose_bone in item.pose.bones:
-            if pose_bone.matrix_basis != identity:
-                pose_bone.matrix_basis = identity
+    if not armature:
+        return
+
+    identity = mathutils.Matrix.Identity(4)
+    for pose_bone in armature.pose.bones:
+        if pose_bone.matrix_basis != identity:
+            pose_bone.matrix_basis = identity
     bpy.context.view_layer.update()
 
 
 def reset_root_transform(ancestor):
-    """把原模型 root 归零为恒等变换
+    """
+    重置原模型 root 的变换
 
     三视图会按布局重写 root 的缩放与位置，归零后再摆放可保证重复执行时
     不累积缩放/位移；原模型原有的变换不保留。
@@ -1222,14 +1224,12 @@ def build_three_view_setup(props, report, ancestor):
     scene = bpy.context.scene
 
     # 1. 清理上次执行产生的临时对象与手臂姿态；root 归零，避免重复执行累积缩放/位移
-    reset_three_view(ancestor)
+    cleanup_three_view_collection()
+    reset_poses(ancestor)
     reset_root_transform(ancestor)
 
-    # 2. 收集参与渲染的网格（排除隐藏渲染的对象）
+    # 2. 收集参与渲染的网格
     meshes = get_renderable_meshes(ancestor)
-    if not meshes:
-        report({'ERROR'}, translate("未找到可渲染的网格。"))
-        return None
 
     # 3. 可见顶点掩码：False 时使用全部顶点
     armature = get_armature(ancestor)

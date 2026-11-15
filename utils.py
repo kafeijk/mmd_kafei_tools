@@ -599,6 +599,11 @@ def is_mmd_tools_enabled():
     return hasattr(bpy.types.Object, "mmd_type")
 
 
+def is_mmd_rigid_body(obj):
+    """判断对象是否为 mmd_tools 的刚体"""
+    return getattr(obj, "mmd_type", None) == 'Rigid body'
+
+
 def check_batch_props(operator, batch):
     suffix = batch.suffix
     directory = batch.directory
