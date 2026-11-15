@@ -1378,7 +1378,7 @@ def build_three_view_setup(props, report, ancestor):
     full_bounds, model_bounds, head_bounds, model_height, head_height = bounds
     min_x, max_x, min_y, max_y, min_z, max_z = model_bounds
 
-    # 6. 画面尺寸：角色高度占画面高度的 THREE_VIEW_FRAME_MARGIN；
+    # 6. 画面尺寸：角色高度占画面高度的 THREE_VIEW_FRAME_MARGIN（留白一些距离）；
     #    特写占左侧 closeup_scale 宽度，剩余宽度三等分给主视图/侧视图/后视图
     resolution_x = scene.render.resolution_x
     resolution_y = scene.render.resolution_y
@@ -1387,6 +1387,8 @@ def build_three_view_setup(props, report, ancestor):
     total_height = max(1, round(resolution_y * resolution_percentage / 100))
 
     frame_height = model_height / THREE_VIEW_FRAME_MARGIN
+    # 正交相机在投影方向上是线性映射：1 个世界单位对应固定像素数。
+    # 要让横纵比例一致，必须让 frame_width / frame_height = total_width / total_height （像素比）
     frame_width = frame_height * total_width / total_height
     frame_half_width = frame_width / 2
     closeup_world = frame_width * props.closeup_scale
