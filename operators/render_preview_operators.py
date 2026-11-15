@@ -77,6 +77,8 @@ class GenPreviewCameraOperator(bpy.types.Operator):
         if not self.check_props():
             return {'CANCELLED'}
 
+        # 选中的是上一轮三视图副本时，先换回原模型，否则副本被删后选择为空
+        reselect_temp_sources()
         reset_three_view()
         if not self.check_props():
             return {'CANCELLED'}
@@ -172,6 +174,8 @@ class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
                 reset_three_view()
                 return False
             return render_three_view(props, self.report, ancestor)
+        # 选中的是上一轮三视图副本时，先换回原模型，否则副本被删后取景没有对象
+        reselect_temp_sources()
         reset_three_view()
         objs = bpy.context.selected_objects
         if len(objs) != 0:
@@ -500,6 +504,30 @@ def collect_ancestors():
         if ancestor is not None:
             ancestors.add(ancestor)
     return ancestors
+
+
+def reselect_temp_sources():
+    """
+    把选中的三视图临时副本换成它对应的原模型
+
+    临时副本会被 reset_three_view 删除，若继续用副本取景，删除后选择为空；
+    副本记录了原模型名（kafei_source_root），这里提前改选原模型。
+    """
+    temp_objects = [obj for obj in bpy.context.selected_objects if obj.get(THREE_VIEW_TEMP_FLAG)]
+    if not temp_objects:
+        return
+
+    sources = []
+    for temp in temp_objects:
+        temp.select_set(False)
+        source_name = temp.get(THREE_VIEW_TEMP_SOURCE)
+        source = bpy.data.objects.get(source_name) if source_name else None
+        if source is not None and source not in sources:
+            sources.append(source)
+    for source in sources:
+        source.select_set(True)
+    if sources:
+        bpy.context.view_layer.objects.active = sources[0]
 
 
 def check_three_view_props(props, report):
