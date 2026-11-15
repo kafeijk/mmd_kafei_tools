@@ -4,12 +4,42 @@ import os
 import bmesh
 import bpy
 import mathutils
+import numpy as np
+from mathutils.bvhtree import BVHTree
 
 from ..batch_utils import BatchProcessOperatorMixin, BatchProcessRunner
-from ..constants import BATCH_TASK_RENDER_PREVIEW, IMG_TYPE_EXT_MAP
+from ..constants import (
+    ARM_ANGLE_LIMIT,
+    ARM_ANGLE_STEP,
+    ARM_BONE_NAMES,
+    ARM_CHAIN_GROUP_NAMES,
+    ARM_EXCLUDED_GROUP_NAMES,
+    ARM_SIGN_TEST_ANGLE,
+    BATCH_TASK_RENDER_PREVIEW,
+    HAND_GROUP_NAMES,
+    HEAD_GROUP_NAMES,
+    IMG_TYPE_EXT_MAP,
+    THREE_VIEW_CAMERA_CLIP_MARGIN,
+    THREE_VIEW_CAMERA_DISTANCE_MARGIN,
+    THREE_VIEW_CAMERA_NAME,
+    THREE_VIEW_CENTER_PERCENTILE,
+    THREE_VIEW_CLIP_CUBE_NAME,
+    THREE_VIEW_CLIP_DEPTH_MARGIN,
+    THREE_VIEW_CLIP_MODIFIER_NAME,
+    THREE_VIEW_CLOSEUP_HEAD_RATIO,
+    THREE_VIEW_COLLECTION_NAME,
+    THREE_VIEW_COLUMN_FIT,
+    THREE_VIEW_FRAME_MARGIN,
+    THREE_VIEW_HEAD_FALLBACK_RATIO,
+    THREE_VIEW_OFFSCREEN_GAP,
+    THREE_VIEW_TEMP_FLAG,
+    THREE_VIEW_TEMP_SOURCE,
+    THREE_VIEW_VISIBLE_MIN_RATIO,
+)
 
 from ..utils import (
     check_batch_props,
+    convertNameToLR,
     deselect_all_objects,
     find_ancestor,
     find_children,
@@ -21,6 +51,7 @@ from ..utils import (
     restore_selection,
     select_and_activate,
     show_object,
+    translate,
     view3d_context,
 )
 
@@ -32,12 +63,28 @@ class GenPreviewCameraOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
+        props = context.scene.mmd_kafei_tools_render_preview
+        if is_three_view(props):
+            ancestor = self.check_three_view_props(props)
+            if ancestor is None:
+                # 模型可能已被删除，清理残留的临时对象并恢复状态
+                reset_three_view()
+                return {'CANCELLED'}
+            if not preview_three_view(props, self.report, ancestor):
+                return {'CANCELLED'}
+            return {'FINISHED'}
+
         if not self.check_props():
             return {'CANCELLED'}
-        scene = context.scene
-        props = scene.mmd_kafei_tools_render_preview
+
+        reset_three_view()
+        if not self.check_props():
+            return {'CANCELLED'}
         camera_to_view_selected(props)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
+
+    def check_three_view_props(self, props):
+        return check_three_view_props(props, self.report)
 
     def check_props(self):
         objs = bpy.context.selected_objects
@@ -75,6 +122,14 @@ class RenderPreviewBatchRunner(BatchProcessRunner):
         show_object(pmx_root)
         hide_object(pmx_armature)
         select_and_activate(pmx_root)
+
+        if is_three_view(self.props):
+            if not render_three_view(self.props, self.report, pmx_root,
+                                     output_filepath=new_filepath, cleanup=True):
+                raise RuntimeError(translate("三视图渲染失败"))
+            return
+
+        reset_three_view()
         camera_to_view_selected(self.props)
 
         # 隐藏可能会对渲染结果造成影响的物体
@@ -105,14 +160,24 @@ class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
             return {'CANCELLED'}
         if props.batch.flag:
             return self.start_batch_process(context, props, None)
-        self.render_single(props)
+        if not self.render_single(props):
+            return {'CANCELLED'}
         return {'FINISHED'}
 
     def render_single(self, props):
+        if is_three_view(props):
+            ancestor = check_three_view_props(props, self.report)
+            if ancestor is None:
+                # 模型可能已被删除，清理残留的临时对象并恢复状态
+                reset_three_view()
+                return False
+            return render_three_view(props, self.report, ancestor)
+        reset_three_view()
         objs = bpy.context.selected_objects
         if len(objs) != 0:
             camera_to_view_selected(props)
         render(True)
+        return True
 
     def check_render_preview_props(self, props):
         batch = props.batch
@@ -126,7 +191,7 @@ class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
                 return False
         else:
             objs = bpy.context.selected_objects
-            if len(objs) == 0:
+            if len(objs) == 0 and not is_three_view(props):
                 self.report(type={'ERROR'}, message=f'Select at least one object!')
                 return False
         return True
@@ -241,6 +306,7 @@ def remove_alpha_zero_mesh(obj):
 
 
 def camera_to_view_selected(props, camera=None):
+    reset_three_view()
     do_camera_to_view_selected(props.type,
                                props.rotation_euler_x, props.rotation_euler_y, props.rotation_euler_z,
                                props.scale, camera)
@@ -402,6 +468,964 @@ def gen_preview_camera(camera_type):
     preview_collection.objects.link(camera)
     return camera
 
+
+def is_three_view(props):
+    return props.type == 'ORTHOGRAPHIC' and props.view == 'THREE_VIEW'
+
+
+def get_renderable_meshes(ancestor):
+    """模型祖先下参与渲染的网格对象"""
+    objects = [ancestor] if ancestor.type == 'MESH' else []
+    objects.extend(ancestor.children_recursive)
+    return [obj for obj in objects if obj.type == 'MESH' and not obj.hide_render]
+
+
+_posed_armature_names = []
+
+
+def check_three_view_props(props, report):
+    """三视图参数校验：解析并返回要渲染的模型，校验失败返回 None
+
+    必须选中模型才能执行；选中临时对象时，按临时对象记录的 root 名找回原模型。
+    """
+    ancestors = set()
+    for obj in bpy.context.selected_objects:
+        if obj.get(THREE_VIEW_TEMP_FLAG):
+            source_name = obj.get(THREE_VIEW_TEMP_SOURCE)
+            source = bpy.data.objects.get(source_name) if source_name else None
+            if source is not None:
+                ancestors.add(source)
+            continue
+        ancestor = find_ancestor(obj)
+        if ancestor is not None:
+            ancestors.add(ancestor)
+    collection = bpy.data.collections.get(THREE_VIEW_COLLECTION_NAME)
+    if collection is not None:
+        temp_objects = set(collection.objects)
+        ancestors = {ancestor for ancestor in ancestors if ancestor not in temp_objects}
+    if len(ancestors) > 1:
+        report({'ERROR'}, translate("三视图仅支持单个角色，请只选中一个模型。"))
+        return None
+    if not ancestors:
+        report({'ERROR'}, translate("请先选中要渲染的模型。"))
+        return None
+    return next(iter(ancestors))
+
+
+def mark_temp_object(obj, source_root_name):
+    obj[THREE_VIEW_TEMP_FLAG] = True
+    obj[THREE_VIEW_TEMP_SOURCE] = source_root_name
+
+
+def cleanup_three_view_collection():
+    """删除三视图临时对象；集合内没有残留物体时才删除该集合
+
+    只负责“删东西”，不负责恢复状态：临时对象带 kafei_temp 标记，
+    若用户手工往临时集合里放过其它物体，则保留集合，避免误删。
+    """
+    for obj in list(bpy.data.objects):
+        if obj.get(THREE_VIEW_TEMP_FLAG):
+            bpy.data.objects.remove(obj, do_unlink=True)
+    collection = bpy.data.collections.get(THREE_VIEW_COLLECTION_NAME)
+    if collection is not None and len(collection.objects) == 0:
+        bpy.data.collections.remove(collection)
+
+
+def reset_arm_poses():
+    """把手臂姿态复位为静置：清空旋转过的腕骨骼变换，不还原执行前的姿态"""
+    for armature_name in list(_posed_armature_names):
+        armature = bpy.data.objects.get(armature_name)
+        if armature is None or armature.type != 'ARMATURE':
+            continue
+        for japanese_name in ARM_BONE_NAMES:
+            bone_name = find_bone_name(armature, japanese_name)
+            if bone_name is not None:
+                armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
+    _posed_armature_names.clear()
+    bpy.context.view_layer.update()
+
+
+def reset_root_transform(ancestor):
+    """把原模型 root 归零为恒等变换
+
+    三视图会按布局重写 root 的缩放与位置，归零后再摆放可保证重复执行时
+    不累积缩放/位移；原模型原有的变换不保留。
+    """
+    ancestor.matrix_world = mathutils.Matrix.Identity(4)
+    bpy.context.view_layer.update()
+
+
+def reset_three_view():
+    """三视图统一复位：删临时对象，手臂姿态恢复为静置"""
+    cleanup_three_view_collection()
+    reset_arm_poses()
+
+
+def create_three_view_collection():
+    """返回三视图临时集合；已存在则复用，避免连带删除用户放进该集合的物体"""
+    collection = bpy.data.collections.get(THREE_VIEW_COLLECTION_NAME)
+    if collection is not None:
+        return collection
+    collection = bpy.data.collections.new(THREE_VIEW_COLLECTION_NAME)
+    bpy.context.scene.collection.children.link(collection)
+    return collection
+
+
+def get_armature(ancestor):
+    if ancestor.type == 'ARMATURE':
+        return ancestor
+    if ancestor.mmd_type == 'ROOT':
+        armature = find_pmx_armature(ancestor)
+        if armature is not None:
+            return armature
+    armatures = find_children(ancestor, {'ARMATURE'})
+    return armatures[0] if armatures else None
+
+
+def find_bone_name(armature, japanese_name):
+    converted = convertNameToLR(japanese_name)
+    for name in (converted, japanese_name):
+        if name in armature.pose.bones:
+            return name
+    return None
+
+
+def expand_group_names(names):
+    names = set(names)
+    for name in list(names):
+        names.add(convertNameToLR(name))
+    return names
+
+
+def rotate_arm_bone(armature, bone_name, angle_degrees, sign, base_world=None):
+    """绕世界 Y 轴旋转腕骨骼；base_world 为基础姿态下的世界矩阵，避免每次读取评估结果"""
+    pose_bone = armature.pose.bones[bone_name]
+    world = base_world if base_world is not None else armature.matrix_world @ pose_bone.matrix
+    pivot = world.translation
+    rotation = mathutils.Matrix.Rotation(math.radians(angle_degrees) * sign, 4, 'Y')
+    matrix = mathutils.Matrix.Translation(pivot) @ rotation @ mathutils.Matrix.Translation(-pivot)
+    pose_bone.matrix = armature.matrix_world.inverted() @ matrix @ world
+
+
+def evaluate_world_vertices(objects):
+    """一次性读取评估后网格（含修改器与姿态）的世界坐标，{对象: (n, 3) 数组}"""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    result = {}
+    for obj in objects:
+        if obj.type != 'MESH':
+            continue
+        eval_obj = obj.evaluated_get(depsgraph)
+        mesh = eval_obj.data
+        count = len(mesh.vertices)
+        if count == 0:
+            result[obj] = np.zeros((0, 3), dtype=np.float32)
+            continue
+        coords = np.empty(count * 3, dtype=np.float32)
+        mesh.vertices.foreach_get('co', coords)
+        coords = coords.reshape(count, 3)
+        matrix = np.array(eval_obj.matrix_world, dtype=np.float32)
+        result[obj] = coords @ matrix[:3, :3].T + matrix[:3, 3]
+    return result
+
+
+def bounds_from_vertices(vertex_map):
+    arrays = [vertices for vertices in vertex_map.values() if len(vertices)]
+    if not arrays:
+        return None
+    points = np.concatenate(arrays)
+    return (
+        float(points[:, 0].min()), float(points[:, 0].max()),
+        float(points[:, 1].min()), float(points[:, 1].max()),
+        float(points[:, 2].min()), float(points[:, 2].max()),
+    )
+
+
+def is_material_visible(material):
+    """完全透明的材质（如隐藏的尾巴、影子）不参与布局与穿模判断"""
+    if material is None:
+        return True
+    mmd_material = getattr(material, "mmd_material", None)
+    if mmd_material is not None:
+        return mmd_material.alpha > 0.001
+    if getattr(material, "blend_method", "OPAQUE") != 'OPAQUE':
+        return getattr(material, "diffuse_color", (0, 0, 0, 1))[3] > 0.001
+    return True
+
+
+def get_face_material_indices(mesh):
+    """读取每个面的材质索引；直接读属性比 polygons.foreach_get 快约 80 倍"""
+    count = len(mesh.polygons)
+    indices = np.empty(count, dtype=np.int32)
+    attribute = mesh.attributes.get("material_index")
+    if attribute is not None and len(attribute.data) == count:
+        attribute.data.foreach_get('value', indices)
+    elif count:
+        mesh.polygons.foreach_get('material_index', indices)
+    return indices
+
+
+def get_loop_vertices(mesh):
+    """读取每个 loop 的顶点索引"""
+    count = len(mesh.loops)
+    loops_vertex = np.empty(count, dtype=np.int32)
+    attribute = mesh.attributes.get(".corner_vert")
+    if attribute is not None and len(attribute.data) == count:
+        attribute.data.foreach_get('value', loops_vertex)
+    elif count:
+        mesh.loops.foreach_get('vertex_index', loops_vertex)
+    return loops_vertex
+
+
+def get_visible_vertex_mask(obj):
+    """按材质透明度求可见顶点掩码"""
+    mesh = obj.data
+    count = len(mesh.vertices)
+    visible = np.ones(count, dtype=bool)
+    if count == 0 or len(mesh.polygons) == 0:
+        return visible
+    material_flags = np.array([is_material_visible(slot.material) for slot in obj.material_slots],
+                              dtype=bool)
+    indices = get_face_material_indices(mesh)
+    if len(material_flags):
+        flags = np.ones(max(len(material_flags), int(indices.max()) + 1), dtype=bool)
+        flags[:len(material_flags)] = material_flags
+        face_visible = flags[indices]
+    else:
+        face_visible = np.ones(len(mesh.polygons), dtype=bool)
+    if face_visible.all():
+        return visible
+    loops_vertex = get_loop_vertices(mesh)
+    loop_total = np.empty(len(mesh.polygons), dtype=np.int32)
+    mesh.polygons.foreach_get('loop_total', loop_total)
+    face_of_loop = np.repeat(np.arange(len(mesh.polygons)), loop_total)
+    visible = np.zeros(count, dtype=bool)
+    visible[loops_vertex[face_visible[face_of_loop]]] = True
+    return visible
+
+
+def collect_visible_masks(meshes):
+    """可见顶点掩码；若可见部分过少（材质全透明等异常），退回全部顶点"""
+    masks = {obj: get_visible_vertex_mask(obj) for obj in meshes}
+    total = sum(len(obj.data.vertices) for obj in meshes)
+    visible = sum(int(mask.sum()) for mask in masks.values())
+    if total == 0 or visible < total * THREE_VIEW_VISIBLE_MIN_RATIO:
+        return {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in meshes}
+    return masks
+
+
+def robust_center(values):
+    """分位中心：忽略两端的稀疏离群几何"""
+    if len(values) == 0:
+        return 0.0
+    lower, upper = np.percentile(values, [THREE_VIEW_CENTER_PERCENTILE,
+                                          100.0 - THREE_VIEW_CENTER_PERCENTILE])
+    return float((lower + upper) / 2)
+
+
+def visible_world_vertices(world, masks):
+    result = {}
+    for obj, vertices in world.items():
+        mask = masks.get(obj)
+        if mask is None or len(vertices) != len(mask):
+            continue
+        result[obj] = vertices[mask]
+    return result
+
+
+def get_vertex_masks(obj, left_names, right_names, non_body_names, head_names):
+    """一次 bmesh 遍历，按顶点组生成左右手、身体与头部的顶点掩码"""
+    mesh = obj.data
+    count = len(mesh.vertices)
+    masks = {key: np.zeros(count, dtype=bool) for key in ('l', 'r', 'body', 'head')}
+    if count == 0:
+        return masks
+    group_names = {group.index: group.name for group in obj.vertex_groups}
+    left_groups = {index for index, name in group_names.items() if name in left_names}
+    right_groups = {index for index, name in group_names.items() if name in right_names}
+    body_excluded = {index for index, name in group_names.items() if name in non_body_names}
+    head_groups = {index for index, name in group_names.items() if name in head_names}
+    if not (left_groups or right_groups or head_groups):
+        return masks
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    deform = bm.verts.layers.deform.active
+    if deform is not None:
+        for vert in bm.verts:
+            groups = {index for index, weight in vert[deform].items() if weight > 0}
+            if not groups:
+                continue
+            index = vert.index
+            is_left = bool(groups & left_groups)
+            is_right = bool(groups & right_groups)
+            if is_left:
+                masks['l'][index] = True
+            if is_right:
+                masks['r'][index] = True
+            if not (is_left or is_right) and (groups - body_excluded):
+                masks['body'][index] = True
+            if groups & head_groups:
+                masks['head'][index] = True
+    bm.free()
+    return masks
+
+
+def collect_head_masks(group_data):
+    return {obj: masks['head'] for obj, masks in group_data.items()}
+
+def get_mesh_loops(mesh):
+    loops_vertex = get_loop_vertices(mesh)
+    loop_start = np.empty(len(mesh.polygons), dtype=np.int32)
+    mesh.polygons.foreach_get('loop_start', loop_start)
+    loop_total = np.empty(len(mesh.polygons), dtype=np.int32)
+    mesh.polygons.foreach_get('loop_total', loop_total)
+    return loops_vertex, loop_start, loop_total
+
+
+def select_faces(loops_vertex, loop_start, loop_total, vertex_mask, world_z, max_z):
+    """选出所有顶点都属于指定顶点组、且不高于 max_z 的面"""
+    if len(loop_total) == 0:
+        return np.zeros(0, dtype=bool)
+    face_hits = np.add.reduceat(vertex_mask[loops_vertex].astype(np.int32), loop_start)
+    faces = face_hits == loop_total
+    if max_z is not None and world_z is not None:
+        above = np.add.reduceat((world_z[loops_vertex] > max_z).astype(np.int32), loop_start)
+        faces &= above == 0
+    return faces
+
+
+def compact_faces(loops_vertex, loop_start, loop_total, face_mask):
+    """把选中的面压缩为局部顶点索引，供 BVH 使用"""
+    selected = np.nonzero(face_mask)[0]
+    if len(selected) == 0:
+        return None
+    starts = loop_start[selected]
+    totals = loop_total[selected]
+    loop_count = int(totals.sum())
+    offsets = np.repeat(starts, totals)
+    offsets += np.arange(loop_count) - np.repeat(np.cumsum(totals) - totals, totals)
+    vertex_indices = loops_vertex[offsets]
+    unique, inverse = np.unique(vertex_indices, return_inverse=True)
+    faces = [tuple(face.tolist()) for face in np.split(inverse.reshape(-1), np.cumsum(totals)[:-1])]
+    return {'verts': unique, 'faces': faces}
+
+
+def collect_vertex_group_data(meshes, visible_masks=None):
+    """一次遍历得到手部/身体/头部顶点掩码，供手臂角度与头部尺寸共用"""
+    hand_names = expand_group_names(HAND_GROUP_NAMES)
+    hand_left = expand_group_names(name for name in HAND_GROUP_NAMES if '左' in name)
+    hand_right = expand_group_names(name for name in HAND_GROUP_NAMES if '右' in name)
+    excluded = expand_group_names(ARM_CHAIN_GROUP_NAMES) | ARM_EXCLUDED_GROUP_NAMES
+    data = {
+        obj: get_vertex_masks(obj, hand_left, hand_right, hand_names | excluded, HEAD_GROUP_NAMES)
+        for obj in meshes
+    }
+    for obj, masks in data.items():
+        visible = visible_masks.get(obj) if visible_masks else None
+        if visible is None:
+            visible = get_visible_vertex_mask(obj)
+        if not visible.all():
+            for key in masks:
+                masks[key] &= visible
+    return data
+
+
+def build_arm_collision_data(meshes, world, group_data=None, need_body=True):
+    """按顶点组把网格拆分为左右手部、身体与头部，用于穿模检测"""
+    if group_data is None:
+        group_data = collect_vertex_group_data(meshes)
+
+    head_top = None
+    for obj in meshes:
+        masks = group_data[obj]
+        positions = world.get(obj)
+        if positions is not None and len(positions) == len(obj.data.vertices) and masks['head'].any():
+            top = float(positions[masks['head']][:, 2].max())
+            head_top = top if head_top is None else max(head_top, top)
+
+    items = []
+    for obj in meshes:
+        masks = group_data[obj]
+        loops_vertex, loop_start, loop_total = get_mesh_loops(obj.data)
+        positions = world.get(obj)
+        vertex_count = len(obj.data.vertices)
+        world_z = positions[:, 2] if positions is not None and len(positions) == vertex_count else None
+        item = {'obj': obj, 'count': vertex_count, 'head_mask': masks['head']}
+        parts = [('hand_l', masks['l']), ('hand_r', masks['r'])]
+        if need_body:
+            parts.append(('body', masks['body']))
+        for key, mask in parts:
+            face_mask = select_faces(loops_vertex, loop_start, loop_total, mask, world_z, head_top)
+            part = compact_faces(loops_vertex, loop_start, loop_total, face_mask)
+            item[key] = part if part is not None else {'verts': np.zeros(0, dtype=np.int64), 'faces': []}
+        items.append(item)
+    return items
+
+
+def build_item_bvhs(items, key, world):
+    bvhs = []
+    for item in items:
+        part = item[key]
+        positions = world.get(item['obj'])
+        if not part['faces'] or positions is None or len(positions) != item['count']:
+            continue
+        vertices = positions[part['verts']].tolist()
+        bvhs.append(BVHTree.FromPolygons(vertices, part['faces'], all_triangles=False))
+    return bvhs
+
+
+def has_collision(hand_bvhs, body_bvhs):
+    for hand_bvh in hand_bvhs:
+        for body_bvh in body_bvhs:
+            if hand_bvh.overlap(body_bvh):
+                return True
+    return False
+
+
+def evaluate_hand_world(items, side):
+    """只评估包含手部面的网格，减少顶点读取开销"""
+    objects = [item['obj'] for item in items if item[f'hand_{side}']['faces']]
+    return evaluate_world_vertices(objects)
+
+
+def get_hand_center_x(items, side, world):
+    arrays = []
+    for item in items:
+        part = item[f'hand_{side}']
+        positions = world.get(item['obj'])
+        if not part['faces'] or positions is None or len(positions) != item['count']:
+            continue
+        arrays.append(positions[part['verts'], 0])
+    if not arrays:
+        return None
+    return float(np.concatenate(arrays).mean())
+
+
+def get_hand_center(items, side, world):
+    arrays = []
+    for item in items:
+        part = item[f'hand_{side}']
+        positions = world.get(item['obj'])
+        if not part['faces'] or positions is None or len(positions) != item['count']:
+            continue
+        arrays.append(positions[part['verts']])
+    if not arrays:
+        return None
+    points = np.concatenate(arrays)
+    return mathutils.Vector((
+        float(points[:, 0].mean()), float(points[:, 1].mean()), float(points[:, 2].mean())))
+
+
+def apply_arm_t_pose(armature, items, world):
+    """把双臂绕世界 Y 轴旋转到水平，得到 T 字姿态"""
+    applied = {}
+    for side, japanese_name in (('l', '左腕'), ('r', '右腕')):
+        bone_name = find_bone_name(armature, japanese_name)
+        if bone_name is None:
+            continue
+        pose_bone = armature.pose.bones[bone_name]
+        base_world = armature.matrix_world @ pose_bone.matrix
+        center = get_hand_center(items, side, world)
+        if center is None:
+            continue
+        direction = center - base_world.translation
+        if direction.length < 1e-6:
+            continue
+        current = math.atan2(direction.z, direction.x)
+        target = 0.0 if direction.x >= 0 else math.pi
+        delta = current - target
+        while delta > math.pi:
+            delta -= 2 * math.pi
+        while delta < -math.pi:
+            delta += 2 * math.pi
+        if abs(math.degrees(delta)) < 0.05:
+            continue
+        rotate_arm_bone(armature, bone_name, math.degrees(abs(delta)),
+                        1 if delta > 0 else -1, base_world)
+        applied[bone_name] = round(math.degrees(abs(delta)), 1)
+    bpy.context.view_layer.update()
+    return applied
+
+
+def determine_inward_sign(armature, bone_name, items, side, body_center_x):
+    pose_bone = armature.pose.bones[bone_name]
+    base_matrix = pose_bone.matrix_basis.copy()
+    base_world = armature.matrix_world @ pose_bone.matrix
+    best_sign = 1
+    best_distance = None
+    for sign in (1, -1):
+        rotate_arm_bone(armature, bone_name, ARM_SIGN_TEST_ANGLE, sign, base_world)
+        bpy.context.view_layer.update()
+        center_x = get_hand_center_x(items, side, evaluate_hand_world(items, side))
+        distance = abs(center_x - body_center_x) if center_x is not None else None
+        if distance is not None and (best_distance is None or distance < best_distance):
+            best_distance = distance
+            best_sign = sign
+    pose_bone.matrix_basis = base_matrix
+    bpy.context.view_layer.update()
+    return best_sign
+
+
+def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
+    """先按 ARM_ANGLE_STEP 步进找到穿模角度，再以 1° 为粒度二分，返回不穿模的最大角度"""
+    pose_bone = armature.pose.bones[bone_name]
+    base_matrix = pose_bone.matrix_basis.copy()
+    base_world = armature.matrix_world @ pose_bone.matrix
+
+    def collides(angle):
+        rotate_arm_bone(armature, bone_name, angle, sign, base_world)
+        bpy.context.view_layer.update()
+        hand_bvhs = build_item_bvhs(items, f'hand_{side}', evaluate_hand_world(items, side))
+        return has_collision(hand_bvhs, body_bvhs)
+
+    last_good = 0
+    for angle in range(ARM_ANGLE_STEP, ARM_ANGLE_LIMIT + 1, ARM_ANGLE_STEP):
+        if not collides(angle):
+            last_good = angle
+            continue
+        low, high = last_good, angle
+        while high - low > 1:
+            middle = (low + high) // 2
+            if collides(middle):
+                high = middle
+            else:
+                low = middle
+        last_good = low
+        break
+    pose_bone.matrix_basis = base_matrix
+    bpy.context.view_layer.update()
+    return last_good
+
+
+def apply_arm_rotation(armature, meshes, angle_setting, report, world=None, group_data=None):
+    """按参数旋转双臂；返回实际应用的角度"""
+    if armature is None:
+        report({'WARNING'}, translate("未找到骨架，已跳过手臂旋转。"))
+        return {}
+    bone_names = [name for name in (find_bone_name(armature, jp) for jp in ARM_BONE_NAMES) if name]
+    if not bone_names:
+        if angle_setting != '0':
+            report({'WARNING'}, translate("未找到腕骨骼，已跳过手臂旋转。"))
+        return {}
+
+    # 直接复位为静置姿态（不记录执行前的姿态），再按参数旋转
+    for bone_name in bone_names:
+        armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
+    if armature.name not in _posed_armature_names:
+        _posed_armature_names.append(armature.name)
+    bpy.context.view_layer.update()
+    if angle_setting == '0':
+        return {name: 0 for name in bone_names}
+
+    if world is None:
+        world = evaluate_world_vertices(meshes)
+    if angle_setting == 'T_POSE':
+        items = build_arm_collision_data(meshes, world, group_data, False)
+        applied = apply_arm_t_pose(armature, items, world)
+        return applied or {name: 0 for name in bone_names}
+
+    items = build_arm_collision_data(meshes, world, group_data, angle_setting == 'AUTO')
+    body_bvhs = build_item_bvhs(items, 'body', world) if angle_setting == 'AUTO' else []
+    bounds = bounds_from_vertices(world)
+    body_center_x = (bounds[0] + bounds[1]) / 2
+    base_world = {
+        name: armature.matrix_world @ armature.pose.bones[name].matrix for name in bone_names
+    }
+
+    applied = {}
+    for side, japanese_name in (('l', '左腕'), ('r', '右腕')):
+        bone_name = find_bone_name(armature, japanese_name)
+        if bone_name is None:
+            continue
+        sign = determine_inward_sign(armature, bone_name, items, side, body_center_x)
+        if angle_setting == 'AUTO':
+            angle = compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs)
+        else:
+            angle = int(angle_setting)
+        if angle > 0:
+            rotate_arm_bone(armature, bone_name, angle, sign, base_world[bone_name])
+        else:
+            armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
+        bpy.context.view_layer.update()
+        applied[bone_name] = angle
+    return applied
+
+
+def get_head_bounds(meshes, world, head_masks):
+    """用「頭」顶点组中权重大于 0 的顶点计算头部包围盒（含姿态）"""
+    arrays = []
+    for obj in meshes:
+        mask = head_masks.get(obj)
+        positions = world.get(obj)
+        if mask is None or positions is None or len(positions) != len(obj.data.vertices):
+            continue
+        if mask.any():
+            arrays.append(positions[mask])
+    if not arrays:
+        return None
+    points = np.concatenate(arrays)
+    return (float(points[:, 0].min()), float(points[:, 0].max()),
+            float(points[:, 2].min()), float(points[:, 2].max()))
+
+
+def get_rotated_bounds(bounds, angle_degrees):
+    """把包围盒绕世界 Z 轴旋转后重新求包围盒"""
+    min_x, max_x, min_y, max_y, min_z, max_z = bounds
+    corners = [(x, y, z) for x in (min_x, max_x) for y in (min_y, max_y) for z in (min_z, max_z)]
+    rotation = mathutils.Matrix.Rotation(math.radians(angle_degrees), 3, 'Z')
+    points = [rotation @ mathutils.Vector(corner) for corner in corners]
+    return (
+        min(point.x for point in points), max(point.x for point in points),
+        min(point.y for point in points), max(point.y for point in points),
+        min(point.z for point in points), max(point.z for point in points),
+    )
+
+
+def collect_model_armatures(meshes):
+    armatures = set()
+    for mesh in meshes:
+        for modifier in mesh.modifiers:
+            if modifier.type == 'ARMATURE' and modifier.object is not None:
+                armatures.add(modifier.object)
+        node = mesh.parent
+        while node is not None:
+            if node.type == 'ARMATURE':
+                armatures.add(node)
+                break
+            node = node.parent
+    return armatures
+
+
+def duplicate_model_objects(meshes, matrix, collection, source_root_name, root=None):
+    """复制 root/骨架/网格（共享数据）；缩放旋转由复制出的 root 承载"""
+    meshes = list(meshes)
+    armature_map = {}
+    copies = []
+
+    root_copy = None
+    if root is not None and root.type == 'EMPTY':
+        root_copy = root.copy()
+        root_copy.parent = None
+        root_copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
+        root_copy.matrix_world = matrix @ root.matrix_world
+        collection.objects.link(root_copy)
+        mark_temp_object(root_copy, source_root_name)
+        copies.append(root_copy)
+
+    for armature in collect_model_armatures(meshes):
+        copy = armature.copy()
+        if root_copy is not None and armature.parent is root:
+            copy.parent = root_copy
+            copy.matrix_parent_inverse = armature.matrix_parent_inverse.copy()
+            copy.matrix_basis = armature.matrix_basis.copy()
+        else:
+            copy.parent = None
+            copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
+            copy.matrix_world = matrix @ armature.matrix_world
+        copy.hide_render = False
+        collection.objects.link(copy)
+        copy.hide_set(True)
+        mark_temp_object(copy, source_root_name)
+        armature_map[armature] = copy
+        copies.append(copy)
+
+    for mesh in meshes:
+        copy = mesh.copy()
+        parent_armature = None
+        for modifier in mesh.modifiers:
+            if modifier.type == 'ARMATURE' and modifier.object in armature_map:
+                parent_armature = armature_map[modifier.object]
+                break
+        if parent_armature is not None and mesh.parent is not None:
+            copy.parent = parent_armature
+            copy.matrix_parent_inverse = mesh.matrix_parent_inverse.copy()
+            copy.matrix_basis = mesh.matrix_basis.copy()
+        else:
+            copy.parent = None
+            copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
+            copy.matrix_world = matrix @ mesh.matrix_world
+        copy.hide_render = False
+        collection.objects.link(copy)
+        for modifier in copy.modifiers:
+            if modifier.type == 'ARMATURE' and modifier.object in armature_map:
+                modifier.object = armature_map[modifier.object]
+        mark_temp_object(copy, source_root_name)
+        copies.append(copy)
+    return copies
+
+
+def create_clip_cube(collection, location, dimensions, source_root_name):
+    """创建用于特写裁剪的透明正方体；尺寸直接烘进网格，避免缩放未提交导致布尔失效"""
+    mesh = bpy.data.meshes.new(THREE_VIEW_CLIP_CUBE_NAME)
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.scale(bm, vec=mathutils.Vector(dimensions), verts=bm.verts)
+    bm.to_mesh(mesh)
+    bm.free()
+    cube = bpy.data.objects.new(THREE_VIEW_CLIP_CUBE_NAME, mesh)
+    collection.objects.link(cube)
+    cube.location = location
+    cube.hide_render = True
+    cube.hide_set(True)
+    cube.display_type = 'WIRE'
+    mark_temp_object(cube, source_root_name)
+    bpy.context.view_layer.update()
+    return cube
+
+
+def place_layout_camera(camera, frame_width, center_z, min_y, max_y):
+    camera.data.type = 'ORTHO'
+    camera.data.sensor_fit = 'HORIZONTAL'
+    camera.data.ortho_scale = frame_width
+    camera.rotation_mode = 'XYZ'
+    camera.rotation_euler = (math.radians(90), 0.0, 0.0)
+    depth = max(max_y - min_y, 0.001)
+    distance = depth + THREE_VIEW_CAMERA_DISTANCE_MARGIN
+    camera.location = (0.0, min_y - distance, center_z)
+    camera.data.clip_start = 0.01
+    camera.data.clip_end = distance + depth + THREE_VIEW_CAMERA_CLIP_MARGIN
+
+
+def build_three_view_setup(props, report, ancestor):
+    """
+    创建三视图布局。
+
+    处理步骤：
+    1. 清理上次的临时对象，手臂姿态恢复为静置，原模型 root 归零为恒等变换
+    2. 收集 root 下参与渲染的网格
+    3. 计算可见顶点掩码（「仅可见网格」决定是否忽略透明隐藏部位）
+    4. 收集顶点组数据（左右手/身体/頭）与头部包围盒
+    5. 应用手臂姿态，重新评估顶点，得到完整与可见包围盒
+    6. 按输出分辨率计算画面尺寸、特写宽度与三视图列宽
+    7. 计算三视图统一缩放，保证各视图高度一致
+    8. 计算各视图的横向分位中心，避免稀疏部件把主体挤偏
+    9. 建立临时集合
+    10. 创建侧视图、后视图副本（缩放/旋转由复制出的 root 承载）
+    11. 创建特写副本（头部占画面竖向比例、顶部对齐）
+    12. 原模型缩放归位作为主视图；仅特写模式则把原模型整体右移出相机视野
+    13. 用透明立方体布尔求交，裁掉特写超出列宽的部分
+    14. 创建布局相机并记录到临时集合
+
+    ancestor 由调用方（execute 中的 check_three_view_props）解析后传入。
+    """
+    scene = bpy.context.scene
+
+    # 1. 清理上次执行产生的临时对象与手臂姿态；root 归零，避免重复执行累积缩放/位移
+    reset_three_view()
+    reset_root_transform(ancestor)
+
+    # 2. 收集参与渲染的网格（排除隐藏渲染的对象）
+    meshes = get_renderable_meshes(ancestor)
+    if not meshes:
+        report({'ERROR'}, translate("未找到可渲染的网格。"))
+        return None
+
+    # 3. 可见顶点掩码：False 时使用全部顶点
+    armature = get_armature(ancestor)
+    world = evaluate_world_vertices(meshes)
+    if props.visible_only:
+        visible_masks = collect_visible_masks(meshes)
+    else:
+        visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in meshes}
+
+    # 4. 顶点组数据与头部包围盒（头部不受手腕旋转影响，可在旋转前计算）
+    group_data = collect_vertex_group_data(meshes, visible_masks)
+    head_bounds = get_head_bounds(meshes, world, collect_head_masks(group_data))
+
+    # 5. 应用手臂姿态；旋转后重新评估顶点，得到最终包围盒
+    arm_angles = apply_arm_rotation(
+        armature, meshes, props.arm_angle, report, world, group_data) or {}
+    bpy.context.view_layer.update()
+    if any(angle > 0 for angle in arm_angles.values()):
+        world = evaluate_world_vertices(meshes)
+    full_bounds = bounds_from_vertices(world)
+    body_bounds = bounds_from_vertices(visible_world_vertices(world, visible_masks)) or full_bounds
+    if body_bounds is None:
+        report({'ERROR'}, translate("未找到可渲染的网格。"))
+        return None
+    if head_bounds is None:
+        # 没有「頭」顶点组时，按模型高度估算头部区域
+        min_x, max_x, _, _, min_z, max_z = body_bounds
+        height = max_z - min_z
+        head_bounds = ((min_x + max_x) / 2, (min_x + max_x) / 2,
+                       max_z - height * THREE_VIEW_HEAD_FALLBACK_RATIO, max_z)
+        report({'WARNING'}, translate("未找到「頭」顶点组，已按模型高度估算头部区域。"))
+
+    min_x, max_x, min_y, max_y, min_z, max_z = body_bounds
+    model_height = max_z - min_z
+    head_height = head_bounds[3] - head_bounds[2]
+    if model_height <= 0 or head_height <= 0:
+        report({'ERROR'}, translate("未找到可渲染的网格。"))
+        return None
+
+    # 6. 画面尺寸：角色高度占画面高度的 THREE_VIEW_FRAME_MARGIN；
+    #    特写占左侧 closeup_scale 宽度，剩余宽度三等分给主视图/侧视图/后视图
+    resolution_x = scene.render.resolution_x
+    resolution_y = scene.render.resolution_y
+    resolution_percentage = scene.render.resolution_percentage
+    total_width = max(4, round(resolution_x * resolution_percentage / 100))
+    total_height = max(1, round(resolution_y * resolution_percentage / 100))
+
+    frame_height = model_height / THREE_VIEW_FRAME_MARGIN
+    frame_width = frame_height * total_width / total_height
+    frame_half_width = frame_width / 2
+    closeup_world = frame_width * props.closeup_scale
+    show_closeup = props.closeup_scale > 0.0
+    show_views = props.closeup_scale < 1.0
+    remaining_world = frame_width - closeup_world
+    column_world = remaining_world / 3 if show_views else 0.0
+
+    # 7. 三视图统一缩放：取宽/高约束下最小比例，保证三栏高度一致
+    rotated_bounds = [get_rotated_bounds(body_bounds, angle) for angle in (0, 90, 180)]
+    view_scale = 1.0
+    if show_views:
+        for bounds in rotated_bounds:
+            width = bounds[1] - bounds[0]
+            height = bounds[5] - bounds[4]
+            scale = min(column_world * THREE_VIEW_COLUMN_FIT / width,
+                        frame_height * THREE_VIEW_COLUMN_FIT / height, 1.0)
+            view_scale = min(view_scale, scale)
+
+    # 8. 横向居中用分位中心，避免稀疏部件（如薄光环、露出的一小截尾巴）把主体挤偏；
+    #    绕世界 Z 轴旋转后，90° 视图的横向中心等于 -center_y，180° 等于 -center_x
+    visible_points = np.concatenate([points for points in
+                                     visible_world_vertices(world, visible_masks).values()
+                                     if len(points)]) if body_bounds else None
+    if visible_points is not None and len(visible_points):
+        center_x = robust_center(visible_points[:, 0])
+        center_y = robust_center(visible_points[:, 1])
+    else:
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+    view_centers = {0: center_x, 90: -center_y, 180: -center_x}
+
+    # 纵向：以可见包围盒底部对齐，画面中心按缩放后的高度居中
+    view_center_z = min_z + view_scale * model_height / 2
+    frame_top = view_center_z + frame_height / 2
+
+    # 9. 建立临时集合
+    collection = create_three_view_collection()
+    source_root_name = ancestor.name
+
+    closeup_objects = []
+    try:
+        # 10. 侧视图（90°）与后视图（180°）使用共享数据副本，
+        #     缩放/旋转/位移由复制出的 root 承载，只按 min_z 对齐、不做垂直居中
+        if show_views:
+            for index, angle in enumerate((90, 180)):
+                target_x = -frame_half_width + closeup_world + (index + 1.5) * column_world
+                translate_x = target_x - view_centers[angle] * view_scale
+                translate_z = min_z * (1 - view_scale)
+                matrix = (
+                    mathutils.Matrix.Translation((translate_x, 0.0, translate_z))
+                    @ mathutils.Matrix.Rotation(math.radians(angle), 4, 'Z')
+                    @ mathutils.Matrix.Scale(view_scale, 4))
+                duplicate_model_objects(meshes, matrix, collection, source_root_name, ancestor)
+
+        # 11. 特写：头部（「頭」顶点组）占画面竖向 THREE_VIEW_CLOSEUP_HEAD_RATIO，顶部对齐
+        closeup_scale = 1.0
+        if show_closeup:
+            head_center_x = (head_bounds[0] + head_bounds[1]) / 2
+            closeup_scale = (frame_height * THREE_VIEW_CLOSEUP_HEAD_RATIO) / head_height
+            target_x = -frame_half_width + closeup_world / 2
+            translate_x = target_x - head_center_x * closeup_scale
+            translate_z = frame_top - head_bounds[3] * closeup_scale
+            closeup_matrix = (
+                mathutils.Matrix.Translation((translate_x, 0.0, translate_z))
+                @ mathutils.Matrix.Scale(closeup_scale, 4))
+            closeup_objects = duplicate_model_objects(
+                meshes, closeup_matrix, collection, source_root_name, ancestor)
+
+        # 12. 原模型作为主视图缩放到第一列；仅特写模式则把原模型整体右移出相机视野
+        if show_views:
+            front_target_x = -frame_half_width + closeup_world + 0.5 * column_world
+            front_translate_x = front_target_x - center_x * view_scale
+            front_translate_z = min_z * (1 - view_scale)
+            front_matrix = (
+                mathutils.Matrix.Translation((front_translate_x, 0.0, front_translate_z))
+                @ mathutils.Matrix.Scale(view_scale, 4))
+            ancestor.matrix_world = front_matrix
+        else:
+            # 相机横向覆盖 [-frame_half_width, frame_half_width]，把模型左边缘推到右边界之外
+            offscreen_gap = frame_width * THREE_VIEW_OFFSCREEN_GAP
+            shift_x = frame_half_width + offscreen_gap - min(full_bounds[0], min_x)
+            ancestor.matrix_world = mathutils.Matrix.Translation((shift_x, 0.0, 0.0))
+
+        # 13. 特写裁剪：立方体 X 方向为列宽、Y 方向用完整包围盒并跟随特写缩放，
+        #     每个特写网格都与立方体求交集，只保留列内部分
+        if show_closeup and show_views:
+            full_depth = full_bounds[3] - full_bounds[2]
+            cube_center_y = (full_bounds[2] + full_bounds[3]) / 2 * closeup_scale
+            cube_depth = max(full_depth * closeup_scale * THREE_VIEW_CLIP_DEPTH_MARGIN, 1.0)
+            cube = create_clip_cube(
+                collection,
+                (-frame_half_width + closeup_world / 2, cube_center_y, view_center_z),
+                (closeup_world, cube_depth, frame_height * 2),
+                source_root_name)
+            for obj in closeup_objects:
+                if obj.type != 'MESH':
+                    continue
+                modifier = obj.modifiers.new(THREE_VIEW_CLIP_MODIFIER_NAME, 'BOOLEAN')
+                modifier.operation = 'INTERSECT'
+                # 快速解算：4.x 为 FAST，5.x 重命名为 FLOAT
+                solvers = modifier.bl_rna.properties['solver'].enum_items.keys()
+                modifier.solver = 'FAST' if 'FAST' in solvers else 'FLOAT'
+                modifier.object = cube
+            bpy.context.view_layer.update()
+    except Exception:
+        reset_three_view()
+        raise
+
+    # 14. 布局相机：一张正交相机覆盖四栏，景深按模型高度估算（特写副本可能放大）
+    depth = model_height * max(2.0, closeup_scale)
+    camera_data = bpy.data.cameras.new(THREE_VIEW_CAMERA_NAME)
+    camera = bpy.data.objects.new(THREE_VIEW_CAMERA_NAME, camera_data)
+    collection.objects.link(camera)
+    mark_temp_object(camera, source_root_name)
+    place_layout_camera(camera, frame_width, view_center_z, -depth / 2, depth / 2)
+    return {'camera': camera, 'collection': collection, 'arm_angles': arm_angles}
+
+
+def preview_three_view(props, report, ancestor):
+    setup = build_three_view_setup(props, report, ancestor)
+    if setup is None:
+        return None
+    bpy.context.scene.camera = setup['camera']
+    if not bpy.app.background:
+        switch_to_camera_view()
+    return setup
+
+
+def render_three_view(props, report, ancestor, output_filepath=None, cleanup=False):
+    """预览布局后执行 F12 渲染"""
+    scene = bpy.context.scene
+    setup = build_three_view_setup(props, report, ancestor)
+    if setup is None:
+        return False
+    original_camera = scene.camera
+    original_filepath = scene.render.filepath
+    try:
+        scene.camera = setup['camera']
+        if output_filepath is not None:
+            scene.render.filepath = output_filepath.replace("{", "{{").replace("}", "}}")
+            # 批量渲染必须写入文件，不弹出渲染窗口
+            bpy.ops.render.render("EXEC_DEFAULT", write_still=True)
+        else:
+            show = not bpy.app.background
+            bpy.ops.render.render("INVOKE_DEFAULT" if show else "EXEC_DEFAULT", write_still=not show)
+            if show:
+                bpy.ops.render.view_show()
+        return True
+    except (RuntimeError, ValueError, OSError) as exc:
+        report({'ERROR'}, translate("三视图渲染失败：{}").format(exc))
+        return False
+    finally:
+        scene.render.filepath = original_filepath
+        if cleanup:
+            reset_three_view()
+            scene.camera = original_camera
+        else:
+            scene.camera = setup['camera']
 
 def render(view_show):
     """

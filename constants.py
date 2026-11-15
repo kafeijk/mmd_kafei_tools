@@ -531,3 +531,70 @@ morph_suffix_map.update({
     '上': 'Up',
     '下': 'Down',
 })
+
+# -------------------------------------------------------------
+# 渲染预览图 - 三视图
+# -------------------------------------------------------------
+# 临时集合名称与临时对象标记（写入对象自定义属性）
+THREE_VIEW_COLLECTION_NAME = "KAFEI三视图临时集合"
+THREE_VIEW_TEMP_FLAG = "kafei_temp"
+THREE_VIEW_TEMP_SOURCE = "kafei_source_root"
+THREE_VIEW_CLIP_CUBE_NAME = "KAFEI_CLIP_CUBE"
+THREE_VIEW_CLIP_MODIFIER_NAME = "KAFEI_CLIP"
+THREE_VIEW_CAMERA_NAME = "KAFEI_THREE_VIEW_CAMERA"
+
+# 手臂骨骼（MMD 名称，左腕/右腕）
+ARM_BONE_NAMES = ("左腕", "右腕")
+# 手部顶点组（ひじ / 手捩 / 手首 / 手指），用于穿模检测
+HAND_GROUP_NAMES = (
+    '左ひじ', '左手捩', '左手首',
+    '左親指０', '左親指１', '左親指２',
+    '左人指１', '左人指２', '左人指３',
+    '左中指１', '左中指２', '左中指３',
+    '左薬指１', '左薬指２', '左薬指３',
+    '左小指１', '左小指２', '左小指３',
+    '右ひじ', '右手捩', '右手首',
+    '右親指０', '右親指１', '右親指２',
+    '右人指１', '右人指２', '右人指３',
+    '右中指１', '右中指２', '右中指３',
+    '右薬指１', '右薬指２', '右薬指３',
+    '右小指１', '右小指２', '右小指３',
+)
+# 腕到ひじ之间的手臂顶点组，不计入“身体”参与穿模判断
+ARM_CHAIN_GROUP_NAMES = (
+    '左腕', '左腕捩', '左腕捩1', '左腕捩2', '左腕捩3',
+    '左ひじ', '左ひじ補助', '+左ひじ補助',
+    '左手捩', '左手捩1', '左手捩2', '左手捩3', '左手首', '左ダミー', '左手先',
+    '右腕', '右腕捩', '右腕捩1', '右腕捩2', '右腕捩3',
+    '右ひじ', '右ひじ補助', '+右ひじ補助',
+    '右手捩', '右手捩1', '右手捩2', '右手捩3', '右手首', '右ダミー', '右手先',
+)
+# 其它不参与身体判断的顶点组
+ARM_EXCLUDED_GROUP_NAMES = {'mmd_edge_scale', 'mmd_vertex_order', 'FACE_VERTEX_3'}
+# 头部顶点组名称
+HEAD_GROUP_NAMES = {"頭"}
+
+# 手臂角度自动求解：粗搜索步长与角度上限（度）
+ARM_ANGLE_STEP = 10
+ARM_ANGLE_LIMIT = 90
+# 判断左右内旋方向时试探的角度（度）
+ARM_SIGN_TEST_ANGLE = 10
+
+# 布局：角色高度占画面高度的比例（留白）、单列内容占列宽/帧高的比例
+THREE_VIEW_FRAME_MARGIN = 0.95
+THREE_VIEW_COLUMN_FIT = 0.95
+# 特写中「頭」顶点组占画面高度的比例
+THREE_VIEW_CLOSEUP_HEAD_RATIO = 2 / 3
+# 横向居中使用的分位中心百分比（去掉两端的稀疏离群几何）
+THREE_VIEW_CENTER_PERCENTILE = 2.0
+# 可见几何判定：可见顶点少于该比例时退回全部顶点
+THREE_VIEW_VISIBLE_MIN_RATIO = 0.1
+# 特写裁剪立方体的深度余量
+THREE_VIEW_CLIP_DEPTH_MARGIN = 1.1
+# 相机：布局相机在角色前方的额外距离与裁剪范围余量
+THREE_VIEW_CAMERA_DISTANCE_MARGIN = 5.0
+THREE_VIEW_CAMERA_CLIP_MARGIN = 10.0
+# 无「頭」顶点组时，按模型高度估算的头部高度比例
+THREE_VIEW_HEAD_FALLBACK_RATIO = 1 / 6
+# 仅特写时原模型右移出相机视野的额外间距（相对画面宽度）
+THREE_VIEW_OFFSCREEN_GAP = 0.1

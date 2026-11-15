@@ -8,7 +8,8 @@ from mathutils import Vector
 from ..constants import (CAMERA_Z_FACTOR, FILL_LIGHT_ANGLE,
                          KEY_LIGHT_ANGLE, LIGHT_COLOR_PRESETS, LIGHT_CONTROLLER_ATTR,
                          LIGHT_EXCLUDE_COLLECTION, LIGHT_HEIGHT_ANGLE, LIGHT_MARKER, LIGHT_ROLES,
-                         LIGHT_ROOT_PROPERTY, LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION)
+                         LIGHT_ROOT_PROPERTY, LIGHT_ROTATION_X, LIGHT_SIZE, PRECISION,
+                         RESOLUTION_PRESETS)
 
 from ..properties.scene_settings_properties import (apply_resolution_preset, get_light_groups,
                                                     is_complete_light_group, is_light_linking_supported)
@@ -1022,9 +1023,13 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         bpy.context.scene.render.film_transparent = True
 
         # 输出属性
-        # 分辨率
-        bpy.context.scene.render.resolution_x = 1440
-        bpy.context.scene.render.resolution_y = 1920
+        # 分辨率：正交三视图需要横向 2K，其余保持竖版
+        preview_props = bpy.context.scene.mmd_kafei_tools_render_preview
+        three_view = (preview_props.type == 'ORTHOGRAPHIC'
+                      and preview_props.view == 'THREE_VIEW')
+        width, height = RESOLUTION_PRESETS["2K"][1:] if three_view else (1440, 1920)
+        bpy.context.scene.render.resolution_x = width
+        bpy.context.scene.render.resolution_y = height
         # 帧率
         bpy.context.scene.render.fps = 30
         # 起始帧

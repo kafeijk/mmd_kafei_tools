@@ -952,14 +952,23 @@ class RenderPreviewPanel(bpy.types.Panel):
         col = layout.column()
 
         col.prop(props, "type")
-        col.prop(props, "scale")
+        three_view = props.type == 'ORTHOGRAPHIC' and props.view == 'THREE_VIEW'
+        if props.type == 'ORTHOGRAPHIC':
+            col.prop(props, "view")
 
-        rotation_col = col.column(align=True)
-        rotation_col.prop(props, "rotation_euler_x")
-        rotation_col.prop(props, "rotation_euler_y")
-        rotation_col.prop(props, "rotation_euler_z")
+        if three_view:
+            col.prop(props, "closeup_scale")
+            col.prop(props, "arm_angle")
+            col.prop(props, "visible_only")
+        else:
+            col.prop(props, "scale")
 
-        col.prop(props, "auto_follow")
+            rotation_col = col.column(align=True)
+            rotation_col.prop(props, "rotation_euler_x")
+            rotation_col.prop(props, "rotation_euler_y")
+            rotation_col.prop(props, "rotation_euler_z")
+
+            col.prop(props, "auto_follow")
 
         batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
 

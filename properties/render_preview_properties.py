@@ -11,6 +11,9 @@ def update_rotation(scene, depsgraph):
     props = scene.mmd_kafei_tools_render_preview
     if not props.auto_follow or not active_camera:
         return
+    # 三视图使用固定视角，旋转参数不参与
+    if props.type == 'ORTHOGRAPHIC' and props.view == 'THREE_VIEW':
+        return
     # 暂时仅支持xyz1
     rotation_euler_x = active_camera.rotation_euler[0]
     rotation_euler_y = active_camera.rotation_euler[1]
@@ -52,6 +55,38 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         default=1.0,
         min=0.25,
         max=2.0
+    )
+    view: bpy.props.EnumProperty(
+        name="视图",
+        description="正交相机的视图模式",
+        items=[
+            ("THREE_VIEW", "三视图", "渲染面部特写、主视图、侧视图与后视图"),
+            ("MAIN", "主视图", "只渲染当前视角下的单个正交视图"),
+        ],
+        default="THREE_VIEW",
+    )
+    closeup_scale: bpy.props.FloatProperty(
+        name="特写比例",
+        description="近身特写占画面宽度的比例，0 表示不渲染特写，1 表示只渲染特写",
+        default=0.25,
+        min=0.0,
+        max=1.0,
+    )
+    arm_angle: bpy.props.EnumProperty(
+        name="手臂姿态",
+        description="手臂姿态：自动取不穿模的最大内旋角度，T-Pose 摆成 T 字姿态，也可指定内旋角度",
+        items=[
+            ("AUTO", "自动", "自动计算不穿模的最大角度"),
+            ("T_POSE", "T-Pose", "把手臂摆成 T 字姿态"),
+        ] + [
+            (str(angle), f"{angle}°", "") for angle in range(0, 91, 10)
+        ],
+        default="AUTO",
+    )
+    visible_only: bpy.props.BoolProperty(
+        name="仅可见网格",
+        description="忽略完全透明的隐藏部位（如隐藏的尾巴、影子）参与布局与穿模判断",
+        default=True,
     )
     rotation_euler_x: bpy.props.FloatProperty(
         name="旋转 X",
