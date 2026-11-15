@@ -1079,34 +1079,25 @@ def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
     return last_good
 
 
-def apply_arm_rotation(armature, meshes, angle_setting, report, world=None, vg_data=None):
-    """按参数旋转双臂；返回实际应用的角度"""
-    if armature is None:
-        report({'WARNING'}, translate("未找到骨架，已跳过手臂旋转。"))
-        return {}
+def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_data=None):
+    """按参数旋转双臂；返回实际旋转角度"""
     bone_names = [name for name in (find_bone_name(armature, jp) for jp in ARM_BONE_NAMES) if name]
     if not bone_names:
-        if angle_setting != '0':
-            report({'WARNING'}, translate("未找到腕骨骼，已跳过手臂旋转。"))
+        # 未找到腕骨骼，已跳过手臂旋转。（提示后续统一整合）
         return {}
-
-    # 直接复位为静置姿态（不记录执行前的姿态），再按参数旋转
-    for bone_name in bone_names:
-        armature.pose.bones[bone_name].matrix_basis = mathutils.Matrix.Identity(4)
-    bpy.context.view_layer.update()
     if angle_setting == '0':
         return {name: 0 for name in bone_names}
 
-    if world is None:
-        world = evaluate_world_vertices(meshes)
+    if world_vertices is None:
+        world_vertices = evaluate_world_vertices(meshes)
     if angle_setting == 'T_POSE':
-        items = build_arm_collision_data(meshes, world, vg_data, False)
-        applied = apply_arm_t_pose(armature, items, world)
+        items = build_arm_collision_data(meshes, world_vertices, vg_data, False)
+        applied = apply_arm_t_pose(armature, items, world_vertices)
         return applied or {name: 0 for name in bone_names}
 
-    items = build_arm_collision_data(meshes, world, vg_data, angle_setting == 'AUTO')
-    body_bvhs = build_item_bvhs(items, 'body', world) if angle_setting == 'AUTO' else []
-    bounds = bounds_from_vertices(world)
+    items = build_arm_collision_data(meshes, world_vertices, vg_data, angle_setting == 'AUTO')
+    body_bvhs = build_item_bvhs(items, 'body', world_vertices) if angle_setting == 'AUTO' else []
+    bounds = bounds_from_vertices(world_vertices)
     body_center_x = (bounds[0] + bounds[1]) / 2
     base_world = {
         name: armature.matrix_world @ armature.pose.bones[name].matrix for name in bone_names
@@ -1143,7 +1134,15 @@ def get_head_bounds(meshes, world, head_masks):
             arrays.append(positions[mask])
     if not arrays:
         return None
+    # 把多个网格的顶点坐标合并成一个数组，例如
+    # [
+    #     [1, 2, 3],
+    #     [2, 3, 4],
+    #     [3, 4, 5],
+    #     [4, 5, 6]
+    # ]
     points = np.concatenate(arrays)
+    # points[:, 0]，: 表示选取所有行，0 表示选取第 0 列。
     return (float(points[:, 0].min()), float(points[:, 0].max()),
             float(points[:, 2].min()), float(points[:, 2].max()))
 
@@ -1295,10 +1294,10 @@ def build_three_view_setup(props, report, ancestor):
     reset_poses(ancestor)
     reset_root_transform(ancestor)
 
-    # 2. 收集参与渲染的网格
+    # 2. 获取参与渲染的网格
     mesh_objs = get_renderable_meshes(ancestor)
 
-    # 3. 可见顶点掩码：False 时使用全部顶点
+    # 3. 获取可见顶点掩码：False 时使用全部顶点
     armature = get_armature(ancestor)
     world_vertices = evaluate_world_vertices(mesh_objs)
     if props.visible_only:
@@ -1306,13 +1305,12 @@ def build_three_view_setup(props, report, ancestor):
     else:
         visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in mesh_objs}
 
-    # 4. 顶点组数据与头部包围盒（头部不受手腕旋转影响，可在旋转前计算）
+    # 4. 获取顶点组数据与头部包围盒
     vg_data = collect_vertex_vg_data(mesh_objs, visible_masks)
     head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data))
 
-    # 5. 应用手臂姿态；旋转后重新评估顶点，得到最终包围盒
-    arm_angles = apply_arm_rotation(
-        armature, mesh_objs, props.arm_angle, report, world_vertices, vg_data) or {}
+    # 5. 旋转手臂，然后重新评估顶点，得到最终包围盒
+    arm_angles = apply_arm_rotation(armature, mesh_objs, props.arm_angle, world_vertices, vg_data) or {}
     bpy.context.view_layer.update()
     if any(angle > 0 for angle in arm_angles.values()):
         world_vertices = evaluate_world_vertices(mesh_objs)
