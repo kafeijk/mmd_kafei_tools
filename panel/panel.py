@@ -972,7 +972,9 @@ class RenderPreviewPanel(bpy.types.Panel):
 
         col = col.column(align=True)
         load_render_preset_row = col.row(align=True)
-        load_render_preset_row.operator(LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
+        operator = load_render_preset_row.operator(
+            LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
+        operator.three_view = False
         render_row = col.row(align=True)
         render_row.operator(GenPreviewCameraOperator.bl_idname, text=GenPreviewCameraOperator.bl_label)
         if batch.flag:
