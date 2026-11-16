@@ -39,7 +39,6 @@ from ..utils import (
     check_batch_props,
     deselect_all_objects,
     find_ancestor,
-    find_armature,
     find_children,
     find_pmx_armature,
     find_pmx_objects,
@@ -837,18 +836,24 @@ def cleanup_three_view_collection():
     if collection is not None and len(collection.objects) == 0:
         bpy.data.collections.remove(collection)
 
+def reset_poses(ancestor=None, update=True):
+    """把骨架姿态复位为静置姿态
 
-def reset_poses(ancestor=None):
-    """把骨架姿态复位为静置姿态"""
+    update：是否在复位后刷新依赖图；调用方紧接着还会更新依赖图时传 False，省一次全场景求值
+    """
     armature = get_armature(ancestor)
     if not armature:
         return
 
     identity = mathutils.Matrix.Identity(4)
+    changed = False
     for pose_bone in armature.pose.bones:
         if pose_bone.matrix_basis != identity:
             pose_bone.matrix_basis = identity
-    bpy.context.view_layer.update()
+            changed = True
+    # 已经是静置姿态时跳过依赖图求值，避免重复执行时白等一次全场景更新
+    if changed and update:
+        bpy.context.view_layer.update()
 
 
 def reset_root_transform(ancestor):
@@ -869,13 +874,20 @@ def reset_three_view(ancestor=None):
 
 
 def get_armature(ancestor=None):
-    """获取模型骨架：当前激活对象是骨架时直接用，否则从 ancestor 向下查找"""
-    active = bpy.context.view_layer.objects.active
-    if active is not None and active.type == 'ARMATURE' and not active.get(THREE_VIEW_TEMP_FLAG):
-        return active
-    if ancestor is None:
-        return None
-    return find_armature(ancestor)
+    """获取模型骨架：优先当前激活的骨架，其次是模型自身或其子孙中的骨架"""
+    # 候选顺序：激活对象 → 模型 root → root 的子孙，统一用同一套过滤条件
+    # children_recursive 是一次 C 级遍历（几百个物体也只要零点几毫秒），
+    # 比逐层递归读取 .children 快两个数量级（MMD 模型有近千个子物体）
+    candidates = [bpy.context.view_layer.objects.active]
+    if ancestor is not None:
+        candidates.append(ancestor)
+        candidates.extend(ancestor.children_recursive)
+    for obj in candidates:
+        if (obj is not None and obj.type == 'ARMATURE'
+                and ".dummy_armature" not in obj.name
+                and not obj.get(THREE_VIEW_TEMP_FLAG)):
+            return obj
+    return None
 
 
 def rotate_arm_bone(armature, bone_name, angle_degrees, sign, base_world=None):
@@ -1658,7 +1670,6 @@ def create_clip_cube(collection, location, dimensions, source_root_name):
     cube.hide_set(True)
     cube.display_type = 'WIRE'
     mark_temp_object(cube, source_root_name)
-    bpy.context.view_layer.update()
     return cube
 
 
@@ -1716,8 +1727,9 @@ def build_three_view_setup(props, report, ancestor):
     scene = bpy.context.scene
 
     # 1. 清理上次执行产生的临时对象与手臂姿态；root 归零，避免重复执行累积缩放/位移
+    #    reset_root_transform 会更新依赖图，所以复位姿态时不单独更新，省一次全场景求值
     cleanup_three_view_collection()
-    reset_poses(ancestor)
+    reset_poses(ancestor, update=False)
     reset_root_transform(ancestor)
 
     # 2. 获取参与渲染的网格
