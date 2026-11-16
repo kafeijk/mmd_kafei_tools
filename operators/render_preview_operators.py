@@ -1438,9 +1438,9 @@ def build_three_view_setup(props, report, ancestor):
     upper_arm_bones = existing_bone_names(armature, split_names(props.upper_arm_names))
     forearm_bones = existing_bone_names(armature, split_names(props.forearm_names))
     if not upper_arm_bones:
-        warnings.append(translate("未找到大臂骨骼，已跳过手臂姿态。"))
+        warnings.append(translate("未找到大臂骨骼，已跳过手臂姿态调整。"))
     elif not forearm_bones:
-        warnings.append(translate("未找到小臂骨骼，已跳过手臂自动姿态。"))
+        warnings.append(translate("未找到小臂骨骼，已跳过手臂姿态自动调整。"))
     collision_names, excluded_names = collect_arm_bone_names(armature, upper_arm_bones, forearm_bones)
     head_names = split_names(props.head_vg_names)
     vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names, visible_masks)
