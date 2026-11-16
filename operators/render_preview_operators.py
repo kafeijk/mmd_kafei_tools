@@ -18,6 +18,7 @@ from ..constants import (
     MATERIAL_ALPHA_EPSILON,
     OBJECT_NAME_MAX_BYTES,
     PREVIEW_BOUNDS_PROXY_NAME,
+    THREE_VIEW_BACK_COPY_LABEL,
     THREE_VIEW_CAMERA_CLIP_MARGIN,
     THREE_VIEW_CAMERA_DISTANCE_MARGIN,
     THREE_VIEW_CAMERA_NAME,
@@ -25,10 +26,11 @@ from ..constants import (
     THREE_VIEW_CLIP_CUBE_NAME,
     THREE_VIEW_CLIP_DEPTH_MARGIN,
     THREE_VIEW_CLIP_MODIFIER_NAME,
+    THREE_VIEW_CLOSEUP_COPY_LABEL,
     THREE_VIEW_COLLECTION_NAME,
-    THREE_VIEW_COPY_SUFFIX,
     THREE_VIEW_HEAD_FALLBACK_RATIO,
     THREE_VIEW_OFFSCREEN_GAP,
+    THREE_VIEW_SIDE_COPY_LABEL,
     THREE_VIEW_TEMP_FLAG,
     THREE_VIEW_TEMP_SOURCE,
 )
@@ -1533,25 +1535,27 @@ def truncate_name(name, max_bytes):
     return encoded[:max_bytes].decode('utf-8', errors='ignore')
 
 
-def make_copy_name(name):
+def make_copy_name(name, label):
     """
-    生成副本对象名：“原名称 副本”，重名时追加 .001、.002……
+    生成副本对象名：“原名称 + 视图 + 副本”，如“Rio 侧视图副本”
 
+    同一角色内重名时再追加 .001、.002……；
     名称过长（Blender 对象名上限 63 字节）时只截断原名称部分，
-    保证“ 副本”和“.001”这类后缀始终完整显示。
+    保证“ XXX副本”和“.001”这类后缀始终完整显示。
     """
     number = 1
     while True:
         # 第一个不加编号，重名时依次追加 .001、.002……
         tail = "" if number == 1 else f".{number - 1:03d}"
-        reserved = len((THREE_VIEW_COPY_SUFFIX + tail).encode('utf-8'))
-        candidate = truncate_name(name, OBJECT_NAME_MAX_BYTES - reserved) + THREE_VIEW_COPY_SUFFIX + tail
+        suffix = " " + label + tail
+        reserved = len(suffix.encode('utf-8'))
+        candidate = truncate_name(name, OBJECT_NAME_MAX_BYTES - reserved) + suffix
         if bpy.data.objects.get(candidate) is None:
             return candidate
         number += 1
 
 
-def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, root=None):
+def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, label, root=None):
     """
     复制模型层级（最外层对象 / 骨架 / 网格），用于生成侧视图、后视图与特写
 
@@ -1568,7 +1572,7 @@ def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, roo
     root_copy = None
     if root is not None:
         root_copy = root.copy()
-        root_copy.name = make_copy_name(root.name)
+        root_copy.name = make_copy_name(root.name, label)
         root_copy.parent = None
         root_copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
         root_copy.matrix_world = matrix @ root.matrix_world
@@ -1586,7 +1590,7 @@ def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, roo
         if armature in armature_map:
             continue
         copy = armature.copy()
-        copy.name = make_copy_name(armature.name)
+        copy.name = make_copy_name(armature.name, label)
         if root_copy is not None and armature.parent is root:
             # 原本直接挂在 root 下：保持局部变换，整体变换已由 root 副本承担
             copy.parent = root_copy
@@ -1609,7 +1613,7 @@ def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, roo
         if mesh is root:
             continue
         copy = mesh.copy()
-        copy.name = make_copy_name(mesh.name)
+        copy.name = make_copy_name(mesh.name, label)
         # 网格通过骨架修改器关联骨架，复制后要把修改器重新指向复制出的骨架
         parent_armature = None
         for modifier in mesh.modifiers:
@@ -1838,6 +1842,8 @@ def build_three_view_setup(props, report, ancestor):
         #     缩放/旋转/位移由复制出的 root 承载，只按 min_z 对齐、不做垂直居中
         if show_views:
             for index, angle in enumerate((side_angle, 180)):
+                # 副本按视图角色命名：第一列是侧视图，第二列是后视图
+                label = THREE_VIEW_SIDE_COPY_LABEL if index == 0 else THREE_VIEW_BACK_COPY_LABEL
                 # 模型 x 位置 target_x = 左侧边界 + 特写宽度 + (index + 1.5) * 单模型可用宽度
                 target_x = -frame_half_width + closeup_world + (index + 1.5) * column_world
                 # 旋转/缩放后模型中心位于 view_centers[angle] * view_scale，平移量 = 目标列中心 - 该位置
@@ -1850,7 +1856,7 @@ def build_three_view_setup(props, report, ancestor):
                     mathutils.Matrix.Translation((translate_x, 0.0, translate_z))
                     @ mathutils.Matrix.Rotation(math.radians(angle), 4, 'Z')
                     @ mathutils.Matrix.Scale(view_scale, 4))
-                duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, ancestor)
+                duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, label, ancestor)
 
         # 11. 特写：头部（「頭」顶点组）占画面竖向 closeup_head_ratio，顶部对齐
         closeup_scale = 1.0
@@ -1864,7 +1870,8 @@ def build_three_view_setup(props, report, ancestor):
                 mathutils.Matrix.Translation((translate_x, 0.0, translate_z))
                 @ mathutils.Matrix.Scale(closeup_scale, 4))
             closeup_objects = duplicate_model_objects(
-                mesh_objs, closeup_matrix, collection, source_root_name, ancestor)
+                mesh_objs, closeup_matrix, collection, source_root_name,
+                THREE_VIEW_CLOSEUP_COPY_LABEL, ancestor)
 
         # 12. 原模型作为主视图缩放到第一列；仅特写模式则把原模型整体右移出相机视野
         if show_views:
