@@ -369,22 +369,6 @@ def camera_to_view_selected(props, camera=None):
                                visible_only=props.visible_only)
 
 
-# 循环拓扑缓存：顶点/多边形/循环数量不变时复用，避免每次取景都重读大网格的拓扑
-_MESH_LOOPS_CACHE = {}
-
-
-def get_cached_mesh_loops(mesh):
-    """取网格的循环拓扑数据；拓扑（数量）不变时使用缓存"""
-    key = (mesh.as_pointer(), len(mesh.vertices), len(mesh.polygons), len(mesh.loops))
-    loops = _MESH_LOOPS_CACHE.get(key)
-    if loops is None:
-        if len(_MESH_LOOPS_CACHE) > 32:
-            _MESH_LOOPS_CACHE.clear()
-        loops = get_mesh_loops(mesh)
-        _MESH_LOOPS_CACHE[key] = loops
-    return loops
-
-
 def get_visible_bounds(meshes):
     """
     可见几何的世界包围盒 (min_x, max_x, min_y, max_y, min_z, max_z)；没有可见几何时返回 None
@@ -932,8 +916,7 @@ def get_visible_vertex_mask(obj):
 
     # 顶点不可见只能通过“它所属的面全部不可见”判定：
     # loop 是面的拐角，loops_vertex 记录每个 loop 指向的顶点索引
-    # 拓扑（顶点/面/loop 数量）不变时复用缓存，避免每次取景都重读大网格的 loop 数据
-    loops_vertex, _, loop_total = get_cached_mesh_loops(mesh)
+    loops_vertex, _, loop_total = get_mesh_loops(mesh)
     # 把每个面的“是否可见”按 loop 数展开成“第 i 个 loop 所在面是否可见”
     loop_visible = np.repeat(face_visible, loop_total)
     # 取可见面覆盖的全部 loop 指向的顶点，一次性标记为可见
