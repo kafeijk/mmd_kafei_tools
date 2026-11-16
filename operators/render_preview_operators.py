@@ -1254,43 +1254,116 @@ def collect_arm_bone_names(armature, upper_arm_names, forearm_names):
     """
     按大臂、小臂骨骼收集顶点组名称
 
-    返回 (collision_names, excluded_names)：
+    返回 (collision_names, excluded_names, collision_chains)：
     - collision_names：小臂及其全部子孙骨骼，参与穿模检测
     - excluded_names ：大臂及其全部子孙骨骼减去小臂子树，不计入“身体”，避免手臂穿模误判
+    - collision_chains：按小臂分组的手臂链（小臂 + 其全部子孙），同一条链的左右一定相同
     """
     collision = set()
     upper_chain = set()
+    collision_chains = []
     for name in forearm_names:
         forearm = armature.data.bones.get(name)
         if forearm is None:
             continue
-        collision.add(forearm.name)
-        collision.update(child.name for child in forearm.children_recursive)
+        chain = {forearm.name}
+        chain.update(child.name for child in forearm.children_recursive)
+        collision |= chain
+        collision_chains.append(chain)
     for name in upper_arm_names:
         upper = armature.data.bones.get(name)
         if upper is None:
             continue
         upper_chain.add(upper.name)
         upper_chain.update(child.name for child in upper.children_recursive)
-    return collision, upper_chain - collision
+    return collision, upper_chain - collision, collision_chains
 
 
-def collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names, visible_masks=None):
+def split_arm_chains_by_position(obj, chains):
+    """
+    顶点组名称没有 .L/.R 后缀时，按顶点位置判断**每条手臂链**的左右
+
+    同一条手臂链（小臂及其子孙）上的骨骼都在同一侧，所以整条链只做一次判定：
+    取链上所有顶点横向坐标 2%~98% 分位区间内的均值（排除两端极值顶点），
+    再与整块网格的横向分位中心比较，偏 +X 侧算左手，偏 -X 侧算右手。
+    """
+    left, right = set(), set()
+    if not chains:
+        return left, right
+    mesh = obj.data
+    if len(mesh.vertices) == 0:
+        return left, right
+    # 顶点组索引 → 所属手臂链下标
+    index_map = {vertex_group.index: chain_index
+                 for chain_index, chain in enumerate(chains)
+                 for vertex_group in obj.vertex_groups if vertex_group.name in chain}
+    if not index_map:
+        return left, right
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    deform = bm.verts.layers.deform.active
+    if deform is None:
+        bm.free()
+        return left, right
+    chain_x = [[] for _ in chains]
+    all_x = []
+    for vert in bm.verts:
+        all_x.append(vert.co.x)
+        for index, weight in vert[deform].items():
+            chain_index = index_map.get(index)
+            if weight > 0 and chain_index is not None:
+                chain_x[chain_index].append(vert.co.x)
+    bm.free()
+
+    center_x = robust_center(np.array(all_x, dtype=np.float32))
+    for chain, values in zip(chains, chain_x):
+        if not values:
+            continue
+        points = np.array(values, dtype=np.float32)
+        # 去掉两端极值后求均值，作为整条手臂链的横向中心
+        lower, upper = np.percentile(points, [THREE_VIEW_CENTER_PERCENTILE,
+                                              100.0 - THREE_VIEW_CENTER_PERCENTILE])
+        band = points[(points >= lower) & (points <= upper)]
+        chain_center = float(band.mean()) if len(band) else float(points.mean())
+        (left if chain_center >= center_x else right).update(chain)
+    return left, right
+
+
+def classify_arm_sides(obj, chains):
+    """把每条手臂链整体归到左手或右手：后缀优先（一条链同一侧），没有后缀时按顶点位置判断"""
+    left, right = set(), set()
+    unsuffixed = []
+    for chain in chains:
+        if any(name.endswith('.L') for name in chain):
+            left |= chain
+        elif any(name.endswith('.R') for name in chain):
+            right |= chain
+        else:
+            unsuffixed.append(chain)
+    if unsuffixed:
+        left_extra, right_extra = split_arm_chains_by_position(obj, unsuffixed)
+        left |= left_extra
+        right |= right_extra
+    return left, right
+
+
+def collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names,
+                           visible_masks=None, collision_chains=None):
     """
     一次遍历得到穿模/身体/头部顶点掩码，供手臂角度与头部尺寸共用
 
-    collision_names：参与穿模检测的手臂顶点组（小臂及其子孙）
-    excluded_names ：不计入身体的手臂顶点组（大臂子树减去小臂子树）
-    head_names     ：头部顶点组，用于特写取景与穿模高度过滤
+    collision_names ：参与穿模检测的手臂顶点组（小臂及其子孙）
+    excluded_names  ：不计入身体的手臂顶点组（大臂子树减去小臂子树）
+    head_names      ：头部顶点组，用于特写取景与穿模高度过滤
+    collision_chains：按小臂分组的手臂链，用于整体判断左右（没有 .L/.R 后缀时按位置判断）
     """
     collision = set(collision_names)
-    collision_left = {name for name in collision if name.endswith('.L')}
-    collision_right = {name for name in collision if name.endswith('.R')}
     excluded = set(excluded_names) | ARM_EXCLUDED_GROUP_NAMES
-    data = {
-        obj: get_vertex_masks(obj, collision_left, collision_right, collision | excluded, set(head_names))
-        for obj in mesh_objs
-    }
+    data = {}
+    for obj in mesh_objs:
+        left, right = classify_arm_sides(obj, collision_chains or [])
+        data[obj] = get_vertex_masks(obj, left, right, collision | excluded, set(head_names))
     for obj, masks in data.items():
         visible = visible_masks.get(obj) if visible_masks else None
         if visible is None:
@@ -1844,9 +1917,11 @@ def build_three_view_setup(props, report, ancestor):
         warnings.append(translate("未找到大臂骨骼，已跳过手臂姿态调整。"))
     elif not forearm_bones:
         warnings.append(translate("未找到小臂骨骼，已跳过手臂姿态自动调整。"))
-    collision_names, excluded_names = collect_arm_bone_names(armature, upper_arm_bones, forearm_bones)
+    collision_names, excluded_names, collision_chains = collect_arm_bone_names(
+        armature, upper_arm_bones, forearm_bones)
     head_names = split_names(props.head_vg_names)
-    vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names, visible_masks)
+    vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names,
+                                     visible_masks, collision_chains)
     head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data), head_names)
 
     # 5. 旋转手臂，然后重新评估顶点，得到最终包围盒；没有大臂骨骼时整体跳过
