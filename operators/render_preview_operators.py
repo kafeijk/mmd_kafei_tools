@@ -1357,6 +1357,22 @@ def get_bone_world_direction(armature, bone_name):
     return direction if direction.length > 1e-6 else None
 
 
+def get_bone_side(bone_name, direction):
+    """
+    判断骨骼属于哪一侧手臂：'l' 或 'r'
+
+    顶点组按名称后缀 .L/.R 划分为左右手，所以骨骼也优先按后缀判断，保证两边一致；
+    没有后缀时退回按朝向判断：head → tail 在 XZ 平面指向 +X 侧视为左臂。
+    """
+    if bone_name.endswith(".L"):
+        return 'l'
+    if bone_name.endswith(".R"):
+        return 'r'
+    if direction is not None and math.atan2(direction.x, direction.z) <= 0:
+        return 'r'
+    return 'l'
+
+
 def apply_t_pose_arm_rotation(armature, arm_names):
     """
     把双臂绕世界 Y 轴旋转到水平，得到 T 字姿态
@@ -1439,12 +1455,14 @@ def apply_auto_arm_rotation(armature, items, body_bvhs, arm_names):
     }
 
     applied = {}
-    for side, bone_name in zip(('l', 'r'), arm_names):
+    for bone_name in arm_names:
         if bone_name not in armature.pose.bones:
             continue
         # 内旋方向：head → tail 在 XZ 平面的投影与 +Z 轴夹角为正说明在 +X 侧（左臂），绕 Y 轴正转
         direction = get_bone_world_direction(armature, bone_name)
         sign = 1 if direction is None or math.atan2(direction.x, direction.z) > 0 else -1
+        # 左右不能按填写顺序推断，否则先右后左或只填一侧时会与手部几何错配
+        side = get_bone_side(bone_name, direction)
         angle = compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs)
         if angle > 0:
             rotate_arm_bone(armature, bone_name, angle, sign, base_world[bone_name])
