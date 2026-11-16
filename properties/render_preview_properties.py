@@ -93,17 +93,18 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         default=False,
     )
     upper_arm_names: bpy.props.StringProperty(
-        name="大臂",
+        name="大臂骨骼",
         description="大臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态",
         default="腕.L, 腕.R",
     )
     forearm_names: bpy.props.StringProperty(
-        name="小臂",
+        name="小臂骨骼",
         description="小臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态时的穿模检测",
         default="ひじ.L, ひじ.R",
     )
+    # 虽然写作头骨骼，但实际起作用的是顶点组，为了面板语义及操作统一，这里写作头骨骼
     head_vg_names: bpy.props.StringProperty(
-        name="头",
+        name="头骨骼",
         description="头部顶点组名称，多个用逗号分隔\n用于面部特写时头部的识别",
         default="頭",
     )

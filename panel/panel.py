@@ -964,9 +964,9 @@ class RenderPreviewPanel(bpy.types.Panel):
             if props.show_more_params:
                 box = col.box()
                 box_col = box.column()
+                box_col.prop(props, "head_vg_names")
                 box_col.prop(props, "upper_arm_names")
                 box_col.prop(props, "forearm_names")
-                box_col.prop(props, "head_vg_names")
         else:
             col.prop(props, "scale")
 
