@@ -957,6 +957,7 @@ class RenderPreviewPanel(bpy.types.Panel):
 
         col.prop(props, "type")
         col.prop(props, "scale")
+        col.prop(props, "visible_only")
 
         rotation_col = col.column(align=True)
         rotation_col.prop(props, "rotation_euler_x")
@@ -965,10 +966,7 @@ class RenderPreviewPanel(bpy.types.Panel):
 
         col.prop(props, "auto_follow")
 
-        batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
-
-        if batch_ui:
-            batch_ui.prop(props, "force_center")
+        show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
 
         col = col.column(align=True)
         load_render_preset_row = col.row(align=True)
@@ -1014,10 +1012,7 @@ class RenderThreeViewPanel(bpy.types.Panel):
             box_col.prop(props, "upper_arm_names")
             box_col.prop(props, "forearm_names")
 
-        batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderThreeViewOperator)
-
-        if batch_ui:
-            batch_ui.prop(props, "force_center")
+        show_batch_props(col, True, True, batch, FillSuffixRenderThreeViewOperator)
 
         col = col.column(align=True)
         load_render_preset_row = col.row(align=True)

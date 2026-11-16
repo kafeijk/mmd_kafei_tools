@@ -531,7 +531,6 @@ translation_dict = {
         ("*", "头骨骼"): "Head Bone",
         ("*", "旋转 X"): "Rotation X",
         ("*", "自动"): "Auto",
-        ("*", "强制居中"): "Force Center",
         ("*", "预览相机"): "Preview Camera",
         ("Operator", "加载渲染预设"): "Load Render Preset",
         ("*", "加载渲染预设"): "Load Render Preset",
@@ -568,7 +567,6 @@ translation_dict = {
         ("*", "未找到骨架，已跳过手臂旋转。"): "Armature not found. Arm rotation skipped.",
         ("*", "欧拉旋转"): "Rotation in Eulers",
         ("*", "相机旋转值跟随活动相机视角"): "Camera rotation values follow the active camera's view",
-        ("*", "受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中"): "Due to hidden parts, some characters may not render centered. This option forces the character to be centered.",
         ("*", "根据当前设置的参数生成预览相机并切换到摄像机视角，重复点击时会更新预览相机参数"): "Generate a preview camera based on the current settings and switch to its view. Clicking again updates the preview camera parameters.",
         # Batch parameter
         ("*", "批量"): "Batch",

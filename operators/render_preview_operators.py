@@ -119,7 +119,7 @@ class RenderPreviewBatchRunner(BatchProcessRunner):
         import_pmx(filepath)
         pmx_root = bpy.context.active_object
         pmx_armature = find_pmx_armature(pmx_root)
-        convert_materials(pmx_armature, self.props.force_center)
+        convert_materials(pmx_armature, self.props.visible_only)
 
         # 相机对准角色
         show_object(pmx_root)
@@ -165,7 +165,7 @@ class RenderThreeViewBatchRunner(BatchProcessRunner):
         import_pmx(filepath)
         pmx_root = bpy.context.active_object
         pmx_armature = find_pmx_armature(pmx_root)
-        convert_materials(pmx_armature, self.props.force_center)
+        convert_materials(pmx_armature, self.props.visible_only)
 
         # 相机对准角色
         show_object(pmx_root)
@@ -252,7 +252,7 @@ class RenderThreeViewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
         return {'FINISHED'}
 
 
-def convert_materials(pmx_armature, force_center):
+def convert_materials(pmx_armature, visible_only):
     pmx_objects = find_pmx_objects(pmx_armature)
     if not pmx_objects:
         return
@@ -293,7 +293,7 @@ def convert_materials(pmx_armature, force_center):
                         material.node_tree.links.remove(link)
                 alpha_node.default_value = alpha
 
-    if not force_center:
+    if not visible_only:
         return
 
     # 必须处于顶点选择模式，且无点线面被选择

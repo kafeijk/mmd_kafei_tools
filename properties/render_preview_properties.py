@@ -77,10 +77,10 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         default=False,
         update=update_auto_follow
     )
-    force_center: bpy.props.BoolProperty(
-        name="强制居中",
-        description="受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中",
-        default=True
+    visible_only: bpy.props.BoolProperty(
+        name="仅可见网格",
+        description="排除隐藏部位的干扰，使模型尽可能居中",
+        default=True,
     )
     # 如何在其它视角对齐角色？
     # 方案1
@@ -166,11 +166,6 @@ class RenderThreeViewProperty(bpy.types.PropertyGroup):
         name="头骨骼",
         description="头部顶点组名称，多个用逗号分隔\n用于面部特写时头部的识别",
         default="頭",
-    )
-    force_center: bpy.props.BoolProperty(
-        name="强制居中",
-        description="受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中",
-        default=True
     )
     batch: bpy.props.PointerProperty(type=BatchProperty)
 
