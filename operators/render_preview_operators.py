@@ -1066,9 +1066,39 @@ def get_visible_vertex_mask(obj):
     return visible
 
 
-def collect_visible_masks(objs):
-    """可见顶点掩码（{网格: bool 数组}）：True 表示该顶点属于可见面"""
-    return {obj: get_visible_vertex_mask(obj) for obj in objs}
+def has_transparent_material(obj):
+    """网格是否含有透明（完全不可见）材质的材质槽"""
+    return any(slot.material is not None and not is_material_visible(slot.material)
+               for slot in obj.material_slots)
+
+
+def build_visible_masks(mesh_objs, world_vertices, warnings):
+    """
+    可见顶点掩码：只对含透明材质的网格做可见性过滤
+
+    生成类修改器（镜像、布尔、细分等）改变顶点数量时，该网格无法按原始顶点索引过滤，
+    只有它自己回退为“全部可见”，其它网格照常过滤；
+    受影响的网格汇总成一条警告，避免一个网格的问题影响整个模型。
+    """
+    masks = {}
+    affected = []
+    for obj in mesh_objs:
+        count = len(obj.data.vertices)
+        # 没有透明材质的网格不需要过滤，直接全部可见
+        if not has_transparent_material(obj):
+            masks[obj] = np.ones(count, dtype=bool)
+            continue
+        mask = get_visible_vertex_mask(obj)
+        positions = world_vertices.get(obj)
+        if positions is not None and len(positions) != len(mask):
+            masks[obj] = np.ones(count, dtype=bool)
+            affected.append(obj.name)
+        else:
+            masks[obj] = mask
+    if affected:
+        warnings.append(translate("检测到生成类修改器导致网格顶点数量发生变化，相关对象将按全部可见处理。"
+                                  "涉及对象：{}。").format("、".join(affected)))
+    return masks
 
 
 def robust_center(values):
@@ -1089,10 +1119,13 @@ def robust_center(values):
 
 
 def visible_world_vertices(world, masks):
+    """按可见掩码筛选世界坐标；顶点数对不上时按全部顶点可见处理"""
     result = {}
     for obj, vertices in world.items():
         mask = masks.get(obj)
+        # 修改器改变了评估后的顶点数时，原始索引的掩码无法使用，只能整块按可见处理
         if mask is None or len(vertices) != len(mask):
+            result[obj] = vertices
             continue
         result[obj] = vertices[mask]
     return result
@@ -1508,16 +1541,52 @@ def apply_arm_rotation(armature, meshes, angle_setting, arm_names, world_vertice
     return apply_auto_arm_rotation(armature, items, body_bvhs, arm_names)
 
 
-def get_head_bounds(meshes, world, head_masks):
+def get_evaluated_vertex_group_mask(obj, names):
+    """
+    在评估后的网格上重新读取顶点组掩码
+
+    生成类修改器（镜像、细分、布尔等）会改变顶点数量与顺序，原始网格的掩码无法直接使用；
+    评估后的网格仍然保留顶点组权重，按同样的组名重新生成掩码即可（细分会插值权重）。
+    这里用 to_mesh 取一份独立的临时网格：直接对 depsgraph 的评估结果建 bmesh 会偶发崩溃。
+    """
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    eval_obj = obj.evaluated_get(depsgraph)
+    mesh = eval_obj.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+    try:
+        count = len(mesh.vertices)
+        mask = np.zeros(count, dtype=bool)
+        indexes = {vertex_group.index for vertex_group in obj.vertex_groups if vertex_group.name in names}
+        if count == 0 or not indexes:
+            return mask
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        deform = bm.verts.layers.deform.active
+        if deform is not None:
+            for vert in bm.verts:
+                for index, weight in vert[deform].items():
+                    if weight > 0 and index in indexes:
+                        mask[vert.index] = True
+                        break
+        bm.free()
+        return mask
+    finally:
+        eval_obj.to_mesh_clear()
+
+
+def get_head_bounds(meshes, world, head_masks, head_names=None):
     """用「頭」顶点组中权重大于 0 的顶点计算头部包围盒（含姿态）"""
     arrays = []
     for obj in meshes:
         mask = head_masks.get(obj)
         positions = world.get(obj)
-        if mask is None or positions is None or len(positions) != len(obj.data.vertices):
+        if positions is None:
             continue
-        if mask.any():
-            arrays.append(positions[mask])
+        # 顶点数对不上：说明存在改变网格的修改器，改在评估后的网格上重新取头部顶点组
+        if head_names and (mask is None or len(mask) != len(positions)):
+            mask = get_evaluated_vertex_group_mask(obj, head_names)
+        if mask is None or len(mask) != len(positions) or not mask.any():
+            continue
+        arrays.append(positions[mask])
     if not arrays:
         return None
     # 把多个网格的顶点坐标合并成一个数组，例如
@@ -1758,16 +1827,17 @@ def build_three_view_setup(props, report, ancestor):
     mesh_objs = get_renderable_meshes(ancestor)
 
     # 3. 获取可见顶点掩码：False 时使用全部顶点
+    #    warnings 收集过程中的警告，等执行结束再统一输出
+    warnings = []
     armature = get_armature(ancestor)
     world_vertices = evaluate_world_vertices(mesh_objs)
     if props.visible_only:
-        visible_masks = collect_visible_masks(mesh_objs)
+        # 只对含透明材质的网格做过滤；改变网格的修改器只影响它自己的那个网格
+        visible_masks = build_visible_masks(mesh_objs, world_vertices, warnings)
     else:
         visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in mesh_objs}
 
     # 4. 获取顶点组数据与头部包围盒（名称取自面板的进阶参数）
-    #    warnings 收集过程中的警告，等执行结束再统一输出
-    warnings = []
     upper_arm_bones = existing_bone_names(armature, split_names(props.upper_arm_names))
     forearm_bones = existing_bone_names(armature, split_names(props.forearm_names))
     if not upper_arm_bones:
@@ -1777,7 +1847,7 @@ def build_three_view_setup(props, report, ancestor):
     collision_names, excluded_names = collect_arm_bone_names(armature, upper_arm_bones, forearm_bones)
     head_names = split_names(props.head_vg_names)
     vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names, visible_masks)
-    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data))
+    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data), head_names)
 
     # 5. 旋转手臂，然后重新评估顶点，得到最终包围盒；没有大臂骨骼时整体跳过
     if upper_arm_bones:
