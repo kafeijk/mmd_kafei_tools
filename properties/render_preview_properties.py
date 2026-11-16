@@ -167,6 +167,35 @@ class RenderThreeViewProperty(bpy.types.PropertyGroup):
         description="头部顶点组名称，多个用逗号分隔\n用于面部特写时头部的识别",
         default="頭",
     )
+    closeup_head_ratio: bpy.props.FloatProperty(
+        name="特写头部占比",
+        description="特写中头部占画面高度的比例，数值越大头部越大",
+        default=2 / 3,
+        min=0.05,
+        max=1.0,
+    )
+    height_margin: bpy.props.FloatProperty(
+        name="高度留白比例",
+        description="角色高度占画面高度的比例，数值越小上下留白越多",
+        default=0.95,
+        min=0.25,
+        max=1.0,
+    )
+    width_margin: bpy.props.FloatProperty(
+        name="宽度留白比例",
+        description="三视图在各自列内占用的宽度比例，数值越小左右留白越多",
+        default=0.95,
+        min=0.25,
+        max=1.0,
+    )
+    side_view_angle: bpy.props.FloatProperty(
+        name="侧视图角度",
+        description="侧视图相对主视图绕竖直轴旋转的角度",
+        subtype="ANGLE",
+        default=math.radians(90),
+        min=math.radians(-180),
+        max=math.radians(180),
+    )
     batch: bpy.props.PointerProperty(type=BatchProperty)
 
     @staticmethod

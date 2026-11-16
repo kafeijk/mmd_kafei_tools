@@ -1011,6 +1011,10 @@ class RenderThreeViewPanel(bpy.types.Panel):
             box_col.prop(props, "head_vg_names")
             box_col.prop(props, "upper_arm_names")
             box_col.prop(props, "forearm_names")
+            box_col.prop(props, "closeup_head_ratio")
+            box_col.prop(props, "height_margin")
+            box_col.prop(props, "width_margin")
+            box_col.prop(props, "side_view_angle")
 
         show_batch_props(col, True, True, batch, FillSuffixRenderThreeViewOperator)
 

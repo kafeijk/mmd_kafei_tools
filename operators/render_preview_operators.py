@@ -25,11 +25,8 @@ from ..constants import (
     THREE_VIEW_CLIP_CUBE_NAME,
     THREE_VIEW_CLIP_DEPTH_MARGIN,
     THREE_VIEW_CLIP_MODIFIER_NAME,
-    THREE_VIEW_CLOSEUP_HEAD_RATIO,
     THREE_VIEW_COLLECTION_NAME,
-    THREE_VIEW_COLUMN_FIT,
     THREE_VIEW_COPY_SUFFIX,
-    THREE_VIEW_FRAME_MARGIN,
     THREE_VIEW_HEAD_FALLBACK_RATIO,
     THREE_VIEW_OFFSCREEN_GAP,
     THREE_VIEW_TEMP_FLAG,
@@ -1706,7 +1703,7 @@ def build_three_view_setup(props, report, ancestor):
     full_bounds, model_bounds, head_bounds, model_height, head_height = bounds
     min_x, max_x, min_y, max_y, min_z, max_z = model_bounds
 
-    # 6. 画面尺寸：角色高度占画面高度的 THREE_VIEW_FRAME_MARGIN（留白一些距离）；
+    # 6. 画面尺寸：角色高度占画面高度的 height_margin（留白一些距离）；
     #    特写占左侧 closeup_scale 宽度，剩余宽度三等分给主视图/侧视图/后视图
     resolution_x = scene.render.resolution_x
     resolution_y = scene.render.resolution_y
@@ -1714,7 +1711,7 @@ def build_three_view_setup(props, report, ancestor):
     total_width = max(4, round(resolution_x * resolution_percentage / 100))
     total_height = max(1, round(resolution_y * resolution_percentage / 100))
 
-    frame_height = model_height / THREE_VIEW_FRAME_MARGIN
+    frame_height = model_height / props.height_margin
     # 正交相机在投影方向上是线性映射：1 个世界单位对应固定像素数。
     # 要让横纵比例一致，必须让 frame_width / frame_height = total_width / total_height （像素比）
     frame_width = frame_height * total_width / total_height
@@ -1726,28 +1723,30 @@ def build_three_view_setup(props, report, ancestor):
     column_world = remaining_world / 3 if show_views else 0.0
 
     # 7. 三视图统一缩放：取宽/高约束下最小比例，保证三视图高度一致
-    rotated_bounds = [get_rotated_bounds(model_bounds, angle) for angle in (0, 90, 180)]
+    side_angle = math.degrees(props.side_view_angle)
+    rotated_bounds = [get_rotated_bounds(model_bounds, angle) for angle in (0, side_angle, 180)]
     view_scale = 1.0
     if show_views:
         for bounds in rotated_bounds:
             width = bounds[1] - bounds[0]
             height = bounds[5] - bounds[4]
-            # 缩放后的尺寸不能超过可用尺寸，求 scale，width 为包围盒（实际）宽度，column_world * THREE_VIEW_COLUMN_FIT 为可用宽度
-            # scale * width <= column_world * COLUMN_FIT
+            # 缩放后的尺寸不能超过可用尺寸，求 scale，width 为包围盒（实际）宽度，column_world * width_margin 为可用宽度
+            # scale * width <= column_world * width_margin
             # height 同理
             # 注意 column_world 与 width 同语义，而非像素
-            scale = min(column_world * THREE_VIEW_COLUMN_FIT / width,
-                        frame_height * THREE_VIEW_COLUMN_FIT / height, 1.0)
+            scale = min(column_world * props.width_margin / width,
+                        frame_height * props.width_margin / height, 1.0)
             view_scale = min(view_scale, scale)
 
     # 8. 横向居中用分位中心（只统计可见顶点），避免稀疏部件（如薄光环、露出的一小截尾巴）把主体挤偏
     # 相机 rotation_euler = (90°, 0, 0)，本地 -Z 指向世界 +Y：画面横向 = 世界 X，纵向 = 世界 Z，
     # 因此“横向中心”就是模型中心在世界 X 上的坐标。
     # 侧视图/后视图是绕世界 Z 轴旋转的副本（见步骤 10 的 Rotation(angle, 'Z')），绕 Z 转 θ 时
-    # x' = x·cosθ - y·sinθ，y' = x·sinθ + y·cosθ，于是中心 (center_x, center_y) 旋转后落到：
-    #   0°  ：( center_x,  center_y) → 横向  center_x
-    #   90° ：(-center_y,  center_x) → 横向 -center_y
-    #   180°：(-center_x, -center_y) → 横向 -center_x
+    # x' = x·cosθ - y·sinθ，于是中心 (center_x, center_y) 旋转后落到横向 cosθ·center_x - sinθ·center_y：
+    #   0°     ：center_x
+    #   90°    ：-center_y
+    #   180°   ：-center_x
+    # 侧视图角度可配置，θ 取侧视图角度
     # 纵向 Z 不受绕 Z 旋转影响，三种视图共用 view_center_z
     visible_groups = [points for points in
                       visible_world_vertices(world_vertices, visible_masks).values()
@@ -1761,7 +1760,13 @@ def build_three_view_setup(props, report, ancestor):
         # 没有可见顶点（整模透明或顶点掩码对不上）时，退回可见包围盒中心
         center_x = (min_x + max_x) / 2
         center_y = (min_y + max_y) / 2
-    view_centers = {0: center_x, 90: -center_y, 180: -center_x}
+
+    def rotated_center_x(angle_degrees):
+        """绕世界 Z 轴旋转后，模型中心落在画面横向上的位置"""
+        radians = math.radians(angle_degrees)
+        return math.cos(radians) * center_x - math.sin(radians) * center_y
+
+    view_centers = {0: center_x, side_angle: rotated_center_x(side_angle), 180: rotated_center_x(180)}
 
     # 纵向：以可见包围盒底部对齐，画面中心按缩放后的高度居中
     view_center_z = min_z + view_scale * model_height / 2  # 模型缩放后的竖向中点
@@ -1773,10 +1778,10 @@ def build_three_view_setup(props, report, ancestor):
 
     closeup_objects = []
     try:
-        # 10. 侧视图（90°）与后视图（180°）使用共享数据副本，
+        # 10. 侧视图与后视图使用共享数据副本，
         #     缩放/旋转/位移由复制出的 root 承载，只按 min_z 对齐、不做垂直居中
         if show_views:
-            for index, angle in enumerate((90, 180)):
+            for index, angle in enumerate((side_angle, 180)):
                 # 模型 x 位置 target_x = 左侧边界 + 特写宽度 + (index + 1.5) * 单模型可用宽度
                 target_x = -frame_half_width + closeup_world + (index + 1.5) * column_world
                 # 旋转/缩放后模型中心位于 view_centers[angle] * view_scale，平移量 = 目标列中心 - 该位置
@@ -1791,11 +1796,11 @@ def build_three_view_setup(props, report, ancestor):
                     @ mathutils.Matrix.Scale(view_scale, 4))
                 duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, ancestor)
 
-        # 11. 特写：头部（「頭」顶点组）占画面竖向 THREE_VIEW_CLOSEUP_HEAD_RATIO，顶部对齐
+        # 11. 特写：头部（「頭」顶点组）占画面竖向 closeup_head_ratio，顶部对齐
         closeup_scale = 1.0
         if show_closeup:
             head_center_x = (head_bounds[0] + head_bounds[1]) / 2
-            closeup_scale = (frame_height * THREE_VIEW_CLOSEUP_HEAD_RATIO) / head_height
+            closeup_scale = (frame_height * props.closeup_head_ratio) / head_height
             target_x = -frame_half_width + closeup_world / 2
             translate_x = target_x - head_center_x * closeup_scale
             translate_z = frame_top - head_bounds[3] * closeup_scale

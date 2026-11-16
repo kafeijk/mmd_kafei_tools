@@ -559,11 +559,6 @@ ARM_EXCLUDED_GROUP_NAMES = {'mmd_edge_scale', 'mmd_vertex_order', 'FACE_VERTEX_3
 ARM_ANGLE_STEP = 10
 ARM_ANGLE_LIMIT = 90
 
-# 布局：角色高度占画面高度的比例（留白）、单列内容占列宽/帧高的比例
-THREE_VIEW_FRAME_MARGIN = 0.95
-THREE_VIEW_COLUMN_FIT = 0.95
-# 特写中「頭」顶点组占画面高度的比例
-THREE_VIEW_CLOSEUP_HEAD_RATIO = 2 / 3
 # 横向居中使用的分位中心百分比（去掉两端的稀疏离群几何）
 THREE_VIEW_CENTER_PERCENTILE = 2.0
 # 特写裁剪立方体的深度余量
