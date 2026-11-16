@@ -454,10 +454,7 @@ def get_visible_bounds(meshes):
             arrays.append(vertices)
     if not arrays:
         return None
-    points = np.concatenate(arrays)
-    return (float(points[:, 0].min()), float(points[:, 0].max()),
-            float(points[:, 1].min()), float(points[:, 1].max()),
-            float(points[:, 2].min()), float(points[:, 2].max()))
+    return points_bounds(np.concatenate(arrays))
 
 
 def create_visible_bounds_proxies(ancestors):
@@ -934,16 +931,22 @@ def evaluate_world_vertices(objects):
     return result
 
 
+def points_bounds(points):
+    """点集的三轴包围盒 (min_x, max_x, min_y, max_y, min_z, max_z)；空集返回 None"""
+    if len(points) == 0:
+        return None
+    # points[:, 0]，: 表示选取所有行，0 表示选取第 0 列。
+    return (float(points[:, 0].min()), float(points[:, 0].max()),
+            float(points[:, 1].min()), float(points[:, 1].max()),
+            float(points[:, 2].min()), float(points[:, 2].max()))
+
+
 def bounds_from_vertices(vertex_map):
+    """多个网格的世界坐标合并后求三轴包围盒；没有顶点时返回 None"""
     arrays = [vertices for vertices in vertex_map.values() if len(vertices)]
     if not arrays:
         return None
-    points = np.concatenate(arrays)
-    return (
-        float(points[:, 0].min()), float(points[:, 0].max()),
-        float(points[:, 1].min()), float(points[:, 1].max()),
-        float(points[:, 2].min()), float(points[:, 2].max()),
-    )
+    return points_bounds(np.concatenate(arrays))
 
 
 def find_shader_from_output(tree, node_name=None, node_type=None):
@@ -1662,17 +1665,9 @@ def get_head_bounds(meshes, world, head_masks, head_names=None):
         arrays.append(positions[mask])
     if not arrays:
         return None
-    # 把多个网格的顶点坐标合并成一个数组，例如
-    # [
-    #     [1, 2, 3],
-    #     [2, 3, 4],
-    #     [3, 4, 5],
-    #     [4, 5, 6]
-    # ]
-    points = np.concatenate(arrays)
-    # points[:, 0]，: 表示选取所有行，0 表示选取第 0 列。
-    return (float(points[:, 0].min()), float(points[:, 0].max()),
-            float(points[:, 2].min()), float(points[:, 2].max()))
+    # 头部只需要横向与纵向包围盒
+    min_x, max_x, _, _, min_z, max_z = points_bounds(np.concatenate(arrays))
+    return min_x, max_x, min_z, max_z
 
 
 def get_rotated_bounds(bounds, angle_degrees):
