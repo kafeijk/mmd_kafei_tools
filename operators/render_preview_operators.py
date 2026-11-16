@@ -612,6 +612,28 @@ def gen_preview_camera(camera_type):
     return camera
 
 
+def gen_three_view_camera():
+    """生成三视图相机，重复执行时直接复用"""
+    camera_name = bpy.app.translations.pgettext_iface(THREE_VIEW_CAMERA_NAME)
+    custom_property_name = 'three_view_camera'
+    for camera in bpy.data.objects:
+        if camera.type == 'CAMERA' and custom_property_name in camera.keys():
+            return camera
+
+    collection_name = bpy.app.translations.pgettext_iface("相机")
+    if collection_name in bpy.data.collections:
+        target_collection = bpy.data.collections[collection_name]
+    else:
+        target_collection = bpy.data.collections.new(collection_name)
+        bpy.context.scene.collection.children.link(target_collection)
+
+    camera_data = bpy.data.cameras.new(name=camera_name)
+    camera = bpy.data.objects.new(name=camera_name, object_data=camera_data)
+    camera[custom_property_name] = True
+    target_collection.objects.link(camera)
+    return camera
+
+
 def get_renderable_meshes(ancestor):
     """模型祖先下参与渲染的网格对象（排除隐藏与 mmd 刚体）"""
     objects = [ancestor] if ancestor.type == 'MESH' else []
@@ -1744,10 +1766,7 @@ def build_three_view_setup(props, report, ancestor):
 
     # 14. 布局相机：一张正交相机覆盖特写+三视图，景深按模型高度估算（特写副本可能放大）
     depth = model_height * max(2.0, closeup_scale)
-    camera_data = bpy.data.cameras.new(THREE_VIEW_CAMERA_NAME)
-    camera = bpy.data.objects.new(THREE_VIEW_CAMERA_NAME, camera_data)
-    collection.objects.link(camera)
-    mark_temp_object(camera, source_root_name)
+    camera = gen_three_view_camera()
     place_layout_camera(camera, frame_width, view_center_z, -depth / 2, depth / 2)
     return {'camera': camera, 'collection': collection, 'arm_angles': arm_angles,
             'warnings': warnings}
