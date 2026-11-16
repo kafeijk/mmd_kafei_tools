@@ -930,6 +930,11 @@ def split_names(text):
     return [name.strip() for name in text.replace('，', ',').split(',') if name.strip()]
 
 
+def existing_bone_names(armature, names):
+    """过滤出骨架中实际存在的骨骼名称"""
+    return [name for name in names if name in armature.data.bones]
+
+
 def collect_arm_bone_names(armature, upper_arm_names, forearm_names):
     """
     按大臂、小臂骨骼收集顶点组名称
@@ -1173,7 +1178,8 @@ def apply_auto_arm_rotation(armature, items, body_bvhs, arm_names):
     return applied
 
 
-def apply_arm_rotation(armature, meshes, angle_setting, arm_names, world_vertices=None, vg_data=None):
+def apply_arm_rotation(armature, meshes, angle_setting, arm_names, world_vertices=None, vg_data=None,
+                       auto_enabled=True):
     """按参数旋转双臂；返回实际旋转角度"""
     arm_bone_names = [name for name in arm_names if name in armature.pose.bones]
     # 未找到腕骨骼，跳过手臂旋转。（后续统一整合提示）
@@ -1188,6 +1194,10 @@ def apply_arm_rotation(armature, meshes, angle_setting, arm_names, world_vertice
     if angle_setting == 'T_POSE':
         applied = apply_t_pose_arm_rotation(armature, arm_names)
         return applied or {name: 0 for name in arm_bone_names}
+
+    # 缺少小臂骨骼时无法做穿模检测，自动姿态退化为不旋转
+    if not auto_enabled:
+        return {name: 0 for name in arm_bone_names}
 
     if world_vertices is None:
         world_vertices = evaluate_world_vertices(meshes)
@@ -1391,7 +1401,7 @@ def get_layout_bounds(world_vertices, visible_masks, head_bounds, report, warnin
         height = max_z - min_z
         head_bounds = ((min_x + max_x) / 2, (min_x + max_x) / 2,
                        max_z - height * THREE_VIEW_HEAD_FALLBACK_RATIO, max_z)
-        warnings.append(translate("未找到「頭」顶点组，已按模型高度估算头部区域。"))
+        warnings.append(translate("未找到头部顶点组，已按模型高度估算头部区域。"))
 
     model_height = model_bounds[5] - model_bounds[4]
     head_height = head_bounds[3] - head_bounds[2]
@@ -1423,22 +1433,31 @@ def build_three_view_setup(props, report, ancestor):
         visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in mesh_objs}
 
     # 4. 获取顶点组数据与头部包围盒（名称取自面板的进阶参数）
-    arm_names = split_names(props.upper_arm_names)
-    forearm_names = split_names(props.forearm_names)
-    collision_names, excluded_names = collect_arm_bone_names(armature, arm_names, forearm_names)
+    #    warnings 收集过程中的警告，等执行结束再统一输出
+    warnings = []
+    upper_arm_bones = existing_bone_names(armature, split_names(props.upper_arm_names))
+    forearm_bones = existing_bone_names(armature, split_names(props.forearm_names))
+    if not upper_arm_bones:
+        warnings.append(translate("未找到大臂骨骼，已跳过手臂姿态。"))
+    elif not forearm_bones:
+        warnings.append(translate("未找到小臂骨骼，已跳过手臂自动姿态。"))
+    collision_names, excluded_names = collect_arm_bone_names(armature, upper_arm_bones, forearm_bones)
     head_names = split_names(props.head_vg_names)
     vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names, visible_masks)
     head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data))
 
-    # 5. 旋转手臂，然后重新评估顶点，得到最终包围盒
-    arm_angles = apply_arm_rotation(armature, mesh_objs, props.arm_angle, arm_names, world_vertices, vg_data) or {}
+    # 5. 旋转手臂，然后重新评估顶点，得到最终包围盒；没有大臂骨骼时整体跳过
+    if upper_arm_bones:
+        arm_angles = apply_arm_rotation(armature, mesh_objs, props.arm_angle, upper_arm_bones,
+                                        world_vertices, vg_data,
+                                        auto_enabled=bool(forearm_bones)) or {}
+    else:
+        arm_angles = {}
     bpy.context.view_layer.update()
     if any(angle > 0 for angle in arm_angles.values()):
         world_vertices = evaluate_world_vertices(mesh_objs)
 
-    # 5.1 统计完整/可见包围盒与头部包围盒，缺「頭」顶点组时按模型高度估算；
-    #     warnings 收集过程中产生的警告，等执行结束再统一输出
-    warnings = []
+    # 5.1 统计完整/可见包围盒与头部包围盒，缺头部顶点组时按模型高度估算
     bounds = get_layout_bounds(world_vertices, visible_masks, head_bounds, report, warnings)
     if bounds is None:
         return None
@@ -1604,9 +1623,9 @@ def preview_three_view(props, report, ancestor):
     bpy.context.scene.camera = setup['camera']
     if not bpy.app.background:
         switch_to_camera_view()
-    # 执行结束时统一输出警告，避免中途打断操作
-    for message in setup['warnings']:
-        report({'WARNING'}, message)
+    # 执行结束时统一输出警告（多条合并为一条），避免中途打断操作
+    if setup['warnings']:
+        report({'WARNING'}, "\n".join(setup['warnings']))
     return setup
 
 
@@ -1640,9 +1659,9 @@ def render_three_view(props, report, ancestor, output_filepath=None, cleanup=Fal
             scene.camera = original_camera
         else:
             scene.camera = setup['camera']
-        # 执行结束时统一输出警告，避免中途打断操作
-        for message in setup['warnings']:
-            report({'WARNING'}, message)
+        # 执行结束时统一输出警告（多条合并为一条），避免中途打断操作
+        if setup['warnings']:
+            report({'WARNING'}, "\n".join(setup['warnings']))
 
 def render(view_show):
     """
