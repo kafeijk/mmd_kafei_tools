@@ -87,6 +87,26 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         description="忽略完全透明的隐藏部位（如隐藏的尾巴、影子）参与布局与穿模判断",
         default=True,
     )
+    show_more_params: bpy.props.BoolProperty(
+        name="显示更多参数",
+        description="显示更多参数",
+        default=False,
+    )
+    upper_arm_names: bpy.props.StringProperty(
+        name="大臂",
+        description="大臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态",
+        default="腕.L, 腕.R",
+    )
+    forearm_names: bpy.props.StringProperty(
+        name="小臂",
+        description="小臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态时的穿模检测",
+        default="ひじ.L, ひじ.R",
+    )
+    head_vg_names: bpy.props.StringProperty(
+        name="头",
+        description="头部顶点组名称，多个用逗号分隔\n用于面部特写时头部的识别",
+        default="頭",
+    )
     rotation_euler_x: bpy.props.FloatProperty(
         name="旋转 X",
         description="欧拉旋转",

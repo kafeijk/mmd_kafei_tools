@@ -11,12 +11,8 @@ from ..batch_utils import BatchProcessOperatorMixin, BatchProcessRunner
 from ..constants import (
     ARM_ANGLE_LIMIT,
     ARM_ANGLE_STEP,
-    ARM_NAMES,
-    ARM_CHAIN_GROUP_NAMES,
     ARM_EXCLUDED_GROUP_NAMES,
     BATCH_TASK_RENDER_PREVIEW,
-    HAND_GROUP_NAMES,
-    HEAD_GROUP_NAMES,
     IMG_TYPE_EXT_MAP,
     MATERIAL_ALPHA_EPSILON,
     THREE_VIEW_CAMERA_CLIP_MARGIN,
@@ -929,15 +925,51 @@ def compact_faces(loops_vertex, loop_start, loop_total, face_mask):
     return {'verts': unique, 'faces': faces}
 
 
-def collect_vertex_vg_data(meshe_objs, visible_masks=None):
-    """一次遍历得到手部/身体/头部顶点掩码，供手臂角度与头部尺寸共用"""
-    hand_names = set(HAND_GROUP_NAMES)
-    hand_left = {name for name in HAND_GROUP_NAMES if name.endswith('.L')}
-    hand_right = {name for name in HAND_GROUP_NAMES if name.endswith('.R')}
-    excluded = set(ARM_CHAIN_GROUP_NAMES) | ARM_EXCLUDED_GROUP_NAMES
+def split_names(text):
+    """按中英文逗号拆分名称，去掉空白与空项"""
+    return [name.strip() for name in text.replace('，', ',').split(',') if name.strip()]
+
+
+def collect_arm_bone_names(armature, upper_arm_names, forearm_names):
+    """
+    按大臂、小臂骨骼收集顶点组名称
+
+    返回 (collision_names, excluded_names)：
+    - collision_names：小臂及其全部子孙骨骼，参与穿模检测
+    - excluded_names ：大臂及其全部子孙骨骼减去小臂子树，不计入“身体”，避免手臂穿模误判
+    """
+    collision = set()
+    upper_chain = set()
+    for name in forearm_names:
+        forearm = armature.data.bones.get(name)
+        if forearm is None:
+            continue
+        collision.add(forearm.name)
+        collision.update(child.name for child in forearm.children_recursive)
+    for name in upper_arm_names:
+        upper = armature.data.bones.get(name)
+        if upper is None:
+            continue
+        upper_chain.add(upper.name)
+        upper_chain.update(child.name for child in upper.children_recursive)
+    return collision, upper_chain - collision
+
+
+def collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names, visible_masks=None):
+    """
+    一次遍历得到穿模/身体/头部顶点掩码，供手臂角度与头部尺寸共用
+
+    collision_names：参与穿模检测的手臂顶点组（小臂及其子孙）
+    excluded_names ：不计入身体的手臂顶点组（大臂子树减去小臂子树）
+    head_names     ：头部顶点组，用于特写取景与穿模高度过滤
+    """
+    collision = set(collision_names)
+    collision_left = {name for name in collision if name.endswith('.L')}
+    collision_right = {name for name in collision if name.endswith('.R')}
+    excluded = set(excluded_names) | ARM_EXCLUDED_GROUP_NAMES
     data = {
-        obj: get_vertex_masks(obj, hand_left, hand_right, hand_names | excluded, HEAD_GROUP_NAMES)
-        for obj in meshe_objs
+        obj: get_vertex_masks(obj, collision_left, collision_right, collision | excluded, set(head_names))
+        for obj in mesh_objs
     }
     for obj, masks in data.items():
         visible = visible_masks.get(obj) if visible_masks else None
@@ -949,11 +981,8 @@ def collect_vertex_vg_data(meshe_objs, visible_masks=None):
     return data
 
 
-def build_arm_collision_data(mesh_objs, world, vg_data=None, need_body=True):
+def build_arm_collision_data(mesh_objs, world, vg_data, need_body=True):
     """按顶点组把网格拆分为左右手部、身体与头部，用于穿模检测"""
-    if vg_data is None:
-        vg_data = collect_vertex_vg_data(mesh_objs)
-
     # 头部顶部 Z：手部/身体的面若含高于此处的顶点则不计入，避免头发、头饰干扰穿模判断
     head_top = None
     for obj in mesh_objs:
@@ -1045,14 +1074,14 @@ def get_bone_world_direction(armature, bone_name):
     return direction if direction.length > 1e-6 else None
 
 
-def apply_t_pose_arm_rotation(armature):
+def apply_t_pose_arm_rotation(armature, arm_names):
     """
     把双臂绕世界 Y 轴旋转到水平，得到 T 字姿态
 
     直接看腕骨骼 head → tail 在 XZ 平面的投影与 X 轴的夹角，把它转成水平
     """
     applied = {}
-    for bone_name in ARM_NAMES:
+    for bone_name in arm_names:
         pose_bone = armature.pose.bones.get(bone_name)
         if pose_bone is None:
             continue
@@ -1118,16 +1147,16 @@ def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
     return last_good
 
 
-def apply_auto_arm_rotation(armature, items, body_bvhs):
+def apply_auto_arm_rotation(armature, items, body_bvhs, arm_names):
     """自动计算不穿模的最大内旋角度并旋转双臂"""
     # 旋转前的世界矩阵，作为每个骨骼的旋转支点与初始朝向
     base_world = {
-        name: armature.matrix_world @ armature.pose.bones[name].matrix for name in ARM_NAMES
+        name: armature.matrix_world @ armature.pose.bones[name].matrix for name in arm_names
         if name in armature.pose.bones
     }
 
     applied = {}
-    for side, bone_name in zip(('l', 'r'), ARM_NAMES):
+    for side, bone_name in zip(('l', 'r'), arm_names):
         if bone_name not in armature.pose.bones:
             continue
         # 内旋方向：head → tail 在 XZ 平面的投影与 +Z 轴夹角为正说明在 +X 侧（左臂），绕 Y 轴正转
@@ -1144,9 +1173,9 @@ def apply_auto_arm_rotation(armature, items, body_bvhs):
     return applied
 
 
-def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_data=None):
+def apply_arm_rotation(armature, meshes, angle_setting, arm_names, world_vertices=None, vg_data=None):
     """按参数旋转双臂；返回实际旋转角度"""
-    arm_bone_names = [name for name in ARM_NAMES if name in armature.pose.bones]
+    arm_bone_names = [name for name in arm_names if name in armature.pose.bones]
     # 未找到腕骨骼，跳过手臂旋转。（后续统一整合提示）
     if not arm_bone_names:
         return {}
@@ -1157,7 +1186,7 @@ def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_
 
     # 旋转手臂直至 T-pose
     if angle_setting == 'T_POSE':
-        applied = apply_t_pose_arm_rotation(armature)
+        applied = apply_t_pose_arm_rotation(armature, arm_names)
         return applied or {name: 0 for name in arm_bone_names}
 
     if world_vertices is None:
@@ -1166,7 +1195,7 @@ def apply_arm_rotation(armature, meshes, angle_setting, world_vertices=None, vg_
     # 旋转手臂 直至再旋转会使手臂与身体发生穿模
     items = build_arm_collision_data(meshes, world_vertices, vg_data, True)
     body_bvhs = build_item_bvhs(items, 'body', world_vertices)
-    return apply_auto_arm_rotation(armature, items, body_bvhs)
+    return apply_auto_arm_rotation(armature, items, body_bvhs, arm_names)
 
 
 def get_head_bounds(meshes, world, head_masks):
@@ -1393,12 +1422,16 @@ def build_three_view_setup(props, report, ancestor):
     else:
         visible_masks = {obj: np.ones(len(obj.data.vertices), dtype=bool) for obj in mesh_objs}
 
-    # 4. 获取顶点组数据与头部包围盒
-    vg_data = collect_vertex_vg_data(mesh_objs, visible_masks)
+    # 4. 获取顶点组数据与头部包围盒（名称取自面板的进阶参数）
+    arm_names = split_names(props.upper_arm_names)
+    forearm_names = split_names(props.forearm_names)
+    collision_names, excluded_names = collect_arm_bone_names(armature, arm_names, forearm_names)
+    head_names = split_names(props.head_vg_names)
+    vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names, visible_masks)
     head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data))
 
     # 5. 旋转手臂，然后重新评估顶点，得到最终包围盒
-    arm_angles = apply_arm_rotation(armature, mesh_objs, props.arm_angle, world_vertices, vg_data) or {}
+    arm_angles = apply_arm_rotation(armature, mesh_objs, props.arm_angle, arm_names, world_vertices, vg_data) or {}
     bpy.context.view_layer.update()
     if any(angle > 0 for angle in arm_angles.values()):
         world_vertices = evaluate_world_vertices(mesh_objs)
