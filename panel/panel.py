@@ -6,6 +6,7 @@ from ..operators.scene_settings_operators import LoadRenderPresetOperator
 from ..operators.render_preview_operators import RenderPreviewOperator
 from ..operators.render_preview_operators import GenThreeViewCameraOperator
 from ..operators.render_preview_operators import RenderThreeViewOperator
+from ..operators.render_preview_operators import FillThreeViewBoneNamesOperator
 from ..operators.small_feature_operators import (
     SceneRootOperator,
     RemoveMissingDataOperator,
@@ -1008,9 +1009,13 @@ class RenderThreeViewPanel(bpy.types.Panel):
         if props.show_more_params:
             box = col.box()
             box_col = box.column()
-            box_col.prop(props, "head_vg_names")
-            box_col.prop(props, "upper_arm_names")
-            box_col.prop(props, "forearm_names")
+            for attribute, target in (("head_vg_names", "HEAD"),
+                                      ("upper_arm_names", "UPPER"),
+                                      ("forearm_names", "FOREARM")):
+                row = box_col.row(align=True)
+                row.prop(props, attribute)
+                operator = row.operator(FillThreeViewBoneNamesOperator.bl_idname, text="", icon='BONE_DATA')
+                operator.target = target
             box_col.prop(props, "closeup_head_ratio")
             box_col.prop(props, "height_margin")
             box_col.prop(props, "width_margin")

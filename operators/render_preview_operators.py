@@ -97,6 +97,62 @@ class GenThreeViewCameraOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class FillThreeViewBoneNamesOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.fill_three_view_bone_names"
+    bl_label = "填入选中的骨骼名称"
+    bl_description = ("把选中的骨骼名称填入对应参数（支持物体模式、姿态模式和编辑模式）\n"
+                      "请按需选择需要获取的骨骼")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    target: bpy.props.EnumProperty(
+        items=[
+            ("HEAD", "头骨骼", "头部顶点组名称"),
+            ("UPPER", "大臂骨骼", "大臂骨骼名称"),
+            ("FOREARM", "小臂骨骼", "小臂骨骼名称"),
+        ],
+    )
+
+    def execute(self, context):
+        armature = context.active_object
+        # 只需为骨架即可，不限于 MMD 模型
+        if armature is None or armature.type != 'ARMATURE':
+            self.report({'ERROR'}, translate("请选择骨架！"))
+            return {'CANCELLED'}
+
+        # 根据骨架当前模式获取选中骨骼，避免选择状态未同步
+        if armature.mode == 'EDIT':
+            names = [bone.name for bone in armature.data.edit_bones if bone.select]
+        elif armature.mode == 'POSE':
+            if bpy.app.version >= (5, 0, 0):
+                names = [bone.name for bone in armature.pose.bones if bone.select]
+            else:
+                names = [bone.name for bone in armature.pose.bones if bone.bone.select]
+        else:
+            if bpy.app.version >= (5, 0, 0):
+                names = [bone.name for bone in armature.pose.bones if bone.select]
+            else:
+                names = [bone.name for bone in armature.data.bones if bone.select]
+
+        if not names:
+            self.report({'ERROR'}, translate("请选择骨骼！"))
+            return {'CANCELLED'}
+
+        # 左侧、右侧优先，再按名称排序，保证“左, 右”的阅读顺序
+        names.sort(key=lambda name: (
+            0 if name.endswith(".L") else
+            1 if name.endswith(".R") else
+            2,
+            name
+        ))
+
+        props = context.scene.mmd_kafei_tools_render_three_view
+        attribute = {"HEAD": "head_vg_names",
+                     "UPPER": "upper_arm_names",
+                     "FOREARM": "forearm_names"}[self.target]
+        setattr(props, attribute, ", ".join(names))
+        return {'FINISHED'}
+
+
 class RenderPreviewBatchRunner(BatchProcessRunner):
     """批量渲染执行器：按图片格式扫描模型并逐个渲染预览图"""
 
