@@ -16,6 +16,7 @@ from ..constants import (
     BATCH_TASK_RENDER_THREE_VIEW,
     IMG_TYPE_EXT_MAP,
     MATERIAL_ALPHA_EPSILON,
+    PREVIEW_BOUNDS_PROXY_NAME,
     THREE_VIEW_CAMERA_CLIP_MARGIN,
     THREE_VIEW_CAMERA_DISTANCE_MARGIN,
     THREE_VIEW_CAMERA_NAME,
@@ -364,7 +365,96 @@ def camera_to_view_selected(props, camera=None):
     reset_three_view()
     do_camera_to_view_selected(props.type,
                                props.rotation_euler_x, props.rotation_euler_y, props.rotation_euler_z,
-                               props.scale, camera)
+                               props.scale, camera,
+                               visible_only=props.visible_only)
+
+
+# 循环拓扑缓存：顶点/多边形/循环数量不变时复用，避免每次取景都重读大网格的拓扑
+_MESH_LOOPS_CACHE = {}
+
+
+def get_cached_mesh_loops(mesh):
+    """取网格的循环拓扑数据；拓扑（数量）不变时使用缓存"""
+    key = (mesh.as_pointer(), len(mesh.vertices), len(mesh.polygons), len(mesh.loops))
+    loops = _MESH_LOOPS_CACHE.get(key)
+    if loops is None:
+        if len(_MESH_LOOPS_CACHE) > 32:
+            _MESH_LOOPS_CACHE.clear()
+        loops = get_mesh_loops(mesh)
+        _MESH_LOOPS_CACHE[key] = loops
+    return loops
+
+
+def get_visible_bounds(meshes):
+    """
+    可见几何的世界包围盒 (min_x, max_x, min_y, max_y, min_z, max_z)；没有可见几何时返回 None
+
+    只统计“至少属于一个可见面”的顶点，完全透明材质（隐藏的尾巴、耳朵）覆盖的顶点不参与。
+    """
+    # 先只看材质：整块材质都不可见的网格直接跳过，全部可见的网格不必再算顶点掩码
+    targets = []
+    for obj in meshes:
+        flags = [is_material_visible(slot.material) for slot in obj.material_slots]
+        if flags and not any(flags):
+            continue
+        targets.append((obj, not all(flags)))
+
+    world_vertices = evaluate_world_vertices([obj for obj, _ in targets])
+    arrays = []
+    for obj, need_mask in targets:
+        vertices = world_vertices.get(obj)
+        if vertices is None or not len(vertices):
+            continue
+        if need_mask:
+            mask = get_visible_vertex_mask(obj)
+            # 修改器改变了顶点数（如焊接等生成类修改器）时掩码长度对不上，按全部可见处理
+            if len(mask) == len(vertices):
+                vertices = vertices[mask]
+        if len(vertices):
+            arrays.append(vertices)
+    if not arrays:
+        return None
+    points = np.concatenate(arrays)
+    return (float(points[:, 0].min()), float(points[:, 0].max()),
+            float(points[:, 1].min()), float(points[:, 1].max()),
+            float(points[:, 2].min()), float(points[:, 2].max()))
+
+
+def create_visible_bounds_proxies(ancestors):
+    """
+    为每个模型创建一个只含“可见包围盒 8 个角点”的临时网格，作为取景对象
+
+    临时网格挂在模型 root 下（跟随 root 一起移动），取景结束后由 remove_visible_bounds_proxies 立即删除。
+    """
+    collection = bpy.context.scene.collection
+    proxies = []
+    for ancestor in ancestors:
+        bounds = get_visible_bounds(get_renderable_meshes(ancestor))
+        if bounds is None:
+            continue
+        min_x, max_x, min_y, max_y, min_z, max_z = bounds
+        # 角点先按世界坐标给出，再换算到 root 的局部空间：
+        # 这样 root 被临时移到原点取景时，角点会跟着一起走
+        to_local = ancestor.matrix_world.inverted()
+        corners = [to_local @ mathutils.Vector((x, y, z))
+                   for x in (min_x, max_x) for y in (min_y, max_y) for z in (min_z, max_z)]
+        mesh = bpy.data.meshes.new(PREVIEW_BOUNDS_PROXY_NAME)
+        mesh.from_pydata([tuple(corner) for corner in corners], [], [])
+        mesh.update()
+        proxy = bpy.data.objects.new(PREVIEW_BOUNDS_PROXY_NAME, mesh)
+        collection.objects.link(proxy)
+        # 挂到 root 下，root 移动时包围盒同步跟随
+        proxy.parent = ancestor
+        proxies.append(proxy)
+    return proxies
+
+
+def remove_visible_bounds_proxies(proxies):
+    """删除取景用的临时包围盒网格"""
+    for proxy in proxies:
+        mesh = proxy.data
+        bpy.data.objects.remove(proxy, do_unlink=True)
+        bpy.data.meshes.remove(mesh)
 
 
 def switch_to_camera_view():
@@ -379,7 +469,7 @@ def switch_to_camera_view():
 
 def do_camera_to_view_selected(camera_type,
                                rotation_euler_x, rotation_euler_y, rotation_euler_z,
-                               scale, camera=None):
+                               scale, camera=None, visible_only=False):
     if not camera:
         camera = gen_preview_camera(camera_type)
 
@@ -395,99 +485,113 @@ def do_camera_to_view_selected(camera_type,
         ancestors.add(ancestor)
     for ancestor in ancestors:
         children.update(find_children(ancestor))
-    for child in children:
-        select_and_activate(child)
 
-    # 仅单个角色且Y轴旋转为0时才能对齐；多角色或Y轴有值时无法对齐，直接由 camera_to_view_selected 取景
-    # 开启自动参数后会存在一定误差，所以用 1e-3 而不是 1e-6
-    align = len(ancestors) == 1 and abs(rotation_euler_y) < 1e-3
+    # 仅可见网格：取景对象换成“可见几何的包围盒”，完全透明的部位（隐藏的尾巴、耳朵）不再参与取景
+    proxies = create_visible_bounds_proxies(ancestors) if visible_only else []
+    try:
+        # 有临时包围盒时只用包围盒（8 个角点）取景，否则沿用模型本身的包围盒
+        # 用包围盒时必须先清空选择，否则原模型仍被选中，它的包围盒会一起参与取景，等于没排除不可见部位
+        if proxies:
+            deselect_all_objects()
+            for proxy in proxies:
+                select_and_activate(proxy)
+        else:
+            for child in children:
+                select_and_activate(child)
 
-    # 随便选择一个ancestor
-    ancestor = next(iter(ancestors))
-    if align:
-        # 获取 ancestor 的坐标
-        ancestor_location = ancestor.location.copy()
-        # 将 ancestor 移动到 (0, 0, 0) 原点位置
-        ancestor.location = mathutils.Vector((0, 0, 0))
-        # 计算坐标差值
-        delta = ancestor_location - mathutils.Vector((0, 0, 0))
+        # 仅单个角色且Y轴旋转为0时才能对齐；多角色或Y轴有值时无法对齐，直接由 camera_to_view_selected 取景
+        # 开启自动参数后会存在一定误差，所以用 1e-3 而不是 1e-6
+        align = len(ancestors) == 1 and abs(rotation_euler_y) < 1e-3
 
-    # 修改相机参数
-    camera.rotation_mode = 'XYZ'
+        # 随便选择一个ancestor
+        ancestor = next(iter(ancestors))
+        if align:
+            # 获取 ancestor 的坐标
+            ancestor_location = ancestor.location.copy()
+            # 将 ancestor 移动到 (0, 0, 0) 原点位置
+            ancestor.location = mathutils.Vector((0, 0, 0))
+            # 计算坐标差值
+            delta = ancestor_location - mathutils.Vector((0, 0, 0))
 
-    camera.rotation_euler[0] = rotation_euler_x
-    camera.rotation_euler[1] = rotation_euler_y
-    camera.rotation_euler[2] = rotation_euler_z
+        # 修改相机参数
+        camera.rotation_mode = 'XYZ'
 
-    if abs(camera.data.passepartout_alpha - 0.5) < 0.0001:
-        camera.data.passepartout_alpha = 1
+        camera.rotation_euler[0] = rotation_euler_x
+        camera.rotation_euler[1] = rotation_euler_y
+        camera.rotation_euler[2] = rotation_euler_z
 
-    if camera_type == "PERSPECTIVE":
-        camera.data.type = 'PERSP'
-    elif camera_type == "ORTHOGRAPHIC":
-        camera.data.type = 'ORTHO'
-    else:
-        pass
-    # 激活该相机
-    bpy.context.scene.camera = camera
+        if abs(camera.data.passepartout_alpha - 0.5) < 0.0001:
+            camera.data.passepartout_alpha = 1
 
-    if align:
-        constraint = camera.constraints.new(type='LIMIT_LOCATION')
-        # 设置局部X轴的最小值和最大值
-        constraint.use_min_x = True
-        constraint.use_max_x = True
-        constraint.min_x = 0.0
-        constraint.max_x = 0.0
-        # 设置约束为局部空间
-        constraint.owner_space = 'LOCAL'
-        # 将这个约束放到首位
-        camera.constraints.move(len(camera.constraints) - 1, 0)
+        if camera_type == "PERSPECTIVE":
+            camera.data.type = 'PERSP'
+        elif camera_type == "ORTHOGRAPHIC":
+            camera.data.type = 'ORTHO'
+        else:
+            pass
+        # 激活该相机
+        bpy.context.scene.camera = camera
 
-    # 对准选中物体
-    with bpy.context.temp_override(**view3d_context()):
-        bpy.ops.view3d.camera_to_view_selected()
-        if camera_type == "ORTHOGRAPHIC":
-            for _ in range(10):
-                bpy.ops.view3d.camera_to_view_selected()  # 正交需多执行n次
-        switch_to_camera_view()
+        if align:
+            constraint = camera.constraints.new(type='LIMIT_LOCATION')
+            # 设置局部X轴的最小值和最大值
+            constraint.use_min_x = True
+            constraint.use_max_x = True
+            constraint.min_x = 0.0
+            constraint.max_x = 0.0
+            # 设置约束为局部空间
+            constraint.owner_space = 'LOCAL'
+            # 将这个约束放到首位
+            camera.constraints.move(len(camera.constraints) - 1, 0)
 
-    if align:
-        # 这里要选中后才能应用
-        # 如果存在约束，用户调整相机角度时会受到限制拖拽不动，所以这里应用掉
-        select_and_activate(camera)
-        constraint = camera.constraints[0]
-        bpy.ops.constraint.apply(constraint=constraint.name, owner='OBJECT')
+        # 对准选中物体
+        with bpy.context.temp_override(**view3d_context()):
+            bpy.ops.view3d.camera_to_view_selected()
+            if camera_type == "ORTHOGRAPHIC":
+                for _ in range(10):
+                    bpy.ops.view3d.camera_to_view_selected()  # 正交需多执行n次
+            switch_to_camera_view()
 
-        # 将 ancestor 移动回原来的位置
-        ancestor.location = ancestor_location
-        camera.location += delta
+        if align:
+            # 这里要选中后才能应用
+            # 如果存在约束，用户调整相机角度时会受到限制拖拽不动，所以这里应用掉
+            select_and_activate(camera)
+            constraint = camera.constraints[0]
+            bpy.ops.constraint.apply(constraint=constraint.name, owner='OBJECT')
 
-    # 调整边距
-    if camera_type == "PERSPECTIVE":
-        # 这里实际上修改的是视野（FOV），而非“焦距”
-        #
-        # 视野角取决于 sensor_fit：默认的 AUTO 取渲染画幅较长的一边，即 angle_x 与 angle_y 中较大的那个。
-        # 预览分辨率默认 1080P（1920×1080，横版），所以 camera.data.angle 是左右方向的水平视角；
-        # 若分辨率为竖版（如交换 XY），较长边变为高度，angle 则转为上下方向的垂直视角。
-        #
-        # 问：根据当前视野角下角色在画幅中的位置，使其长宽变为原来的1/n，求新视野角。
-        # 推导：设视野角为 θ，距离 d 处画面的半宽（或半高）为 h = d·tan(θ/2)。
-        # 物体半宽为 r 时占画面比例 r / (d·tan(θ/2))，要让占比变成 1/n，只需让 tan(θ/2) 变成 n·tan(θ/2)：
-        #   tan(θ'/2) = n·tan(θ/2)
-        #   θ' = 2·atan(n·tan(θ/2))
-        #
-        # 之所以改视野而不用相机后退：改视野是以光心为中心的等比缩放，画面每个点的投影距离都按 1/n 缩小，
-        # 与物体离相机的远近无关，横竖两方向同步缩放且画幅比例不变；
-        # 而相机后退会让不同深度的物体缩放比例不一致，透视关系发生变化。
-        camera.data.angle = 2 * math.atan(math.tan(camera.data.angle / 2) * scale)
-    elif camera_type == "ORTHOGRAPHIC":
-        # ortho_scale 本身就是可见尺寸（较长边），线性缩放即精确，无需 tan 换算
-        camera.data.ortho_scale = camera.data.ortho_scale * scale
-    else:
-        pass
+            # 将 ancestor 移动回原来的位置
+            ancestor.location = ancestor_location
+            camera.location += delta
 
-    # 恢复默认选中
-    restore_selection(objs, active_object)
+        # 调整边距
+        if camera_type == "PERSPECTIVE":
+            # 这里实际上修改的是视野（FOV），而非“焦距”
+            #
+            # 视野角取决于 sensor_fit：默认的 AUTO 取渲染画幅较长的一边，即 angle_x 与 angle_y 中较大的那个。
+            # 预览分辨率默认 1080P（1920×1080，横版），所以 camera.data.angle 是左右方向的水平视角；
+            # 若分辨率为竖版（如交换 XY），较长边变为高度，angle 则转为上下方向的垂直视角。
+            #
+            # 问：根据当前视野角下角色在画幅中的位置，使其长宽变为原来的1/n，求新视野角。
+            # 推导：设视野角为 θ，距离 d 处画面的半宽（或半高）为 h = d·tan(θ/2)。
+            # 物体半宽为 r 时占画面比例 r / (d·tan(θ/2))，要让占比变成 1/n，只需让 tan(θ/2) 变成 n·tan(θ/2)：
+            #   tan(θ'/2) = n·tan(θ/2)
+            #   θ' = 2·atan(n·tan(θ/2))
+            #
+            # 之所以改视野而不用相机后退：改视野是以光心为中心的等比缩放，画面每个点的投影距离都按 1/n 缩小，
+            # 与物体离相机的远近无关，横竖两方向同步缩放且画幅比例不变；
+            # 而相机后退会让不同深度的物体缩放比例不一致，透视关系发生变化。
+            camera.data.angle = 2 * math.atan(math.tan(camera.data.angle / 2) * scale)
+        elif camera_type == "ORTHOGRAPHIC":
+            # ortho_scale 本身就是可见尺寸（较长边），线性缩放即精确，无需 tan 换算
+            camera.data.ortho_scale = camera.data.ortho_scale * scale
+        else:
+            pass
+
+        # 恢复默认选中
+        restore_selection(objs, active_object)
+    finally:
+        # 临时包围盒用完即删；放在 finally 里，异常时也不会残留在场景中
+        remove_visible_bounds_proxies(proxies)
 
 
 def gen_preview_camera(camera_type):
@@ -828,14 +932,13 @@ def get_visible_vertex_mask(obj):
 
     # 顶点不可见只能通过“它所属的面全部不可见”判定：
     # loop 是面的拐角，loops_vertex 记录每个 loop 指向的顶点索引
-    loops_vertex = get_loop_vertices(mesh)
-    loop_total = np.empty(len(mesh.polygons), dtype=np.int32)
-    mesh.polygons.foreach_get('loop_total', loop_total)
-    # 把每个多边形重复其 loop 数，得到“第 i 个 loop 属于哪个面”的映射
-    face_of_loop = np.repeat(np.arange(len(mesh.polygons)), loop_total)
+    # 拓扑（顶点/面/loop 数量）不变时复用缓存，避免每次取景都重读大网格的 loop 数据
+    loops_vertex, _, loop_total = get_cached_mesh_loops(mesh)
+    # 把每个面的“是否可见”按 loop 数展开成“第 i 个 loop 所在面是否可见”
+    loop_visible = np.repeat(face_visible, loop_total)
     # 取可见面覆盖的全部 loop 指向的顶点，一次性标记为可见
     visible = np.zeros(count, dtype=bool)
-    visible[loops_vertex[face_visible[face_of_loop]]] = True
+    visible[loops_vertex[loop_visible]] = True
     return visible
 
 
