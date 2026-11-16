@@ -1209,8 +1209,12 @@ def split_names(text):
 
 
 def existing_bone_names(armature, names):
-    """过滤出骨架中实际存在的骨骼名称"""
-    return [name for name in names if name in armature.data.bones]
+    """过滤出骨架中实际存在的骨骼名称；保持填写顺序并去重，避免同一骨骼被重复旋转"""
+    result = []
+    for name in names:
+        if name in armature.data.bones and name not in result:
+            result.append(name)
+    return result
 
 
 def collect_arm_bone_names(armature, upper_arm_names, forearm_names):
