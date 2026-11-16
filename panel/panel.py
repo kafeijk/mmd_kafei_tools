@@ -957,13 +957,13 @@ class RenderPreviewPanel(bpy.types.Panel):
 
         col.prop(props, "type")
         col.prop(props, "scale")
-        col.prop(props, "visible_only")
 
         rotation_col = col.column(align=True)
         rotation_col.prop(props, "rotation_euler_x")
         rotation_col.prop(props, "rotation_euler_y")
         rotation_col.prop(props, "rotation_euler_z")
 
+        col.prop(props, "visible_only")
         col.prop(props, "auto_follow")
 
         show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
