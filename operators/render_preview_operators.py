@@ -1526,6 +1526,10 @@ def compute_auto_arm_angle(armature, bone_name, items, side, sign, body_bvhs):
 
     返回 0 表示任何角度都会穿模（或没有可检测的手部几何）。
     """
+    # 没有手部几何时无法判断穿模，保持静置
+    if not any(item[f'hand_{side}']['faces'] for item in items):
+        return 0
+
     pose_bone = armature.pose.bones[bone_name]
     base_matrix = pose_bone.matrix_basis.copy()
     base_world = armature.matrix_world @ pose_bone.matrix
@@ -1918,6 +1922,15 @@ def build_three_view_setup(props, report, ancestor):
     vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names,
                                      visible_masks, collision_chains)
     head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data), head_names)
+
+    # 4.1 自动姿态依赖穿模检测用的顶点组（小臂及其子孙）；某侧没有这些顶点组时该侧保持静置，并提示原因
+    if props.arm_angle == 'AUTO' and forearm_bones:
+        collision_sides = {side: any(masks[side].any() for masks in vg_data.values())
+                           for side in ('l', 'r')}
+        for bone_name in upper_arm_bones:
+            side = get_bone_side(bone_name, get_bone_world_direction(armature, bone_name))
+            if not collision_sides[side]:
+                warnings.append(translate("未找到“{}”的手部顶点组，已保持静置。").format(bone_name))
 
     # 5. 旋转手臂，然后重新评估顶点，得到最终包围盒；没有大臂骨骼时整体跳过
     if upper_arm_bones:

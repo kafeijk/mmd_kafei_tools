@@ -578,6 +578,7 @@ translation_dict = {
         ("*", "未找到头部顶点组，已按模型高度估算头部区域。"): "Head vertex group not found. The head area is estimated from the model height.",
         ("*", "未找到大臂骨骼，已跳过手臂姿态调整。"): "Upper arm bones not found. Arm pose skipped.",
         ("*", "未找到小臂骨骼，已跳过手臂姿态自动调整。"): "Forearm bones not found. Automatic arm pose skipped.",
+        ("*", "未找到“{}”的手部顶点组，已保持静置。"): "Hand vertex groups for \"{}\" were not found. The arm is kept at rest.",
         ("*", "未找到骨架，已跳过手臂旋转。"): "Armature not found. Arm rotation skipped.",
         ("*", "欧拉旋转"): "Rotation in Eulers",
         ("*", "相机旋转值跟随活动相机视角"): "Camera rotation values follow the active camera's view",
