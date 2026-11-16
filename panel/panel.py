@@ -959,12 +959,14 @@ class RenderPreviewPanel(bpy.types.Panel):
         if three_view:
             col.prop(props, "closeup_scale")
             col.prop(props, "arm_angle")
+            col.prop(props, "visible_only")
             col.prop(props, "show_more_params")
             if props.show_more_params:
-                col.prop(props, "visible_only")
-                col.prop(props, "upper_arm_names")
-                col.prop(props, "forearm_names")
-                col.prop(props, "head_vg_names")
+                box = col.box()
+                box_col = box.column()
+                box_col.prop(props, "upper_arm_names")
+                box_col.prop(props, "forearm_names")
+                box_col.prop(props, "head_vg_names")
         else:
             col.prop(props, "scale")
 

@@ -84,7 +84,7 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     )
     visible_only: bpy.props.BoolProperty(
         name="仅可见网格",
-        description="忽略完全透明的隐藏部位（如隐藏的尾巴、影子）参与布局与穿模判断",
+        description="忽略完全透明的隐藏部位（如隐藏的尾巴、耳朵）参与布局与穿模判断",
         default=True,
     )
     show_more_params: bpy.props.BoolProperty(
