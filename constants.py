@@ -537,8 +537,8 @@ morph_suffix_map.update({
 # -------------------------------------------------------------
 # 临时集合名称与临时对象标记（写入对象自定义属性）
 THREE_VIEW_COLLECTION_NAME = "三视图临时集合"
-THREE_VIEW_TEMP_FLAG = "kafei_three_view_temp"
-THREE_VIEW_TEMP_SOURCE = "kafei_three_view_source_root"
+THREE_VIEW_TEMP_FLAG = "three_view_temp"
+THREE_VIEW_TEMP_SOURCE = "three_view_source_root"
 THREE_VIEW_CLIP_CUBE_NAME = "CLIP_CUBE"
 THREE_VIEW_CLIP_MODIFIER_NAME = "CLIP"
 THREE_VIEW_CAMERA_NAME = "THREE_VIEW_CAMERA"
