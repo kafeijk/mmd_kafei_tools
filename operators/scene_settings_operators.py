@@ -989,6 +989,12 @@ class LoadRenderPresetOperator(bpy.types.Operator):
     bl_description = "加载渲染预设"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
+    three_view: bpy.props.BoolProperty(
+        name="三视图",
+        description="按三视图的横向 2K 分辨率加载预设",
+        default=False,
+    )
+
     def execute(self, context):
         self.main(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
@@ -1008,11 +1014,8 @@ class LoadRenderPresetOperator(bpy.types.Operator):
         bpy.context.scene.render.film_transparent = True
 
         # 输出属性
-        # 分辨率：正交三视图需要横向 2K，其余保持竖版
-        preview_props = bpy.context.scene.mmd_kafei_tools_render_preview
-        three_view = (preview_props.type == 'ORTHOGRAPHIC'
-                      and preview_props.view == 'THREE_VIEW')
-        width, height = RESOLUTION_PRESETS["2K"][1:] if three_view else (1440, 1920)
+        # 分辨率：三视图需要横向 2K，其余保持竖版
+        width, height = RESOLUTION_PRESETS["2K"][1:] if self.three_view else (1440, 1920)
         bpy.context.scene.render.resolution_x = width
         bpy.context.scene.render.resolution_y = height
         # 帧率

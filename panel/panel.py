@@ -4,6 +4,8 @@ from ..operators.small_feature_operators import ModifyColorspaceOperator
 from ..operators.render_preview_operators import GenPreviewCameraOperator
 from ..operators.scene_settings_operators import LoadRenderPresetOperator
 from ..operators.render_preview_operators import RenderPreviewOperator
+from ..operators.render_preview_operators import GenThreeViewCameraOperator
+from ..operators.render_preview_operators import RenderThreeViewOperator
 from ..operators.small_feature_operators import (
     SceneRootOperator,
     RemoveMissingDataOperator,
@@ -41,6 +43,7 @@ from ..operators.bone_operators import SelectLessBoneOperator
 from ..operators.fill_suffix_operators import FillSuffixPrePostProcessingOperator
 from ..operators.fill_suffix_operators import FillSuffixSsbOperator
 from ..operators.fill_suffix_operators import FillSuffixRenderPreviewOperator
+from ..operators.fill_suffix_operators import FillSuffixRenderThreeViewOperator
 from ..operators.scene_settings_operators import RenderSettingsOperator
 from ..operators.scene_settings_operators import WorldSettingsOperator
 from ..operators.scene_settings_operators import SwapResolutionOperator
@@ -56,6 +59,7 @@ from ..operators.quick_operation_operators import DetectOverlappingFacesOperator
 from ..operators.quick_operation_operators import CleanSceneOperator
 from ..batch_utils import get_batch_progress
 from ..constants import BATCH_TASK_PRE_POST_PROCESSING, BATCH_TASK_RENDER_PREVIEW
+from ..constants import BATCH_TASK_RENDER_THREE_VIEW
 from ..utils import find_pmx_root_with_child, is_mmd_tools_enabled
 import addon_utils
 import bpy
@@ -952,30 +956,14 @@ class RenderPreviewPanel(bpy.types.Panel):
         col = layout.column()
 
         col.prop(props, "type")
-        three_view = props.type == 'ORTHOGRAPHIC' and props.view == 'THREE_VIEW'
-        if props.type == 'ORTHOGRAPHIC':
-            col.prop(props, "view")
+        col.prop(props, "scale")
 
-        if three_view:
-            col.prop(props, "closeup_scale")
-            col.prop(props, "arm_angle")
-            col.prop(props, "visible_only")
-            col.prop(props, "show_more_params")
-            if props.show_more_params:
-                box = col.box()
-                box_col = box.column()
-                box_col.prop(props, "head_vg_names")
-                box_col.prop(props, "upper_arm_names")
-                box_col.prop(props, "forearm_names")
-        else:
-            col.prop(props, "scale")
+        rotation_col = col.column(align=True)
+        rotation_col.prop(props, "rotation_euler_x")
+        rotation_col.prop(props, "rotation_euler_y")
+        rotation_col.prop(props, "rotation_euler_z")
 
-            rotation_col = col.column(align=True)
-            rotation_col.prop(props, "rotation_euler_x")
-            rotation_col.prop(props, "rotation_euler_y")
-            rotation_col.prop(props, "rotation_euler_z")
-
-            col.prop(props, "auto_follow")
+        col.prop(props, "auto_follow")
 
         batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderPreviewOperator)
 
@@ -992,6 +980,55 @@ class RenderPreviewPanel(bpy.types.Panel):
         else:
             render_row.operator(RenderPreviewOperator.bl_idname, text=RenderPreviewOperator.bl_label)
         draw_batch_progress(col, BATCH_TASK_RENDER_PREVIEW)
+
+
+class RenderThreeViewPanel(bpy.types.Panel):
+    bl_idname = "KAFEI_PT_render_three_view"
+    bl_label = "渲染三视图"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = "KAFEI_PT_batch_processing"
+    bl_order = 3
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        scene = context.scene
+        props = scene.mmd_kafei_tools_render_three_view
+        batch = props.batch
+
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+        col = layout.column()
+
+        col.prop(props, "closeup_scale")
+        col.prop(props, "arm_angle")
+        col.prop(props, "visible_only")
+        col.prop(props, "show_more_params")
+        if props.show_more_params:
+            box = col.box()
+            box_col = box.column()
+            box_col.prop(props, "head_vg_names")
+            box_col.prop(props, "upper_arm_names")
+            box_col.prop(props, "forearm_names")
+
+        batch_ui = show_batch_props(col, True, True, batch, FillSuffixRenderThreeViewOperator)
+
+        if batch_ui:
+            batch_ui.prop(props, "force_center")
+
+        col = col.column(align=True)
+        load_render_preset_row = col.row(align=True)
+        operator = load_render_preset_row.operator(
+            LoadRenderPresetOperator.bl_idname, text=LoadRenderPresetOperator.bl_label)
+        operator.three_view = True
+        render_row = col.row(align=True)
+        render_row.operator(GenThreeViewCameraOperator.bl_idname, text=GenThreeViewCameraOperator.bl_label)
+        if batch.flag:
+            render_row.operator(RenderThreeViewOperator.bl_idname, text="批量渲染")
+        else:
+            render_row.operator(RenderThreeViewOperator.bl_idname, text=RenderThreeViewOperator.bl_label)
+        draw_batch_progress(col, BATCH_TASK_RENDER_THREE_VIEW)
 
 
 class AboutPanel(bpy.types.Panel):

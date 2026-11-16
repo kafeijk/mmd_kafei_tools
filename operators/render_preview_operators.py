@@ -13,6 +13,7 @@ from ..constants import (
     ARM_ANGLE_STEP,
     ARM_EXCLUDED_GROUP_NAMES,
     BATCH_TASK_RENDER_PREVIEW,
+    BATCH_TASK_RENDER_THREE_VIEW,
     IMG_TYPE_EXT_MAP,
     MATERIAL_ALPHA_EPSILON,
     THREE_VIEW_CAMERA_CLIP_MARGIN,
@@ -61,15 +62,6 @@ class GenPreviewCameraOperator(bpy.types.Operator):
 
     def execute(self, context):
         props = context.scene.mmd_kafei_tools_render_preview
-        if is_three_view(props):
-            ancestor = self.check_three_view_props(props)
-            # 校验失败直接返回
-            if ancestor is None:
-                return {'CANCELLED'}
-            if not preview_three_view(props, self.report, ancestor):
-                return {'CANCELLED'}
-            return {'FINISHED'}
-
         if not self.check_props():
             return {'CANCELLED'}
 
@@ -81,15 +73,28 @@ class GenPreviewCameraOperator(bpy.types.Operator):
         camera_to_view_selected(props)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def check_three_view_props(self, props):
-        return check_three_view_props(props, self.report)
-
     def check_props(self):
         objs = bpy.context.selected_objects
         if len(objs) == 0:
             self.report(type={'ERROR'}, message=f'Select at least one object!')
             return False
         return True
+
+
+class GenThreeViewCameraOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.gen_three_view_camera"
+    bl_label = "预览"
+    bl_description = "根据当前设置的参数生成三视图预览相机并切换到摄像机视角，重复点击时会更新预览相机参数"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        props = context.scene.mmd_kafei_tools_render_three_view
+        ancestor = check_three_view_props(self.report)
+        if ancestor is None:
+            return {'CANCELLED'}
+        if not preview_three_view(props, self.report, ancestor):
+            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 class RenderPreviewBatchRunner(BatchProcessRunner):
@@ -121,12 +126,6 @@ class RenderPreviewBatchRunner(BatchProcessRunner):
         hide_object(pmx_armature)
         select_and_activate(pmx_root)
 
-        if is_three_view(self.props):
-            if not render_three_view(self.props, self.report, pmx_root,
-                                     output_filepath=new_filepath, cleanup=True):
-                raise RuntimeError(translate("三视图渲染失败"))
-            return
-
         reset_three_view()
         camera_to_view_selected(self.props)
 
@@ -142,6 +141,40 @@ class RenderPreviewBatchRunner(BatchProcessRunner):
             render(False)
         finally:
             bpy.context.scene.render.filepath = original_output_path
+
+
+class RenderThreeViewBatchRunner(BatchProcessRunner):
+    """批量渲染执行器：按图片格式扫描模型并逐个渲染三视图"""
+
+    def search_files(self):
+        output_format = bpy.context.scene.render.image_settings.file_format
+        batch = self.props.batch
+        return recursive_search_img(
+            self.abs_path,
+            batch.suffix,
+            batch.threshold,
+            batch.search_strategy,
+            batch.conflict_strategy,
+            IMG_TYPE_EXT_MAP[output_format],
+            stats=self.search_stats,
+        )
+
+    def process_file(self, filepath):
+        output_format = bpy.context.scene.render.image_settings.file_format
+        new_filepath = os.path.splitext(filepath)[0] + self.suffix + IMG_TYPE_EXT_MAP[output_format]
+        import_pmx(filepath)
+        pmx_root = bpy.context.active_object
+        pmx_armature = find_pmx_armature(pmx_root)
+        convert_materials(pmx_armature, self.props.force_center)
+
+        # 相机对准角色
+        show_object(pmx_root)
+        hide_object(pmx_armature)
+        select_and_activate(pmx_root)
+
+        if not render_three_view(self.props, self.report, pmx_root,
+                                 output_filepath=new_filepath, cleanup=True):
+            raise RuntimeError(translate("三视图渲染失败"))
 
 
 class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
@@ -163,13 +196,6 @@ class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
         return {'FINISHED'}
 
     def render_single(self, props):
-        if is_three_view(props):
-            ancestor = check_three_view_props(props, self.report)
-            if ancestor is None:
-                # 模型可能已被删除，清理残留的临时对象并恢复状态
-                reset_three_view()
-                return False
-            return render_three_view(props, self.report, ancestor)
         # 选中的是上一轮三视图副本时，先换回原模型，否则副本被删后取景没有对象
         reselect_temp_sources()
         reset_three_view()
@@ -191,10 +217,39 @@ class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
                 return False
         else:
             objs = bpy.context.selected_objects
-            if len(objs) == 0 and not is_three_view(props):
+            if len(objs) == 0:
                 self.report(type={'ERROR'}, message=f'Select at least one object!')
                 return False
         return True
+
+
+class RenderThreeViewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.render_three_view"
+    bl_label = "渲染"
+    bl_description = "渲染三视图\n勾选批量参数后，按钮将切换为批量渲染模式"
+    bl_options = {'REGISTER', 'UNDO'}
+    batch_task = BATCH_TASK_RENDER_THREE_VIEW
+    batch_runner_class = RenderThreeViewBatchRunner
+
+    def execute(self, context):
+        props = context.scene.mmd_kafei_tools_render_three_view
+        if props.batch.flag:
+            if not check_batch_props(self, props.batch):
+                return {'CANCELLED'}
+            output_format = bpy.context.scene.render.image_settings.file_format
+            if output_format not in IMG_TYPE_EXT_MAP.keys():
+                self.report(type={'ERROR'}, message=f'Unsupported output format! Use image format instead.')
+                return {'CANCELLED'}
+            return self.start_batch_process(context, props, None)
+
+        ancestor = check_three_view_props(self.report)
+        if ancestor is None:
+            # 模型可能已被删除，清理残留的临时对象并恢复状态
+            reset_three_view()
+            return {'CANCELLED'}
+        if not render_three_view(props, self.report, ancestor):
+            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 def convert_materials(pmx_armature, force_center):
@@ -469,10 +524,6 @@ def gen_preview_camera(camera_type):
     return camera
 
 
-def is_three_view(props):
-    return props.type == 'ORTHOGRAPHIC' and props.view == 'THREE_VIEW'
-
-
 def get_renderable_meshes(ancestor):
     """模型祖先下参与渲染的网格对象（排除隐藏与 mmd 刚体）"""
     objects = [ancestor] if ancestor.type == 'MESH' else []
@@ -526,7 +577,7 @@ def reselect_temp_sources():
         bpy.context.view_layer.objects.active = sources[0]
 
 
-def check_three_view_props(props, report):
+def check_three_view_props(report):
     """
     三视图参数校验：解析并返回要渲染的模型，校验失败返回 None
 

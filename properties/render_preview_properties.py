@@ -11,9 +11,6 @@ def update_rotation(scene, depsgraph):
     props = scene.mmd_kafei_tools_render_preview
     if not props.auto_follow or not active_camera:
         return
-    # 三视图使用固定视角，旋转参数不参与
-    if props.type == 'ORTHOGRAPHIC' and props.view == 'THREE_VIEW':
-        return
     # 暂时仅支持xyz1
     rotation_euler_x = active_camera.rotation_euler[0]
     rotation_euler_y = active_camera.rotation_euler[1]
@@ -55,58 +52,6 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         default=1.0,
         min=0.25,
         max=2.0
-    )
-    view: bpy.props.EnumProperty(
-        name="视图",
-        description="正交相机的视图模式",
-        items=[
-            ("THREE_VIEW", "三视图", "渲染面部特写、主视图、侧视图与后视图"),
-            ("MAIN", "主视图", "只渲染当前视角下的单个正交视图"),
-        ],
-        default="THREE_VIEW",
-    )
-    closeup_scale: bpy.props.FloatProperty(
-        name="特写比例",
-        description="近身特写占画面宽度的比例，0 表示不渲染特写，1 表示只渲染特写",
-        default=0.25,
-        min=0.0,
-        max=1.0,
-    )
-    arm_angle: bpy.props.EnumProperty(
-        name="手臂姿态",
-        description="手臂姿态：自动取不穿模的最大内旋角度，T-Pose 摆成 T 字姿态，静置则保持绑定姿态",
-        items=[
-            ("AUTO", "自动", "自动计算不穿模的最大角度"),
-            ("T_POSE", "T-Pose", "把手臂摆成 T 字姿态"),
-            ("REST", "静置", "保持静置姿态，不做手臂旋转"),
-        ],
-        default="AUTO",
-    )
-    visible_only: bpy.props.BoolProperty(
-        name="仅可见网格",
-        description="忽略完全透明的隐藏部位（如隐藏的尾巴、耳朵）参与布局与穿模判断",
-        default=True,
-    )
-    show_more_params: bpy.props.BoolProperty(
-        name="显示更多参数",
-        description="显示更多参数",
-        default=False,
-    )
-    upper_arm_names: bpy.props.StringProperty(
-        name="大臂骨骼",
-        description="大臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态",
-        default="腕.L, 腕.R",
-    )
-    forearm_names: bpy.props.StringProperty(
-        name="小臂骨骼",
-        description="小臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态时的穿模检测",
-        default="ひじ.L, ひじ.R",
-    )
-    # 虽然写作头骨骼，但实际起作用的是顶点组，为了面板语义及操作统一，这里写作头骨骼
-    head_vg_names: bpy.props.StringProperty(
-        name="头骨骼",
-        description="头部顶点组名称，多个用逗号分隔\n用于面部特写时头部的识别",
-        default="頭",
     )
     rotation_euler_x: bpy.props.FloatProperty(
         name="旋转 X",
@@ -167,8 +112,6 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
         if self.type == "ORTHOGRAPHIC":
             self.rotation_euler_x = math.radians(90)
 
-
-
     @staticmethod
     def register():
         bpy.types.Scene.mmd_kafei_tools_render_preview = bpy.props.PointerProperty(type=RenderPreviewProperty)
@@ -178,3 +121,63 @@ class RenderPreviewProperty(bpy.types.PropertyGroup):
     def unregister():
         bpy.app.handlers.depsgraph_update_post.remove(update_rotation)
         del bpy.types.Scene.mmd_kafei_tools_render_preview
+
+
+class RenderThreeViewProperty(bpy.types.PropertyGroup):
+    closeup_scale: bpy.props.FloatProperty(
+        name="特写比例",
+        description="近身特写占画面宽度的比例，0 表示不渲染特写，1 表示只渲染特写",
+        default=0.25,
+        min=0.0,
+        max=1.0,
+    )
+    arm_angle: bpy.props.EnumProperty(
+        name="手臂姿态",
+        description="手臂姿态：自动取不穿模的最大内旋角度，T-Pose 摆成 T 字姿态，静置则保持绑定姿态",
+        items=[
+            ("AUTO", "自动", "自动计算不穿模的最大角度"),
+            ("T_POSE", "T-Pose", "把手臂摆成 T 字姿态"),
+            ("REST", "静置", "保持静置姿态，不做手臂旋转"),
+        ],
+        default="AUTO",
+    )
+    visible_only: bpy.props.BoolProperty(
+        name="仅可见网格",
+        description="忽略完全透明的隐藏部位（如隐藏的尾巴、耳朵）参与布局与穿模判断",
+        default=True,
+    )
+    show_more_params: bpy.props.BoolProperty(
+        name="显示更多参数",
+        description="显示更多参数",
+        default=False,
+    )
+    upper_arm_names: bpy.props.StringProperty(
+        name="大臂骨骼",
+        description="大臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态",
+        default="腕.L, 腕.R",
+    )
+    forearm_names: bpy.props.StringProperty(
+        name="小臂骨骼",
+        description="小臂骨骼名称，多个用逗号分隔\n用于调整手臂姿态时的穿模检测",
+        default="ひじ.L, ひじ.R",
+    )
+    # 虽然写作头骨骼，但实际起作用的是顶点组，为了面板语义及操作统一，这里写作头骨骼
+    head_vg_names: bpy.props.StringProperty(
+        name="头骨骼",
+        description="头部顶点组名称，多个用逗号分隔\n用于面部特写时头部的识别",
+        default="頭",
+    )
+    force_center: bpy.props.BoolProperty(
+        name="强制居中",
+        description="受隐藏部位的影响，某些角色渲染的结果可能不会居中，此选项可使角色强制居中",
+        default=True
+    )
+    batch: bpy.props.PointerProperty(type=BatchProperty)
+
+    @staticmethod
+    def register():
+        bpy.types.Scene.mmd_kafei_tools_render_three_view = bpy.props.PointerProperty(type=RenderThreeViewProperty)
+
+    @staticmethod
+    def unregister():
+        del bpy.types.Scene.mmd_kafei_tools_render_three_view

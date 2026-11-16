@@ -32,3 +32,14 @@ class FillSuffixRenderPreviewOperator(bpy.types.Operator):
     def execute(self, context):
         context.scene.mmd_kafei_tools_render_preview.batch.suffix = "_preview"
         return {'FINISHED'}
+
+
+class FillSuffixRenderThreeViewOperator(bpy.types.Operator):
+    bl_idname = "mmd_kafei_tools.fill_suffix_render_three_view"
+    bl_label = "填充"
+    bl_description = "填充名称后缀"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        context.scene.mmd_kafei_tools_render_three_view.batch.suffix = "_3view"
+        return {'FINISHED'}
