@@ -687,6 +687,35 @@ def reselect_temp_sources():
         bpy.context.view_layer.objects.active = sources[0]
 
 
+def capture_temp_selection():
+    """
+    记录执行前选中的三视图临时对象名称
+
+    返回空列表表示当前不是“选中临时对象”的场景，执行后不需要干预选中。
+    """
+    return [obj.name for obj in bpy.context.selected_objects if obj.get(THREE_VIEW_TEMP_FLAG)]
+
+
+def restore_temp_selection(names, ancestor):
+    """
+    三视图执行后恢复选中，避免再次执行时提示“请选择对象”
+
+    临时对象会先被删除再按原模型重新生成，名字通常不变，按名字选回即可；
+    名字找不到时（例如换成别的模型、副本数量变化）退回选中原模型 root。
+    """
+    if not names:
+        return
+    objects = [obj for obj in (bpy.data.objects.get(name) for name in names)
+               if obj is not None and obj.get(THREE_VIEW_TEMP_FLAG)]
+    if not objects:
+        objects = [ancestor] if ancestor is not None else []
+    if not objects:
+        return
+    deselect_all_objects()
+    for obj in objects:
+        select_and_activate(obj)
+
+
 def check_three_view_props(report):
     """
     三视图参数校验：解析并返回要渲染的模型，校验失败返回 None
@@ -1573,6 +1602,8 @@ def get_layout_bounds(world_vertices, visible_masks, head_bounds, report, warnin
 
 def build_three_view_setup(props, report, ancestor):
     """创建三视图布局"""
+    # 记录执行前选中的临时对象；临时对象会在下面被删除重建，结束时按名字恢复选中
+    temp_names = capture_temp_selection()
     scene = bpy.context.scene
 
     # 1. 清理上次执行产生的临时对象与手臂姿态；root 归零，避免重复执行累积缩放/位移
@@ -1768,6 +1799,8 @@ def build_three_view_setup(props, report, ancestor):
     depth = model_height * max(2.0, closeup_scale)
     camera = gen_three_view_camera()
     place_layout_camera(camera, frame_width, view_center_z, -depth / 2, depth / 2)
+    # 15. 恢复执行前的选中，避免下次执行提示“请选择对象”
+    restore_temp_selection(temp_names, ancestor)
     return {'camera': camera, 'collection': collection, 'arm_angles': arm_angles,
             'warnings': warnings}
 
