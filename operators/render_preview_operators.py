@@ -16,6 +16,7 @@ from ..constants import (
     BATCH_TASK_RENDER_THREE_VIEW,
     IMG_TYPE_EXT_MAP,
     MATERIAL_ALPHA_EPSILON,
+    OBJECT_NAME_MAX_BYTES,
     PREVIEW_BOUNDS_PROXY_NAME,
     THREE_VIEW_CAMERA_CLIP_MARGIN,
     THREE_VIEW_CAMERA_DISTANCE_MARGIN,
@@ -27,6 +28,7 @@ from ..constants import (
     THREE_VIEW_CLOSEUP_HEAD_RATIO,
     THREE_VIEW_COLLECTION_NAME,
     THREE_VIEW_COLUMN_FIT,
+    THREE_VIEW_COPY_SUFFIX,
     THREE_VIEW_FRAME_MARGIN,
     THREE_VIEW_HEAD_FALLBACK_RATIO,
     THREE_VIEW_OFFSCREEN_GAP,
@@ -663,6 +665,21 @@ def collect_ancestors():
     return ancestors
 
 
+def get_missing_temp_source():
+    """
+    选中的临时对象所引用的源对象已不存在时，返回该源对象名；否则返回 None
+
+    例如源模型被删除、重命名后，按记录的名字找不到源对象，需要提示用户重新选择源对象。
+    """
+    for obj in bpy.context.selected_objects:
+        if not obj.get(THREE_VIEW_TEMP_FLAG):
+            continue
+        source_name = obj.get(THREE_VIEW_TEMP_SOURCE)
+        if source_name and bpy.data.objects.get(source_name) is None:
+            return source_name
+    return None
+
+
 def reselect_temp_sources():
     """
     把选中的三视图临时副本换成它对应的原模型
@@ -722,6 +739,12 @@ def check_three_view_props(report):
 
     必须选中模型才能执行；选中临时对象时，按临时对象记录的 root 名找回原模型。
     """
+    missing_source = get_missing_temp_source()
+    if missing_source:
+        report({'ERROR'}, translate("当前选中对象是“{}”的副本，未找到对应的源对象，请检查是否被更名或删除。请先选择源对象，再执行此操作。")
+               .format(missing_source))
+        return None
+
     ancestors = collect_ancestors()
     if len(ancestors) > 1:
         report({'ERROR'}, translate("仅支持单个模型！"))
@@ -1449,6 +1472,32 @@ def collect_model_armatures(meshes):
     return armatures
 
 
+def truncate_name(name, max_bytes):
+    """按字节截断名称，且不切断 UTF-8 字符"""
+    encoded = name.encode('utf-8')
+    if len(encoded) <= max_bytes:
+        return name
+    return encoded[:max_bytes].decode('utf-8', errors='ignore')
+
+
+def make_copy_name(name):
+    """
+    生成副本对象名：“原名称 副本”，重名时追加 .001、.002……
+
+    名称过长（Blender 对象名上限 63 字节）时只截断原名称部分，
+    保证“ 副本”和“.001”这类后缀始终完整显示。
+    """
+    number = 1
+    while True:
+        # 第一个不加编号，重名时依次追加 .001、.002……
+        tail = "" if number == 1 else f".{number - 1:03d}"
+        reserved = len((THREE_VIEW_COPY_SUFFIX + tail).encode('utf-8'))
+        candidate = truncate_name(name, OBJECT_NAME_MAX_BYTES - reserved) + THREE_VIEW_COPY_SUFFIX + tail
+        if bpy.data.objects.get(candidate) is None:
+            return candidate
+        number += 1
+
+
 def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, root=None):
     """
     复制模型层级（最外层对象 / 骨架 / 网格），用于生成侧视图、后视图与特写
@@ -1466,6 +1515,7 @@ def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, roo
     root_copy = None
     if root is not None:
         root_copy = root.copy()
+        root_copy.name = make_copy_name(root.name)
         root_copy.parent = None
         root_copy.matrix_parent_inverse = mathutils.Matrix.Identity(4)
         root_copy.matrix_world = matrix @ root.matrix_world
@@ -1483,6 +1533,7 @@ def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, roo
         if armature in armature_map:
             continue
         copy = armature.copy()
+        copy.name = make_copy_name(armature.name)
         if root_copy is not None and armature.parent is root:
             # 原本直接挂在 root 下：保持局部变换，整体变换已由 root 副本承担
             copy.parent = root_copy
@@ -1505,6 +1556,7 @@ def duplicate_model_objects(mesh_objs, matrix, collection, source_root_name, roo
         if mesh is root:
             continue
         copy = mesh.copy()
+        copy.name = make_copy_name(mesh.name)
         # 网格通过骨架修改器关联骨架，复制后要把修改器重新指向复制出的骨架
         parent_armature = None
         for modifier in mesh.modifiers:

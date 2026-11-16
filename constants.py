@@ -543,6 +543,10 @@ THREE_VIEW_TEMP_SOURCE = "three_view_source_root"
 THREE_VIEW_CLIP_CUBE_NAME = "CLIP_CUBE"
 THREE_VIEW_CLIP_MODIFIER_NAME = "CLIP"
 THREE_VIEW_CAMERA_NAME = "三视图相机"
+# 三视图副本对象名称后缀，最终形如“原名称 副本.001”
+THREE_VIEW_COPY_SUFFIX = " 副本"
+# Blender 对象名称的字节上限（UTF-8），超出会被截断
+OBJECT_NAME_MAX_BYTES = 63
 # 渲染预览图取景用的临时包围盒对象（仅“仅可见网格”开启时创建）
 PREVIEW_BOUNDS_PROXY_NAME = "PREVIEW_BOUNDS_PROXY"
 # 材质 Alpha 判定为“不可见”的阈值

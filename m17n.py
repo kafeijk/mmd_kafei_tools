@@ -558,6 +558,7 @@ translation_dict = {
         ("*", "请选择模型！"): "Please select a model!",
         ("*", "未找到骨架！"): "Armature not found!",
         ("*", "未找到可渲染的网格。"): "No renderable mesh found.",
+        ("*", "当前选中对象是“{}”的副本，未找到对应的源对象。请先选择源对象，再执行此操作。"): "The selected object is a copy of \"{}\", but its source object was not found. Select the source object first, then run this operation.",
         ("*", "当前输出格式不支持三视图，请使用图片格式。"): "The current output format does not support three views. Use an image format.",
         ("*", "三视图渲染失败：{}"): "Three-view rendering failed: {}",
         ("*", "三视图渲染失败"): "Three-view rendering failed",
