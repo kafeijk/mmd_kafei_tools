@@ -1063,7 +1063,7 @@ class AboutPanel(bpy.types.Panel):
             "wm.url_open",
             text="用户文档",
             icon='URL'
-        ).url = r"https://www.yuque.com/laibeikafeizaishuo/xgbdou/qtop1t7zzts9nzgv"
+        ).url = r"https://github.com/kafeijk/mmd_kafei_tools/wiki"
 
         col.operator(
             "wm.url_open",
