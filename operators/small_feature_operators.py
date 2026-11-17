@@ -5,7 +5,7 @@ from collections import defaultdict
 
 import bpy
 
-from ..utils import deselect_all_objects, find_ancestor, get_mesh_objs, select_and_activate, show_object
+from ..utils import deselect_all_objects, find_ancestor, get_mesh_objs, select_and_activate, show_object, translate
 
 
 if bpy.app.version < (4, 0, 0):
@@ -242,7 +242,7 @@ class RemoveMissingDataOperator(bpy.types.Operator):
     def execute(self, context):
         removed = self.remove_missing_external_data()
         self.report(type={'INFO'},
-                    message=bpy.app.translations.pgettext_iface("已移除 {} 个丢失的外部数据").format(removed))
+                    message=translate("已移除 {} 个丢失的外部数据").format(removed))
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
     def remove_missing_external_data(self):
@@ -283,7 +283,7 @@ class RepairSSSOperator(bpy.types.Operator):
 
     def execute(self, context):
         if len(context.selected_objects) == 0:
-            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return {'CANCELLED'}
         props = context.scene.mmd_kafei_tools_sf
         self.repair_sss(context, props.option)
@@ -335,11 +335,11 @@ class RepairSSSOperator(bpy.types.Operator):
             result = check_material_node_existing_by_type(materials, "ShaderNodeShaderToRGB")
             if result:
                 self.report(type={'WARNING'},
-                            message=bpy.app.translations.pgettext_iface("Affected materials: {}").format(
+                            message=translate("受影响材质：{}").format(
                                 ", ".join(result)))
                 self.report(type={'WARNING'},
-                            message=bpy.app.translations.pgettext_iface(
-                                "Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑"))
+                            message=translate(
+                                "检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑"))
 
 
 def is_collection_instance(obj):
@@ -551,6 +551,6 @@ class GroupObjectOperator(bpy.types.Operator):
     def check_props(self, context):
         """校验：至少选中一个物体"""
         if not context.selected_objects:
-            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return False
         return True

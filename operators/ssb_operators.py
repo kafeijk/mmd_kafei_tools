@@ -40,6 +40,7 @@ from ..utils import (
     select_and_activate,
     show_object,
     to_pmx_axis,
+    translate,
 )
 from ..mmd_utils import get_mmd_armature_id
 
@@ -325,20 +326,20 @@ class AddSsbOperator(bpy.types.Operator):
         batch_flag = batch.flag
         if not batch_flag:
             if not armature_data:
-                self.report(type={'ERROR'}, message=f"Select MMD armature!")
+                self.report(type={'ERROR'}, message=translate("请选择MMD骨架！"))
                 return False
             pmx_armature = next(
                 (obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.data == armature_data), None)
             if not pmx_armature:
-                self.report(type={'ERROR'}, message=f"Select MMD armature!")
+                self.report(type={'ERROR'}, message=translate("请选择MMD骨架！"))
                 return False
             pmx_root = find_pmx_root_with_child(pmx_armature)
             if not pmx_root:
-                self.report(type={'ERROR'}, message=f"Select MMD model!")
+                self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
                 return False
             objs = find_pmx_objects(pmx_armature)
             if len(objs) == 0:
-                self.report(type={'ERROR'}, message=f"Mesh not found!")
+                self.report(type={'ERROR'}, message=translate("模型网格对象不存在！"))
                 return False
         else:
             if not check_batch_props(self, batch):
@@ -484,10 +485,10 @@ class AddSsbOperator(bpy.types.Operator):
                 if ssb_name not in pb_names:
                     missing_bones.append(ssb_name)
             if len(missing_bones) == 0:
-                self.report({'INFO'}, "所有次标准骨骼追加完成")
+                self.report({'INFO'}, translate("所有次标准骨骼追加完成"))
             else:
                 self.report({'WARNING'}, f"缺失骨骼：{missing_bones}")
-                self.report({'WARNING'}, "没有能追加的骨骼，请尝试“强制重建”选项。点击查看缺失骨骼↑↑↑")
+                self.report({'WARNING'}, translate("没有能追加的骨骼，请尝试“强制重建”选项。点击查看缺失骨骼↑↑↑"))
 
 
 def get_ssb_to_add(props):

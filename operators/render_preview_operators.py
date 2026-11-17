@@ -81,7 +81,7 @@ class GenPreviewCameraOperator(bpy.types.Operator):
     def check_props(self):
         objs = bpy.context.selected_objects
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return False
         return True
 
@@ -276,12 +276,12 @@ class RenderPreviewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
                 return False
             output_format = bpy.context.scene.render.image_settings.file_format
             if output_format not in IMG_TYPE_EXT_MAP.keys():
-                self.report(type={'ERROR'}, message=f'Unsupported output format! Use image format instead.')
+                self.report(type={'ERROR'}, message=translate("输出文件格式不正确，请更改为图像类型格式！"))
                 return False
         else:
             objs = bpy.context.selected_objects
             if len(objs) == 0:
-                self.report(type={'ERROR'}, message=f'Select at least one object!')
+                self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
                 return False
         return True
 
@@ -301,7 +301,7 @@ class RenderThreeViewOperator(BatchProcessOperatorMixin, bpy.types.Operator):
                 return {'CANCELLED'}
             output_format = bpy.context.scene.render.image_settings.file_format
             if output_format not in IMG_TYPE_EXT_MAP.keys():
-                self.report(type={'ERROR'}, message=f'Unsupported output format! Use image format instead.')
+                self.report(type={'ERROR'}, message=translate("输出文件格式不正确，请更改为图像类型格式！"))
                 return {'CANCELLED'}
             return self.start_batch_process(context, props, None)
 
@@ -641,7 +641,7 @@ def gen_preview_camera(camera_type):
     # 在“预览相机”集合中生成一个相机
     # 检查是否已有名为“预览相机”的相机对象
     # 即使场景中存在其它相机，也不把这个相机进行返回，因为不清楚这个相机的用途
-    camera_name = bpy.app.translations.pgettext_iface("预览相机")
+    camera_name = translate("预览相机")
     custom_property_name = 'preview_camera'
     for camera in bpy.data.objects:
         if camera.type == 'CAMERA' and custom_property_name in camera.keys():
@@ -656,7 +656,7 @@ def gen_preview_camera(camera_type):
                 pass
             return camera
     # 场景中是否含有名称为“预览相机”的集合，没有则不一定新建（没有相机的情况下才会新建）
-    collection_name = bpy.app.translations.pgettext_iface("相机")
+    collection_name = translate("相机")
     if collection_name in bpy.data.collections:
         preview_collection = bpy.data.collections[collection_name]
     else:
@@ -673,13 +673,13 @@ def gen_preview_camera(camera_type):
 
 def gen_three_view_camera():
     """生成三视图相机，重复执行时直接复用"""
-    camera_name = bpy.app.translations.pgettext_iface(THREE_VIEW_CAMERA_NAME)
+    camera_name = translate(THREE_VIEW_CAMERA_NAME)
     custom_property_name = 'three_view_camera'
     for camera in bpy.data.objects:
         if camera.type == 'CAMERA' and custom_property_name in camera.keys():
             return camera
 
-    collection_name = bpy.app.translations.pgettext_iface("相机")
+    collection_name = translate("相机")
     if collection_name in bpy.data.collections:
         target_collection = bpy.data.collections[collection_name]
     else:

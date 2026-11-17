@@ -22,8 +22,8 @@ def update_world_settings(self, context):
 
 class RenderSettingsProperty(bpy.types.PropertyGroup):
     engine: bpy.props.EnumProperty(
-        name="Render Engine",
-        description="Engine to use for rendering",
+        name="渲染引擎",
+        description="用于渲染的引擎",
         items=[
             ("EEVEE", "EEVEE", "EEVEE"),
             ("CYCLES", "Cycles", "Cycles")
@@ -95,8 +95,8 @@ def update_resolution(self, context):
 
 class OutputSettingsProperty(bpy.types.PropertyGroup):
     resolution: bpy.props.EnumProperty(
-        name="Resolution",
-        description="Resolution",
+        name="分辨率",
+        description="分辨率",
         items=[
             (identifier, label, f"{width}x{height}")
             for identifier, (label, width, height) in RESOLUTION_PRESETS.items()

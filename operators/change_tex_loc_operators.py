@@ -11,6 +11,7 @@ from ..utils import (
     find_pmx_objects,
     force_writable,
     get_mmd_tools_version,
+    translate,
 )
 
 
@@ -282,9 +283,7 @@ def delete_empty_folders(folder_path, props):
                     try:
                         os.remove(thumbs_db_path)
                     except OSError as e:
-                        print(bpy.app.translations.pgettext_iface(
-                            f"Failed to delete file, file: {thumbs_db_path}, error: {e}"
-                        ))
+                        print(translate("删除文件失败，文件：{}，错误：{}").format(thumbs_db_path, e))
 
         for d in dirs:
             dir_path = os.path.join(root, d)
@@ -292,9 +291,7 @@ def delete_empty_folders(folder_path, props):
                 if os.listdir(dir_path):
                     continue
             except PermissionError as e:
-                print(bpy.app.translations.pgettext_iface(
-                    f"Failed to list folder, folder: {dir_path}, error: {e}"
-                ))
+                print(translate("读取文件夹失败，文件夹：{}，错误：{}").format(dir_path, e))
                 continue
             try:
                 os.rmdir(dir_path)
@@ -303,6 +300,4 @@ def delete_empty_folders(folder_path, props):
                 try:
                     os.rmdir(dir_path)
                 except OSError as e:
-                    print(bpy.app.translations.pgettext_iface(
-                        f"Failed to delete folder, folder: {dir_path}, error: {e}"
-                    ))
+                    print(translate("删除文件夹失败，文件夹：{}，错误：{}").format(dir_path, e))

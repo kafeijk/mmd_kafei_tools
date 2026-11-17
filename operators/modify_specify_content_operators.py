@@ -13,6 +13,7 @@ from ..utils import (
     is_mmd_tools_enabled,
     restore_selection,
     select_and_activate,
+    translate,
 )
 
 # 尺寸超过阈值的物体统一放置的位置（与 ArrangeObjectProperty.threshold 的描述一致）
@@ -34,7 +35,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
     def check_props(self, context):
         """校验：至少选中一个对象"""
         if len(context.selected_objects) == 0:
-            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return False
         return True
 
@@ -400,7 +401,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
     def check_props(self, context):
         objs = context.selected_objects
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return False
         props = context.scene.mmd_kafei_tools_arrange_object
         arrangement_type = props.arrangement_type
@@ -408,7 +409,7 @@ class ArrangeObjectOperator(bpy.types.Operator):
             operator_type = "CURVE_OT_simple" if arrangement_type == "ARC" else "CURVE_OT_spirals"
             if not hasattr(bpy.types, operator_type):
                 self.report({'ERROR'},
-                            bpy.app.translations.pgettext_iface(
+                            translate(
                                 "请在偏好设置中启用 Extra Objects / Extra Curve Objects 插件"))
                 return False
         return True

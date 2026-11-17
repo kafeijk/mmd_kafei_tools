@@ -92,7 +92,7 @@ class MergeVerticesOperator(bpy.types.Operator):
 
 class DummyOperator(bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.dummy"
-    bl_label = "Dummy Button"
+    bl_label = "占位按钮"
     bl_options = {'REGISTER'}
 
     def execute(self, context):

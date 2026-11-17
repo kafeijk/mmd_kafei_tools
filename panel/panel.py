@@ -61,7 +61,7 @@ from ..operators.quick_operation_operators import CleanSceneOperator
 from ..batch_utils import get_batch_progress
 from ..constants import BATCH_TASK_PRE_POST_PROCESSING, BATCH_TASK_RENDER_PREVIEW
 from ..constants import BATCH_TASK_RENDER_THREE_VIEW
-from ..utils import find_pmx_root_with_child, is_mmd_tools_enabled
+from ..utils import find_pmx_root_with_child, is_mmd_tools_enabled, translate
 import addon_utils
 import bpy
 
@@ -193,7 +193,7 @@ class RenderSettingsPanel(bpy.types.Panel):
 
         rd = scene.render
         transparent_col = col.column()
-        transparent_col.prop(rd, "film_transparent", text="Transparent")
+        transparent_col.prop(rd, "film_transparent", text="透明")
 
 
 class OutputSettingsPanel(bpy.types.Panel):
@@ -217,7 +217,7 @@ class OutputSettingsPanel(bpy.types.Panel):
         col = layout.column()
 
         # 分辨率（下拉变更即生效）
-        col.prop(props, "resolution", text="Resolution")
+        col.prop(props, "resolution", text="分辨率")
 
         # X 与交换按钮同一行：按钮紧贴 X 右侧
         row = col.row(align=True)
@@ -1043,7 +1043,7 @@ class RenderThreeViewPanel(bpy.types.Panel):
 
 class AboutPanel(bpy.types.Panel):
     bl_idname = "KAFEI_PT_about"
-    bl_label = "About"
+    bl_label = "关于"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_order = 5
@@ -1074,7 +1074,7 @@ class AboutPanel(bpy.types.Panel):
         # 版本号
         row = col.row(align=True)
         row.label(
-            text='Version: ' + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
+            text=translate("版本：") + str([addon.bl_info.get('version', (-1, -1, -1)) for addon in addon_utils.modules() if
                                     addon.bl_info['name'] == 'MMD Kafei Tools'][0]))
 
         # 开发者选项开关

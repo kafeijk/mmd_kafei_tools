@@ -5,18 +5,18 @@ from ..utils import safe_set
 
 class DeveloperExtrasProperty(bpy.types.PropertyGroup):
     flag: bpy.props.BoolProperty(
-        name="Developer Extras",
-        description="Developer Extras",
+        name="开发选项",
+        description="开发选项",
         default=False
     )
 
     language: bpy.props.EnumProperty(
-        name="Language",
-        description="Language",
+        name="语言",
+        description="语言",
         items=[
-            ("zh_HANS", "Chinese (Simplified) - 简体中文", "Chinese (Simplified) - 简体中文"),
-            ("en_GB", "English", "English"),
-            ("ja_JP", "Japanese", "Japanese"),
+            ("zh_HANS", "简体中文", "简体中文"),
+            ("en_GB", "英语", "英语"),
+            ("ja_JP", "日语", "日语"),
         ],
         update=lambda self, context: self.update_preset(context)
     )

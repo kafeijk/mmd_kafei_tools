@@ -852,7 +852,7 @@ class AddEyeWhiteObjectNameOperator(bpy.types.Operator):
     def execute(self, context):
         names = [obj.name for obj in context.selected_objects]
         if not names:
-            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface("请至少选择一个对象！"))
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return {'CANCELLED'}
 
         def append_names(text):

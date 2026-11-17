@@ -232,8 +232,8 @@ def set_env(context, world_name, strength):
 
     warning = None
     if not os.path.exists(env_texture_path):
-        warning = bpy.app.translations.pgettext_iface(
-            "HDRI Map not found. Add manually. Path: {}").format(env_texture_path)
+        warning = translate(
+            "未找到环境贴图，请自行添加！参考路径：{}").format(env_texture_path)
     else:
         image = bpy.data.images.load(env_texture_path, check_existing=True)
         env_tex_node.image = image
@@ -431,8 +431,8 @@ class ResolutionSettingsOperator(bpy.types.Operator):
         output = scene.mmd_kafei_tools_output_settings
 
         if not apply_resolution_preset(scene, output.resolution):
-            self.report(type={'ERROR'}, message=bpy.app.translations.pgettext_iface(
-                "Unknown resolution preset: {}").format(output.resolution))
+            self.report(type={'ERROR'}, message=translate(
+                "未知的分辨率预设：{}").format(output.resolution))
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -868,7 +868,7 @@ class LightSettingsOperator(bpy.types.Operator):
             target_list.append((root_name, resolved[0], resolved[1]))
 
         if not target_list:
-            self.report(type={'ERROR'}, message="Target not found!")
+            self.report(type={'ERROR'}, message=translate("未找到目标对象！"))
             return False
 
         # ---------- 清理旧灯光 ----------
@@ -940,7 +940,7 @@ class LightSettingsOperator(bpy.types.Operator):
         vg_name = props.vg_name
         if target_type == "ARMATURE":
             if not active_object:
-                self.report(type={'ERROR'}, message='Select armature object!')
+                self.report(type={'ERROR'}, message=translate('请选择骨架对象！'))
                 return False
             if active_object.type == "ARMATURE":
                 armature = active_object
@@ -948,29 +948,29 @@ class LightSettingsOperator(bpy.types.Operator):
                 ancestor = find_ancestor(active_object)
                 armature = find_armature(ancestor)
             if not armature:
-                self.report(type={'ERROR'}, message='Armature not found!')
+                self.report(type={'ERROR'}, message=translate('未找到模型骨架！'))
                 return False
             if bone_name not in armature.pose.bones:
                 self.report(type={'ERROR'},
-                            message=bpy.app.translations.pgettext_iface("Bone \"{}\" not found!").format(bone_name))
+                            message=translate("未找到骨骼“{}”！").format(bone_name))
                 return False
             return True
         elif target_type == "MESH":
             if not active_object:
-                self.report(type={'ERROR'}, message='Select mesh object!')
+                self.report(type={'ERROR'}, message=translate('请选择网格对象！'))
                 return False
             if active_object.type != 'MESH':
-                self.report(type={'ERROR'}, message='Select mesh object!')
+                self.report(type={'ERROR'}, message=translate('请选择网格对象！'))
                 return False
             if vg_name not in active_object.vertex_groups:
-                msg = bpy.app.translations.pgettext_iface("Vertex group \"{}\" not found!").format(vg_name)
+                msg = translate("未找到顶点组“{}”！").format(vg_name)
                 self.report({'ERROR'}, message=msg)
                 return False
             # 校验顶点组是否至少含有一个顶点
             vg_index = active_object.vertex_groups[vg_name].index
             has_vertex = any(v for v in active_object.data.vertices if vg_index in [g.group for g in v.groups])
             if not has_vertex:
-                msg = bpy.app.translations.pgettext_iface("Object \"{}\" vertex group \"{}\" has no vertices!").format(
+                msg = translate("对象“{}”的顶点组“{}”没有顶点！").format(
                     active_object.name, vg_name)
                 self.report({'ERROR'}, message=msg)
                 return False
@@ -1177,7 +1177,7 @@ class CameraSettingsOperator(bpy.types.Operator):
         if target_type == "ARMATURE":
             if not active_object or not active_object.select_get():
                 # 必须同时满足选中且激活
-                self.report(type={'ERROR'}, message=f'Select armature object!')
+                self.report(type={'ERROR'}, message=translate('请选择骨架对象！'))
                 return False
             if active_object.type == "ARMATURE":
                 armature = active_object
@@ -1185,22 +1185,22 @@ class CameraSettingsOperator(bpy.types.Operator):
                 ancestor = find_ancestor(active_object)
                 armature = find_armature(ancestor)
             if not armature:
-                self.report(type={'ERROR'}, message=f'Armature not found!')
+                self.report(type={'ERROR'}, message=translate('未找到模型骨架！'))
                 return False
             if bone_name not in armature.pose.bones:
                 self.report(type={'ERROR'},
-                            message=bpy.app.translations.pgettext_iface("Bone \"{}\" not found!").format(bone_name))
+                            message=translate("未找到骨骼“{}”！").format(bone_name))
                 return False
             frame_start, frame_end = get_armature_keyframe_range(armature)
             if frame_start is None or frame_end is None:
-                self.report(type={'ERROR'}, message=f'Armature has no keyframes!')
+                self.report(type={'ERROR'}, message=translate('骨架未导入动作！'))
                 return False
             return True
         elif target_type == "MESH":
             # 获取选中网格对象
             selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
             if not selected_objects:
-                self.report(type={'ERROR'}, message=f'Select mesh object!')
+                self.report(type={'ERROR'}, message=translate('请选择网格对象！'))
                 return False
 
             # 先校验active_object是否含有指定顶点组，否则在选中对象中查找
@@ -1210,7 +1210,7 @@ class CameraSettingsOperator(bpy.types.Operator):
                 mesh_object = next((obj for obj in selected_objects if vg_name in obj.vertex_groups), None)
 
             if not mesh_object:
-                msg = bpy.app.translations.pgettext_iface("Vertex group \"{}\" not found!").format(vg_name)
+                msg = translate("未找到顶点组“{}”！").format(vg_name)
                 self.report({'ERROR'}, message=msg)
                 return False
 
@@ -1218,7 +1218,7 @@ class CameraSettingsOperator(bpy.types.Operator):
             vg_index = mesh_object.vertex_groups[vg_name].index
             has_vertex = any(v for v in mesh_object.data.vertices if vg_index in [g.group for g in v.groups])
             if not has_vertex:
-                msg = bpy.app.translations.pgettext_iface("Object \"{}\" vertex group \"{}\" has no vertices!").format(
+                msg = translate("对象“{}”的顶点组“{}”没有顶点！").format(
                     mesh_object.name, vg_name)
                 self.report({'ERROR'}, message=msg)
                 return False
@@ -1388,15 +1388,15 @@ def copy_and_prune_armature(armature, bone_name):
 
 def create_follow_camera(context, props):
     # 生成相机及所在集合
-    camera_name = bpy.app.translations.pgettext_iface("跟随相机")
+    camera_name = translate("跟随相机")
     camera_data = bpy.data.cameras.new(name=camera_name)
     camera = bpy.data.objects.new(name=camera_name, object_data=camera_data)
-    collection_name = bpy.app.translations.pgettext_iface("相机")
+    collection_name = translate("相机")
     collection = get_collection(collection_name)
     collection.objects.link(camera)
 
     # 创建相机父级并缩放，以便控制及观察
-    empty = bpy.data.objects.new(bpy.app.translations.pgettext_iface("相机控制器"), None)
+    empty = bpy.data.objects.new(translate("相机控制器"), None)
     empty.scale = [0.1, 0.1, 0.1]
     collection.objects.link(empty)
     active_object = context.active_object
