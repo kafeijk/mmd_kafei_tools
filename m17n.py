@@ -257,10 +257,6 @@ translation_dict = {
         ("*", "排除隐藏部位的干扰，使模型尽可能居中"): "Exclude hidden parts to keep the model as centered as possible",
         # Eye white
         ("*", "目标"): "Target",
-        # Transfer preset
-        ("*", "传递自定义顶点组及对应权重\n自定义顶点组指的是排在 mmd_vertex_order 之后的顶点组"): "Transfer custom vertex groups and their weights\nCustom vertex groups are those listed after mmd_vertex_order",
-        ("*", "传递后移除目标模型对象、数据、材质与贴图名称中的 .001 等重名后缀\n与源模型同名时交换名称，目标模型内部同名或与其他数据冲突时跳过"): "Remove duplicate-name suffixes such as .001 from target object, data, material and texture names after transfer\nSwap names when they match the source; skip when they conflict within the target or with other data",
-        ("*", "源物体中父级类型为骨骼的对象（该骨骼通常为“頭”），用于定位面部。默认情况下，该值会自动填充"): "Object in the source whose parent is a bone (usually the Head bone) to locate the face. Filled automatically by default",
         # Pre/post processing
         ("*", "贴图重名时"): "Texture Name Conflict",
         ("*", "贴图文件夹存在同名文件时的处理方式"): "How to handle files with the same name in the texture folder",
@@ -325,29 +321,26 @@ translation_dict = {
         ("*", "当材质中有嵌套节点组时，是否递归查找节点"): "Recursively search nodes when nested node groups exist in material",
 
         # General Preset Processing description
-        ("*", "提供预设的模型"): "Provide preset model",
-        ("*", "接受预设的模型"): "Accept preset model",
+        ("*", "提供预设的 PMX 模型，选择模型层级内的任意对象即可"): "Provide the PMX model that supplies the preset. Any object in the model hierarchy can be selected",
+        ("*", "接收预设的 PMX 模型，选择模型层级内的任意对象即可"): "Provide the PMX model that receives the preset. Any object in the model hierarchy can be selected",
         ("*", "预设传递方向"): "Preset transfer direction",
         ("*", "将PMX模型的预设传递到ABC模型上"): "Transfer the preset from a PMX model to an ABC model",
         ("*", "将PMX模型的预设传递到PMX模型上"): "Transfer the preset from a PMX model to a PMX model",
         ("*", "根据缓存文件重新设定网格序列缓存修改器参数"): "Configure Mesh Sequence Cache modifiers according to cache files",
-        ("*", "关联材质，支持多材质槽"): "Link materials, supporting the linking of multiple material slots",
-        ("*", "复制UV贴图"): "Copy UV Maps",
-        ("*", "传递自定义顶点组及对应权重"): "Transfer custom vertex groups and corresponding weights",
-        ("*", "复制修改器"): "Copy modifiers",
-        ("*", "传递自定义拆边法向数据"): "Transfer custom split normals data",
-        ("*", "编辑三渲二预设中的相关参数设置"): "Edit the parameter settings of the toon shading preset",
-        ("*", "源物体中父级类型为骨骼的对象（该骨骼通常为“頭”），用于定位面部。默认情况下，该值会自动填充\n"
-                "PMX → PMX 传递时，该对象会被改挂到目标骨架的同名骨骼上"):
-            "An object in the source with a parent type of bone (typically '頭'), used to locate "
-            "the face. By default, this value is automatically filled.\n"
-            "When transferring PMX → PMX, this object is re-parented to the same-named bone "
-            "of the target armature",
-        ("*", "根据面部定位器识别面部顶点"): "Identify face vertices based on the face locator",
-        ("*", "面部对象的顶点组"): "Vertex group of face object",
-        ("*", "缓存文件地址"): "File path of the cache file",
-        ("*", "影响范围为选中物体所属模型"): "Limit the effect to the model containing the selected objects",
-        ("*", "复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用"): "Duplicate the face object and make the locator follow it, in order to avoid the issue where the original face object cannot be followed due to Geometry Nodes. Enable this option if needed",
+        ("*", "启用材质关联，支持多个材质槽"): "Enable material linking, supporting multiple material slots",
+        ("*", "启用 UV 贴图复制"): "Copy UV maps",
+        ("*", "启用自定义顶点组及对应权重的传递\n自定义顶点组指的是排在 mmd_vertex_order 之后的顶点组"): "Transfer custom vertex groups and their weights\nCustom vertex groups are those listed after mmd_vertex_order",
+        ("*", "启用修改器复制，不包含骨架修改器"): "Copy modifiers, excluding armature modifiers",
+        ("*", "启用自定义拆边法向数据的传递"): "Transfer custom split normal data",
+        ("*", "展开三渲二相关设置"): "Expand the toon shading settings",
+        ("*", "传递完成后，移除目标模型的对象、数据、材质及贴图名称中的 .001 等重名后缀"): "After transfer, remove duplicate-name suffixes such as .001 from the target model's object, data, material and texture names",
+        ("*", "三渲二使用的面部定位器，通常为源骨架“頭”骨骼下的空对象。启用「三渲二」时自动填充"): "Face locator used by toon shading. Usually an empty object parented to the Head bone of the source armature. Filled automatically when Toon Shading is enabled",
+        ("*", "根据面部定位器识别面部顶点。如果关闭，需手动指定「面部对象」与「面部顶点组」"): "Detect face vertices from the face locator. If disabled, set Face Object and Face Vertex Group manually",
+        ("*", "用于定位面部的源网格"): "Source mesh used to locate the face",
+        ("*", "面部对象的顶点组，用于设置「面部定位器」的父级。应选择不受形态键影响的网格，并确保顶点组至少包含 3 个有效顶点"): "Vertex group of the face object, used as the parent of the Face Locator. Use a mesh unaffected by shape keys and ensure the vertex group contains at least 3 valid vertices",
+        ("*", "ABC 缓存文件地址"): "Path to the ABC cache file",
+        ("*", "勾选时处理选中对象所属模型的全部网格；不勾选时处理当前场景全部模型网格"): "When enabled, process all meshes of the model that owns the selected object; when disabled, process all model meshes in the scene",
+        ("*", "复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题"): "Duplicate the face object and make the locator follow it, avoiding follow failures caused by Geometry Nodes on the original face object",
         ("*", "将源模型的材质等数据传递到目标模型上"): "Transfer materials and other data from the source model to the target model",
 
         # Tools panel
@@ -731,11 +724,6 @@ translation_dict = {
 
         # Transfer preset remove duplicate suffix
         ("*", "移除重名后缀"): "Remove duplicate name suffixes",
-        ("*", "传递后移除目标模型对象、数据、材质与贴图名称中的 .001 等重名后缀\n"
-               "与预设模型同名时交换名称，目标内部同名或与其他数据冲突时跳过"):
-            "Remove suffixes such as .001 from the target model's objects, data, materials "
-            "and textures after transfer.\nNames are swapped with the source model when they "
-            "conflict; duplicates within the target or conflicts with other data are skipped",
         # Transfer preset warning
         ("*", "以下内容存在配对异常，请检查配对结果："):
             "The following meshes have pairing issues; please check the pairing result:",

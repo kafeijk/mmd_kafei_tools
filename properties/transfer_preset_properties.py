@@ -67,12 +67,12 @@ def update_preset(self, context):
 class TransferPresetProperty(bpy.types.PropertyGroup):
     source: bpy.props.PointerProperty(
         name="源模型",
-        description="提供预设的模型",
+        description="提供预设的 PMX 模型，选择模型层级内的任意对象即可",
         type=bpy.types.Object
     )
     target: bpy.props.PointerProperty(
         name="目标模型",
-        description="接受预设的模型",
+        description="接收预设的 PMX 模型，选择模型层级内的任意对象即可",
         type=bpy.types.Object
     )
     direction: bpy.props.EnumProperty(
@@ -89,87 +89,86 @@ class TransferPresetProperty(bpy.types.PropertyGroup):
     )
     material_flag: bpy.props.BoolProperty(
         name="材质",
-        description="关联材质，支持多材质槽",
+        description="启用材质关联，支持多个材质槽",
         default=True,
         update=lambda self, context: self.check_selection(context, "material_flag")
     )
     uv_flag: bpy.props.BoolProperty(
         name="UV贴图",
-        description="复制UV贴图",
+        description="启用 UV 贴图复制",
         default=False,
         update=lambda self, context: self.check_selection(context, "uv_flag")
     )
     vgs_flag: bpy.props.BoolProperty(
         name="顶点组",
-        description="传递自定义顶点组及对应权重\n自定义顶点组指的是排在 mmd_vertex_order 之后的顶点组",
+        description="启用自定义顶点组及对应权重的传递\n自定义顶点组指的是排在 mmd_vertex_order 之后的顶点组",
         default=True,
         update=lambda self, context: self.check_selection(context, "vgs_flag")
 
     )
     modifiers_flag: bpy.props.BoolProperty(
         name="修改器",
-        description="复制修改器",
+        description="启用修改器复制，不包含骨架修改器",
         default=True,
         update=lambda self, context: self.check_selection(context, "modifiers_flag")
     )
     normal_flag: bpy.props.BoolProperty(
         name="法向",
-        description="传递自定义拆边法向数据",
+        description="启用自定义拆边法向数据的传递",
         default=True,
         update=lambda self, context: self.check_selection(context, "normal_flag")
     )
     remove_suffix_flag: bpy.props.BoolProperty(
         name="移除重名后缀",
-        description="传递后移除目标模型对象、数据、材质与贴图名称中的 .001 等重名后缀\n"
-                    "与源模型同名时交换名称，目标模型内部同名或与其他数据冲突时跳过",
+        description="传递完成后，移除目标模型的对象、数据、材质及贴图名称中的 .001 等重名后缀",
         default=True,
         update=lambda self, context: self.check_selection(context, "remove_suffix_flag")
     )
     toon_shading_flag: bpy.props.BoolProperty(
         name="三渲二",
-        description="编辑三渲二预设中的相关参数设置",
+        description="展开三渲二相关设置",
         default=False,
         update=lambda self, context: auto_fill(self, context)
     )
     face_locator: bpy.props.PointerProperty(
         name="面部定位器",
-        description="源物体中父级类型为骨骼的对象（该骨骼通常为“頭”），用于定位面部。默认情况下，该值会自动填充",
+        description="三渲二使用的面部定位器，通常为源骨架“頭”骨骼下的空对象。启用「三渲二」时自动填充",
         type=bpy.types.Object,
     )
 
     auto_face_location: bpy.props.BoolProperty(
         name="自动面部识别",
-        description="根据面部定位器识别面部顶点",
+        description="根据面部定位器识别面部顶点。如果关闭，需手动指定「面部对象」与「面部顶点组」",
         default=True,
     )
 
     face_object: bpy.props.PointerProperty(
         name="面部对象",
-        description="面部对象",
+        description="用于定位面部的源网格",
         type=bpy.types.Object
     )
 
     face_vg: bpy.props.StringProperty(
         name="面部顶点组",
-        description="面部对象的顶点组"
+        description="面部对象的顶点组，用于设置「面部定位器」的父级。应选择不受形态键影响的网格，并确保顶点组至少包含 3 个有效顶点"
     )
 
     force: bpy.props.BoolProperty(
         name="强制跟随",
-        description="复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题。可根据实际需求选择启用",
+        description="复制面部对象并使定位器跟随该对象，从而避免原面部对象因几何节点导致的无法跟随问题",
         default=True,
     )
 
     abc_filepath: bpy.props.StringProperty(
         name="缓存文件",
-        description="缓存文件地址",
+        description="ABC 缓存文件地址",
         subtype='FILE_PATH',
         default=''
     )
 
     selected_only: bpy.props.BoolProperty(
         name="仅选中",
-        description="影响范围为选中物体所属模型",
+        description="勾选时处理选中对象所属模型的全部网格；不勾选时处理当前场景全部模型网格",
         default=True,
     )
 
