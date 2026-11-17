@@ -2203,15 +2203,12 @@ def build_three_view_setup(props, report, ancestor):
         if show_closeup:
             head_center_x = (head_bounds[0] + head_bounds[1]) / 2
             head_width = head_bounds[1] - head_bounds[0]
+            # 没有眼部数据时按「特写头部占比」缩放，头部过宽允许横向超出特写栏被裁
             closeup_scale = (frame_height * props.closeup_head_ratio) / head_height
-            if head_width > 0:
-                width_scale = closeup_world * props.width_margin / head_width
-                if eye_bounds:
-                    # 眼部范围已把横向边界收窄到面部，按包围盒宽度整体放大；
-                    # 高度可能超出画面，由上边贴合画面上边界来保证头顶完整
-                    closeup_scale = width_scale
-                else:
-                    closeup_scale = min(closeup_scale, width_scale)
+            if head_width > 0 and eye_bounds:
+                # 眼部范围已把横向边界收窄到面部，按包围盒宽度整体放大；
+                # 高度可能超出画面，由上边贴合画面上边界来保证头顶完整
+                closeup_scale = closeup_world * props.width_margin / head_width
             target_x = -frame_half_width + closeup_world / 2
             translate_x = target_x - head_center_x * closeup_scale
             eye_anchor_z = get_eye_anchor_z(armature, eye_names, eye_bounds, head_bounds)
