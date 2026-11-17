@@ -60,7 +60,7 @@ LIGHT_EXCLUDE_COLLECTION = "灯光排除"
 # 三点照明颜色预设：#RRGGBB（主光, 辅光, 背光）
 LIGHT_COLOR_PRESETS = {
     "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),
-    "RED_BLUE": ("#FF5959", "#BCC4FF", "#5979FF"),
+    "RED_BLUE": ("#FF4D8D  ", "#5C7CFF  ", "#9B4DFF  "),
     "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
     "MOONLIGHT": ("#CDE0FF", "#9FB8E8", "#7D9CFF"),
     "SAKURA": ("#FFE1EA", "#FFC9DE", "#FF9FC4"),

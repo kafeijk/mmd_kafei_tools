@@ -269,7 +269,7 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
     fill_energy: bpy.props.IntProperty(
         name="辅光功率",
         description="辅光的功率",
-        default=30,
+        default=60,
         min=0,
         update=update_light_energy
     )
