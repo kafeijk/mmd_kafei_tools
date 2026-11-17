@@ -1694,8 +1694,8 @@ def limit_head_span_by_eye(min_x, max_x, eye_bounds):
         return min_x, max_x
     eye_left = abs(eye_bounds[0])
     eye_right = abs(eye_bounds[1])
-    # 较短一侧的 1.8 倍作为左右边界，保持特写居中
-    limit = min(eye_left, eye_right) * THREE_VIEW_HEAD_EYE_RANGE_RATIO
+    # 取眼部较外侧的一侧计算边界：部分模型只有单眼有权重，用较短一侧会把眼睛裁到画面外
+    limit = max(eye_left, eye_right) * THREE_VIEW_HEAD_EYE_RANGE_RATIO
     if limit <= 0:
         return min_x, max_x
     if -min_x > eye_left * THREE_VIEW_HEAD_EYE_RANGE_RATIO \
