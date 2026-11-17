@@ -564,7 +564,7 @@ ARM_ANGLE_LIMIT = 90
 # 横向居中使用的分位中心百分比（去掉两端的稀疏离群几何）
 THREE_VIEW_CENTER_PERCENTILE = 2.0
 # 特写裁剪立方体的深度余量
-THREE_VIEW_CLIP_DEPTH_MARGIN = 1.5
+THREE_VIEW_CLIP_DEPTH_MARGIN = 5.0
 # 相机：布局相机在角色前方的额外距离与裁剪范围余量
 THREE_VIEW_CAMERA_DISTANCE_MARGIN = 5.0
 THREE_VIEW_CAMERA_CLIP_MARGIN = 10.0
@@ -573,5 +573,11 @@ THREE_VIEW_HEAD_FALLBACK_RATIO = 1 / 6
 # 头部包围盒左右不对称的容忍比例：左右宽度差超过头部宽度的该比例时，
 # 视为单侧头发/配饰造成偏移，改用较短一侧的宽度作为左右边界（保证特写居中）
 THREE_VIEW_HEAD_SYMMETRY_TOLERANCE = 0.1
+# 头部包围盒横向允许超出眼部网格的倍数：超过时按眼部范围的该倍数收缩并居中
+THREE_VIEW_HEAD_EYE_RANGE_RATIO =1.8
+# 眼部锚定：特写中眼睛中心距画面上边界的高度比例
+THREE_VIEW_CLOSEUP_EYE_HEIGHT_RATIO = 0.4
+# 眼部顶点组没有权重时，用眼部骨骼位置估算眼部范围：眼部范围 = 骨骼距中心距离 × 该倍数
+THREE_VIEW_EYE_BONE_RANGE_RATIO = 1.8
 # 仅特写时原模型右移出相机视野的额外间距（相对画面宽度）
 THREE_VIEW_OFFSCREEN_GAP = 0.1

@@ -1010,6 +1010,7 @@ class RenderThreeViewPanel(bpy.types.Panel):
             box = col.box()
             box_col = box.column()
             for attribute, target in (("head_vg_names", "HEAD"),
+                                      ("eye_vg_names", "EYE"),
                                       ("upper_arm_names", "UPPER"),
                                       ("forearm_names", "FOREARM")):
                 row = box_col.row(align=True)

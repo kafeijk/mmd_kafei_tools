@@ -167,6 +167,11 @@ class RenderThreeViewProperty(bpy.types.PropertyGroup):
         description="头部顶点组名称，可用中英文逗号分隔多个名称\n用于面部特写时头部的识别",
         default="頭",
     )
+    eye_vg_names: bpy.props.StringProperty(
+        name="目骨骼",
+        description="眼部顶点组名称，可用中英文逗号分隔多个名称\n用于限制面部特写的横向范围",
+        default="目.L, 目.R",
+    )
     closeup_head_ratio: bpy.props.FloatProperty(
         name="特写头部占比",
         description="特写中头部占画面高度的比例，数值越大头部越大",
