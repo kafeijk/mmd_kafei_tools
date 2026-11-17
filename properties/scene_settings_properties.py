@@ -239,7 +239,10 @@ class LightSettingsProperty(bpy.types.PropertyGroup):
         items=[
             ("DEFAULT", "默认", "默认"),
             ("RED_BLUE", "红蓝", "红蓝"),
-            ("BLUE_PURPLE", "蓝紫", "蓝紫")
+            ("BLUE_PURPLE", "蓝紫", "蓝紫"),
+            ("MOONLIGHT", "冷月", "冷月"),
+            ("SAKURA", "樱粉", "樱粉"),  # 相对默认更有肉色
+            ("SOFT_WHITE", "柔白", "柔白")  # 相对默认皮肤更白
 
         ],
         default="DEFAULT",

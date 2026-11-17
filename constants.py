@@ -62,6 +62,9 @@ LIGHT_COLOR_PRESETS = {
     "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),
     "RED_BLUE": ("#FF5959", "#BCC4FF", "#5979FF"),
     "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
+    "MOONLIGHT": ("#CDE0FF", "#9FB8E8", "#7D9CFF"),
+    "SAKURA": ("#FFE1EA", "#FFC9DE", "#FF9FC4"),
+    "SOFT_WHITE": ("#FFF6EC", "#EAF2FF", "#DCE8FF"),
 }
 
 # 相机 Z 位移系数：按角色高度约 1 的假设，相机跟随的升降量取骨骼 Z 位移的一半
