@@ -1764,7 +1764,7 @@ def get_eye_bone_bounds(armature, eye_names):
     return -extent, extent, 0.0, 0.0, min(zs), max(zs)
 
 
-def get_eye_anchor_z(armature, eye_names, eye_bounds):
+def get_eye_anchor_z(armature, eye_names, eye_bounds, head_bounds=None):
     """特写垂直锚点（眼睛高度）：优先用眼部网格中心，没有权重时用眼部骨骼位置"""
     if eye_bounds:
         return (eye_bounds[4] + eye_bounds[5]) / 2
@@ -1777,7 +1777,11 @@ def get_eye_anchor_z(armature, eye_names, eye_bounds):
             heights.append((armature.matrix_world @ bone.head).z)
     if not heights:
         return None
-    return sum(heights) / len(heights)
+    anchor = sum(heights) / len(heights)
+    # 骨骼错位时锚点会落在头部之外，此时不做眼部锚定
+    if head_bounds is not None and not head_bounds[2] <= anchor <= head_bounds[3]:
+        return None
+    return anchor
 
 
 def get_head_bounds(meshes, world, head_masks, head_names=None, eye_bounds=None):
@@ -2054,13 +2058,18 @@ def build_three_view_setup(props, report, ancestor):
     eye_group_names = get_eye_group_names(armature, eye_names)
     vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names,
                                      visible_masks, collision_chains, eye_group_names)
+    head_masks = collect_head_masks(vg_data)
+    head_bounds = get_head_bounds(mesh_objs, world_vertices, head_masks, head_names)
     eye_bounds = get_eye_bounds(mesh_objs, world_vertices, collect_eye_masks(vg_data),
                                 eye_group_names)
     if eye_bounds is None:
-        # 眼睛是贴图、没有权重时改用眼部骨骼估算，避免按整头宽度取景导致脸太小
-        eye_bounds = get_eye_bone_bounds(armature, eye_names)
-    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data), head_names,
-                                  eye_bounds)
+        # 眼睛是贴图、没有权重时改用眼部骨骼估算，避免按整头宽度取景导致脸太小；
+        # 个别模型眼部骨骼错位（高度远在头部之外），此时视为无效，退回按头部取景
+        bone_bounds = get_eye_bone_bounds(armature, eye_names)
+        if bone_bounds and head_bounds and head_bounds[2] <= bone_bounds[4] <= head_bounds[3]:
+            eye_bounds = bone_bounds
+    if eye_bounds is not None:
+        head_bounds = get_head_bounds(mesh_objs, world_vertices, head_masks, head_names, eye_bounds)
 
     # 4.1 自动姿态依赖穿模检测用的顶点组（小臂及其子孙）；某侧没有这些顶点组时该侧保持静置，并提示原因
     if props.arm_angle == 'AUTO' and forearm_bones:
@@ -2201,7 +2210,7 @@ def build_three_view_setup(props, report, ancestor):
                     closeup_scale = min(closeup_scale, width_scale)
             target_x = -frame_half_width + closeup_world / 2
             translate_x = target_x - head_center_x * closeup_scale
-            eye_anchor_z = get_eye_anchor_z(armature, eye_names, eye_bounds)
+            eye_anchor_z = get_eye_anchor_z(armature, eye_names, eye_bounds, head_bounds)
             if eye_anchor_z is not None:
                 # 眼部锚定：眼睛中心固定在画面高度 45% 处，角、发饰、发丝的位置自然
                 translate_z = (frame_top - frame_height * THREE_VIEW_CLOSEUP_EYE_HEIGHT_RATIO
