@@ -1009,14 +1009,17 @@ class RenderThreeViewPanel(bpy.types.Panel):
         if props.show_more_params:
             box = col.box()
             box_col = box.column()
-            for attribute, target in (("head_vg_names", "HEAD"),
+            for attribute, target in (
                                       ("eye_vg_names", "EYE"),
+                                      ("head_vg_names", "HEAD"),
                                       ("upper_arm_names", "UPPER"),
                                       ("forearm_names", "FOREARM")):
                 row = box_col.row(align=True)
                 row.prop(props, attribute)
                 operator = row.operator(FillThreeViewBoneNamesOperator.bl_idname, text="", icon='BONE_DATA')
                 operator.target = target
+            box_col.prop(props, "closeup_face_width_ratio")
+            box_col.prop(props, "closeup_face_height_ratio")
             box_col.prop(props, "closeup_head_ratio")
             box_col.prop(props, "height_margin")
             box_col.prop(props, "width_margin")

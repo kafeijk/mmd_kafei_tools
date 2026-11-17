@@ -164,7 +164,8 @@ class RenderThreeViewProperty(bpy.types.PropertyGroup):
     # 虽然写作头骨骼，但实际起作用的是顶点组，为了面板语义及操作统一，这里写作头骨骼
     head_vg_names: bpy.props.StringProperty(
         name="头骨骼",
-        description="头部顶点组名称，可用中英文逗号分隔多个名称\n用于面部特写时头部的识别",
+        description="头部顶点组名称，可用中英文逗号分隔多个名称\n用于面部特写时头部的识别\n"
+                    "当目骨骼或其对应网格不存在时启用该参数",
         default="頭",
     )
     eye_vg_names: bpy.props.StringProperty(
@@ -174,10 +175,25 @@ class RenderThreeViewProperty(bpy.types.PropertyGroup):
     )
     closeup_head_ratio: bpy.props.FloatProperty(
         name="特写头部占比",
-        description="特写中头部占画面高度的比例，数值越大头部越大",
+        description="特写中头部占画面高度的比例，数值越大头部越大\n"
+                    "当目骨骼或其对应网格不存在时启用该参数",
         default=2 / 3,
         min=0.05,
         max=1.0,
+    )
+    closeup_face_width_ratio: bpy.props.FloatProperty(
+        name="特写面部宽度比例",
+        description="数值越大越贴近面部（两侧裁剪更多、面部更大），数值越小保留更多头发\n当目骨骼或其对应网格不存在时，该参数失效",
+        default=1.0,
+        min=0.2,
+        max=5.0,
+    )
+    closeup_face_height_ratio: bpy.props.FloatProperty(
+        name="特写面部高度比例",
+        description="调整特写中面部的高度位置，数值越大角色越靠上，数值越小越靠下\n当目骨骼或其对应网格不存在时，该参数失效",
+        default=1.0,
+        min=0.2,
+        max=2.5,
     )
     height_margin: bpy.props.FloatProperty(
         name="高度留白比例",

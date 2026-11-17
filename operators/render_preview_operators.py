@@ -1684,22 +1684,22 @@ def symmetric_head_span(min_x, max_x):
     return -short, short
 
 
-def limit_head_span_by_eye(min_x, max_x, eye_bounds):
-    """头部横向范围超过眼部网格的 THREE_VIEW_HEAD_EYE_RANGE_RATIO 倍时，按眼部范围收缩
+def limit_head_span_by_eye(min_x, max_x, eye_bounds, range_ratio=None):
+    """头部横向范围超过眼部网格的 range_ratio 倍时，按眼部范围收缩
 
     两侧的头发、发饰会把头部包围盒撑得很宽，取中点会让特写偏离面部；
     眼部网格最贴近面部，用它的横向范围作为参照，收缩后以原点为对称中心。
     """
     if not eye_bounds:
         return min_x, max_x
+    ratio = THREE_VIEW_HEAD_EYE_RANGE_RATIO if range_ratio is None else range_ratio
     eye_left = abs(eye_bounds[0])
     eye_right = abs(eye_bounds[1])
     # 取眼部较外侧的一侧计算边界：部分模型只有单眼有权重，用较短一侧会把眼睛裁到画面外
-    limit = max(eye_left, eye_right) * THREE_VIEW_HEAD_EYE_RANGE_RATIO
+    limit = max(eye_left, eye_right) * ratio
     if limit <= 0:
         return min_x, max_x
-    if -min_x > eye_left * THREE_VIEW_HEAD_EYE_RANGE_RATIO \
-            or max_x > eye_right * THREE_VIEW_HEAD_EYE_RANGE_RATIO:
+    if -min_x > eye_left * ratio or max_x > eye_right * ratio:
         return -limit, limit
     return min_x, max_x
 
@@ -1784,7 +1784,8 @@ def get_eye_anchor_z(armature, eye_names, eye_bounds, head_bounds=None):
     return anchor
 
 
-def get_head_bounds(meshes, world, head_masks, head_names=None, eye_bounds=None):
+def get_head_bounds(meshes, world, head_masks, head_names=None, eye_bounds=None,
+                    eye_range_ratio=None):
     """用「頭」顶点组中权重大于 0 的顶点计算头部包围盒（含姿态）"""
     arrays = []
     for obj in meshes:
@@ -1803,7 +1804,7 @@ def get_head_bounds(meshes, world, head_masks, head_names=None, eye_bounds=None)
     # 头部只需要横向与纵向包围盒
     min_x, max_x, _, _, min_z, max_z = points_bounds(np.concatenate(arrays))
     # 横向明显宽于眼部网格时按眼部范围收缩，再做左右不对称修正
-    min_x, max_x = limit_head_span_by_eye(min_x, max_x, eye_bounds)
+    min_x, max_x = limit_head_span_by_eye(min_x, max_x, eye_bounds, eye_range_ratio)
     min_x, max_x = symmetric_head_span(min_x, max_x)
     return min_x, max_x, min_z, max_z
 
@@ -2069,7 +2070,10 @@ def build_three_view_setup(props, report, ancestor):
         if bone_bounds and head_bounds and head_bounds[2] <= bone_bounds[4] <= head_bounds[3]:
             eye_bounds = bone_bounds
     if eye_bounds is not None:
-        head_bounds = get_head_bounds(mesh_objs, world_vertices, head_masks, head_names, eye_bounds)
+        # 面部宽度比例以 1 为基准：调大时眼部范围收窄、裁掉更多两侧头发
+        eye_range_ratio = THREE_VIEW_HEAD_EYE_RANGE_RATIO / max(props.closeup_face_width_ratio, 1e-4)
+        head_bounds = get_head_bounds(mesh_objs, world_vertices, head_masks, head_names, eye_bounds,
+                                      eye_range_ratio)
 
     # 4.1 自动姿态依赖穿模检测用的顶点组（小臂及其子孙）；某侧没有这些顶点组时该侧保持静置，并提示原因
     if props.arm_angle == 'AUTO' and forearm_bones:
@@ -2212,8 +2216,12 @@ def build_three_view_setup(props, report, ancestor):
             translate_x = target_x - head_center_x * closeup_scale
             eye_anchor_z = get_eye_anchor_z(armature, eye_names, eye_bounds, head_bounds)
             if eye_anchor_z is not None:
-                # 眼部锚定：眼睛中心固定在画面高度 45% 处，角、发饰、发丝的位置自然
-                translate_z = (frame_top - frame_height * THREE_VIEW_CLOSEUP_EYE_HEIGHT_RATIO
+                # 眼部锚定：眼睛中心固定在画面高度的一定比例处（特写面部高度比例越大越靠上），
+                # 角、发饰、发丝的位置自然
+                eye_height_ratio = min(max(
+                    THREE_VIEW_CLOSEUP_EYE_HEIGHT_RATIO
+                    / max(props.closeup_face_height_ratio, 1e-4), 0.02), 1.0)
+                translate_z = (frame_top - frame_height * eye_height_ratio
                                - eye_anchor_z * closeup_scale)
             else:
                 translate_z = frame_top - head_bounds[3] * closeup_scale
