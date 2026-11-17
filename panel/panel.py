@@ -1021,8 +1021,8 @@ class RenderThreeViewPanel(bpy.types.Panel):
             box_col.prop(props, "closeup_face_width_ratio")
             box_col.prop(props, "closeup_face_height_ratio")
             box_col.prop(props, "closeup_head_ratio")
-            box_col.prop(props, "height_margin")
             box_col.prop(props, "width_margin")
+            box_col.prop(props, "height_margin")
             box_col.prop(props, "side_view_angle")
 
         show_batch_props(col, True, True, batch, FillSuffixRenderThreeViewOperator)
