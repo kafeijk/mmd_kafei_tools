@@ -14,6 +14,7 @@ translation_dict = {
         ("*", "渲染引擎"): "Render Engine",
         ("*", "用于渲染的引擎"): "Engine to use for rendering",
         ("*", "分辨率"): "Resolution",
+        ("*", "分辨率预设，选择后立即应用对应的宽高，并重置分辨率百分比与宽高比。"): "Resolution preset. Selecting one applies its width and height immediately and resets the resolution percentage and aspect ratio.",
         ("*", "语言"): "Language",
         ("*", "开发选项"): "Developer Extras",
         ("*", "关于"): "About",

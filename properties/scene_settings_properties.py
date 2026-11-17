@@ -96,7 +96,7 @@ def update_resolution(self, context):
 class OutputSettingsProperty(bpy.types.PropertyGroup):
     resolution: bpy.props.EnumProperty(
         name="分辨率",
-        description="分辨率",
+        description="分辨率预设，选择后立即应用对应的宽高，并重置分辨率百分比与宽高比。",
         items=[
             (identifier, label, f"{width}x{height}")
             for identifier, (label, width, height) in RESOLUTION_PRESETS.items()
