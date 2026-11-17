@@ -356,13 +356,13 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
 
     vg_name: bpy.props.StringProperty(
         name="顶点组",
-        description="顶点组名称",
+        description="相机跟随的顶点组名称",
         default='Group'
     )
 
     threshold_x: bpy.props.FloatProperty(
         name="增量阈值 X",
-        description="骨骼X轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
+        description="骨骼 X 轴位置的变化阈值。位置变化超过该值时，更新相机位置",
         default=0.1,
         min=0.0,
         subtype='DISTANCE'
@@ -370,7 +370,7 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
 
     threshold_y: bpy.props.FloatProperty(
         name="Y",
-        description="骨骼Y轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
+        description="骨骼 Y 轴位置的变化阈值。位置变化超过该值时，更新相机位置",
         default=0.1,
         min=0.0,
         subtype='DISTANCE'
@@ -379,7 +379,7 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
 
     threshold_z: bpy.props.FloatProperty(
         name="Z",
-        description="骨骼Z轴上位置的增量阈值，当骨骼位置变化超过该值时更新相机位置",
+        description="骨骼 Z 轴位置的变化阈值。位置变化超过该值时，更新相机位置",
         default=0.1,
         min=0.0,
         subtype='DISTANCE'
@@ -387,14 +387,14 @@ class CameraSettingsProperty(bpy.types.PropertyGroup):
 
     rotation_euler_x: bpy.props.FloatProperty(
         name="相机旋转 X",
-        description="相机X轴旋转",
+        description="相机的俯仰角。可调整该值，使角色视线尽量保持平视相机",
         subtype="ANGLE",
         default=math.radians(85)
     )
 
     max_gap: bpy.props.IntProperty(
         name="最大不同帧间隔",
-        description="两个不同关键帧之间的最大帧间隔，用于避免角色几乎不动时相机缓慢移动的问题",
+        description="相邻且不同的关键帧之间的最大间隔。间隔超过该值时会补插关键帧，避免角色几乎不动时相机缓慢移动",
         default=15,
         min=1,
     )
