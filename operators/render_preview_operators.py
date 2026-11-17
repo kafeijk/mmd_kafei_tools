@@ -1135,11 +1135,11 @@ def visible_world_vertices(world, masks):
     return result
 
 
-def get_vertex_masks(obj, left_names, right_names, excluded_names, head_names):
-    """一次 bmesh 遍历，按顶点组生成左右手、身体与头部的顶点掩码"""
+def get_vertex_masks(obj, left_names, right_names, excluded_names, head_names, head_desc_names=None):
+    """一次 bmesh 遍历，按顶点组生成左右手、身体、头部及头部子孙骨骼的顶点掩码"""
     mesh = obj.data
     count = len(mesh.vertices)
-    masks = {key: np.zeros(count, dtype=bool) for key in ('l', 'r', 'body', 'head')}
+    masks = {key: np.zeros(count, dtype=bool) for key in ('l', 'r', 'body', 'head', 'head_desc')}
     if count == 0:
         return masks
     vg_name_map = {vg.index: vg.name for vg in obj.vertex_groups}
@@ -1147,7 +1147,8 @@ def get_vertex_masks(obj, left_names, right_names, excluded_names, head_names):
     right_vg_indexes = {index for index, name in vg_name_map.items() if name in right_names}
     excluded_vg_indexes = {index for index, name in vg_name_map.items() if name in excluded_names}
     head_vg_indexes = {index for index, name in vg_name_map.items() if name in head_names}
-    if not (left_vg_indexes or right_vg_indexes or head_vg_indexes):
+    head_desc_vg_indexes = {index for index, name in vg_name_map.items() if name in (head_desc_names or ())}
+    if not (left_vg_indexes or right_vg_indexes or head_vg_indexes or head_desc_vg_indexes):
         return masks
 
     bm = bmesh.new()
@@ -1169,12 +1170,18 @@ def get_vertex_masks(obj, left_names, right_names, excluded_names, head_names):
                 masks['body'][index] = True
             if vg_indexes & head_vg_indexes:
                 masks['head'][index] = True
+            if head_desc_vg_indexes and vg_indexes & head_desc_vg_indexes:
+                masks['head_desc'][index] = True
     bm.free()
     return masks
 
 
 def collect_head_masks(vg_data):
     return {obj: masks['head'] for obj, masks in vg_data.items()}
+
+
+def collect_head_desc_masks(vg_data):
+    return {obj: masks['head_desc'] for obj, masks in vg_data.items()}
 
 def get_mesh_loops(mesh):
     loops_vertex = get_loop_vertices(mesh)
@@ -1353,7 +1360,7 @@ def classify_arm_sides(obj, chains):
 
 
 def collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names,
-                           visible_masks=None, collision_chains=None):
+                           visible_masks=None, collision_chains=None, head_desc_names=None):
     """
     一次遍历得到穿模/身体/头部顶点掩码，供手臂角度与头部尺寸共用
 
@@ -1361,13 +1368,15 @@ def collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_name
     excluded_names  ：不计入身体的手臂顶点组（大臂子树减去小臂子树）
     head_names      ：头部顶点组，用于特写取景与穿模高度过滤
     collision_chains：按小臂分组的手臂链，用于整体判断左右（没有 .L/.R 后缀时按位置判断）
+    head_desc_names ：头部骨骼的子孙骨骼，用于限制头部包围盒顶部（排除挂在头部顶点组上的高发饰）
     """
     collision = set(collision_names)
     excluded = set(excluded_names) | ARM_EXCLUDED_GROUP_NAMES
     data = {}
     for obj in mesh_objs:
         left, right = classify_arm_sides(obj, collision_chains or [])
-        data[obj] = get_vertex_masks(obj, left, right, collision | excluded, set(head_names))
+        data[obj] = get_vertex_masks(obj, left, right, collision | excluded, set(head_names),
+                                     head_desc_names)
     for obj, masks in data.items():
         visible = visible_masks.get(obj) if visible_masks else None
         if visible is None:
@@ -1670,9 +1679,32 @@ def symmetric_head_span(min_x, max_x):
     return -short, short
 
 
-def get_head_bounds(meshes, world, head_masks, head_names=None):
-    """用「頭」顶点组中权重大于 0 的顶点计算头部包围盒（含姿态）"""
+def get_descendant_bone_names(armature, bone_names):
+    """返回指定骨骼的全部子孙骨骼名称"""
+    names = []
+    if armature is None:
+        return names
+    for bone_name in bone_names:
+        bone = armature.data.bones.get(bone_name)
+        if bone is None:
+            continue
+        stack = list(bone.children)
+        while stack:
+            child = stack.pop()
+            names.append(child.name)
+            stack.extend(child.children)
+    return names
+
+
+def get_head_bounds(meshes, world, head_masks, head_names=None,
+                    head_desc_masks=None, head_desc_names=None):
+    """用「頭」顶点组中权重大于 0 的顶点计算头部包围盒（含姿态）
+
+    顶部再受头部子孙骨骼（头发、眼睛等）对应的网格限制：
+    挂在「頭」顶点组上的高发饰会把 max_z 抬高，使特写取景过大，此时改用子孙骨骼的顶部。
+    """
     arrays = []
+    desc_max_z = None
     for obj in meshes:
         mask = head_masks.get(obj)
         positions = world.get(obj)
@@ -1684,10 +1716,20 @@ def get_head_bounds(meshes, world, head_masks, head_names=None):
         if mask is None or len(mask) != len(positions) or not mask.any():
             continue
         arrays.append(positions[mask])
+        # 子孙骨骼对应的顶点，只用于限制包围盒顶部
+        desc_mask = head_desc_masks.get(obj) if head_desc_masks else None
+        if head_desc_names and (desc_mask is None or len(desc_mask) != len(positions)):
+            desc_mask = get_evaluated_vertex_group_mask(obj, head_desc_names)
+        if desc_mask is not None and len(desc_mask) == len(positions) and desc_mask.any():
+            top = float(positions[desc_mask][:, 2].max())
+            desc_max_z = top if desc_max_z is None else max(desc_max_z, top)
     if not arrays:
         return None
     # 头部只需要横向与纵向包围盒
     min_x, max_x, _, _, min_z, max_z = points_bounds(np.concatenate(arrays))
+    # 子孙骨骼的顶部低于头部包围盒顶部时，取子孙骨骼的顶部
+    if desc_max_z is not None and min_z < desc_max_z < max_z:
+        max_z = desc_max_z
     min_x, max_x = symmetric_head_span(min_x, max_x)
     return min_x, max_x, min_z, max_z
 
@@ -1937,9 +1979,12 @@ def build_three_view_setup(props, report, ancestor):
     collision_names, excluded_names, collision_chains = collect_arm_bone_names(
         armature, upper_arm_bones, forearm_bones)
     head_names = split_names(props.head_vg_names)
+    # 头部子孙骨骼（头发、眼睛等）的网格顶部用于限制特写包围盒顶部
+    head_desc_names = get_descendant_bone_names(armature, head_names)
     vg_data = collect_vertex_vg_data(mesh_objs, collision_names, excluded_names, head_names,
-                                     visible_masks, collision_chains)
-    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data), head_names)
+                                     visible_masks, collision_chains, head_desc_names)
+    head_bounds = get_head_bounds(mesh_objs, world_vertices, collect_head_masks(vg_data), head_names,
+                                  collect_head_desc_masks(vg_data), head_desc_names)
 
     # 4.1 自动姿态依赖穿模检测用的顶点组（小臂及其子孙）；某侧没有这些顶点组时该侧保持静置，并提示原因
     if props.arm_angle == 'AUTO' and forearm_bones:
