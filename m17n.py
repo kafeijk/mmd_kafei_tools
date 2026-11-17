@@ -3,59 +3,6 @@
 # 多语言翻译字典
 # 考虑到源码改动程度及翻译准确程度，暂且将英文放置于Value位置
 translation_dict = {
-    "zh_CN": {
-        # General Prompt
-        ("*", "Select MMD model!"): "请选择MMD模型！",
-        ("*", "Select MMD armature!"): "请选择MMD骨架！",
-        ("*", "Select at least one object!"): "请选择至少一个物体！",
-
-        # bone_operators
-        ("*", "Select bones on one side!"): "请选择单侧骨骼！",
-
-        # change_tex_loc_operators
-        ("*", "Texture folder name required!"): "请填写贴图文件夹名称！",
-        ("*", "Invalid texture folder name!"): "贴图文件夹名称无效！",
-
-        # organize_panel_operators
-        ("*", "Armature not found!"): "未找到模型骨架！",
-        ("*", "Mesh not found!"): "模型网格对象不存在！",
-
-        # render_preview_operators
-        ("*", "Color management error!"): "色彩管理参数设置时出现异常，请手动调整",
-        ("*", "HDRI Map not found. Add manually. Path: {}"): "未找到环境贴图，请自行添加！参考路径：{}",
-        ("*", "Unsupported output format! Use image format instead."): "输出文件格式不正确，请更改为图像类型格式！",
-
-        # scene_settings_operators
-        ("*", "Select armature object!"): "请选择骨架对象！",
-        ("*", "Select mesh object!"): "请选择网格对象！",
-        ("*", "Bone \"{}\" not found!"): "未找到骨骼“{}”！",
-        ("*", "Vertex group \"{}\" not found!"): "未找到顶点组“{}”！",
-        ("*", "Object \"{}\" vertex group \"{}\" has no vertices!"): "对象“{}”的顶点组“{}”没有顶点！",
-        ("*", "Armature has no keyframes!"): "骨架未导入动作！",
-
-        # small_feature_operators
-        ("*", "Affected materials: {}"): "受影响材质：{}",
-        ("*", "Shader to RGB node detected! Results may be unpredictable. Click to view affected materials ↑↑↑"): "检测到Shader To RGB节点，修改结果不可预期，点击查看受影响材质↑↑↑",
-
-        # Quick Operation msg
-        ("*", "Removed {} vertice(s)"): "移除了 {} 个顶点",
-        ("*", "Check completed, click to view the report ↑↑↑"): "检测完成，点击查看报告↑↑↑",
-        ("*", "Overlapping faces between {} and {}: {} (Ratio A: {:.2%}, B: {:.2%})"): "{} 与 {} 重合面数: {} (占比 A: {:.2%}, B: {:.2%})",
-        ("*", "No overlapping mesh faces found"): "未发现网格面之间重合",
-
-        # Render Preview Operator msg
-        ("*", "\"{}\" rendering completed, progress {}/{} (elapsed {} seconds, total {} seconds)"): "\"{}\" 渲染完成，进度{}/{}，耗时{}秒，总耗时: {} 秒",
-        ("*", "Directory \"{}\" rendering completed (total {} seconds)"): "目录\"{}\" 渲染完成，总耗时: {} 秒",
-
-        # utils
-        ("*", "MMD Tools plugin not enabled!"): "未启用mmd_tools插件",
-        ("*", "Model directory not found!"): "模型目录不存在！",
-        ("*", "Invalid root directory! Change to subfolder."): "模型目录为盘符根目录，请更换为其它目录！",
-        ("*", "Invalid name suffix!"): "名称后缀不合法！",
-        ("*", "Specified directory not found: {}"): "未找到指定目录：{}",
-        ("*", "File not found: {}"): "未找到文件：{}",
-
-    },
     "en_US": {
         ("Operator", "传递"): "Execute",
         ("Operator", "修改"): "Execute",
@@ -816,5 +763,4 @@ translation_dict = {
 
 }
 
-translation_dict["zh_HANS"] = translation_dict["zh_CN"]
 translation_dict["ja_JP"] = translation_dict["en_GB"] = translation_dict["en_US"]
