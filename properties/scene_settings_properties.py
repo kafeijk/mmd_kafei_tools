@@ -45,7 +45,7 @@ class RenderSettingsProperty(bpy.types.PropertyGroup):
 class WorldSettingsProperty(bpy.types.PropertyGroup):
     world_name: bpy.props.EnumProperty(
         name="世界环境",
-        description="世界环境",
+        description="世界环境，为场景提供全局光照",
         items=[
             ("DEFAULT", "默认", "世界背景为黑色，无光照贡献"),
             ("CITY", "城市", "城市"),

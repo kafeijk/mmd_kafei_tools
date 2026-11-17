@@ -51,6 +51,7 @@ translation_dict = {
         ("*", "场景设置"): "Scene Settings",
         ("*", "渲染设置"): "Render Settings",
         ("*", "世界环境"): "World",
+        ("*", "世界环境，为场景提供全局光照"): "World environment that provides global illumination for the scene",
         ("*", "默认"): "Default",
         ("*", "城市"): "City",
         ("*", "庭院"): "Courtyard",
