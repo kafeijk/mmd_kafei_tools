@@ -570,5 +570,8 @@ THREE_VIEW_CAMERA_DISTANCE_MARGIN = 5.0
 THREE_VIEW_CAMERA_CLIP_MARGIN = 10.0
 # 无「頭」顶点组时，按模型高度估算的头部高度比例
 THREE_VIEW_HEAD_FALLBACK_RATIO = 1 / 6
+# 头部包围盒左右不对称的容忍比例：左右宽度差超过头部宽度的该比例时，
+# 视为单侧头发/配饰造成偏移，改用较短一侧的宽度作为左右边界（保证特写居中）
+THREE_VIEW_HEAD_SYMMETRY_TOLERANCE = 0.1
 # 仅特写时原模型右移出相机视野的额外间距（相对画面宽度）
 THREE_VIEW_OFFSCREEN_GAP = 0.1

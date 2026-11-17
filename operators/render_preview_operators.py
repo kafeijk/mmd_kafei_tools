@@ -29,6 +29,7 @@ from ..constants import (
     THREE_VIEW_CLOSEUP_COPY_LABEL,
     THREE_VIEW_COLLECTION_NAME,
     THREE_VIEW_HEAD_FALLBACK_RATIO,
+    THREE_VIEW_HEAD_SYMMETRY_TOLERANCE,
     THREE_VIEW_OFFSCREEN_GAP,
     THREE_VIEW_SIDE_COPY_LABEL,
     THREE_VIEW_TEMP_FLAG,
@@ -1653,6 +1654,22 @@ def get_evaluated_vertex_group_mask(obj, names):
         eval_obj.to_mesh_clear()
 
 
+def symmetric_head_span(min_x, max_x):
+    """
+    头部包围盒左右不对称时，改用较短一侧的宽度作为左右边界
+
+    单侧头饰会把包围盒撑向一边，直接取中点会让特写偏离面部中心；
+    左右宽度差超过头部宽度的 THREE_VIEW_HEAD_SYMMETRY_TOLERANCE 时按短侧对称。
+    """
+    width = max_x - min_x
+    left = abs(min_x)
+    right = abs(max_x)
+    if width <= 0 or abs(left - right) <= width * THREE_VIEW_HEAD_SYMMETRY_TOLERANCE:
+        return min_x, max_x
+    short = min(left, right)
+    return -short, short
+
+
 def get_head_bounds(meshes, world, head_masks, head_names=None):
     """用「頭」顶点组中权重大于 0 的顶点计算头部包围盒（含姿态）"""
     arrays = []
@@ -1671,6 +1688,7 @@ def get_head_bounds(meshes, world, head_masks, head_names=None):
         return None
     # 头部只需要横向与纵向包围盒
     min_x, max_x, _, _, min_z, max_z = points_bounds(np.concatenate(arrays))
+    min_x, max_x = symmetric_head_span(min_x, max_x)
     return min_x, max_x, min_z, max_z
 
 
