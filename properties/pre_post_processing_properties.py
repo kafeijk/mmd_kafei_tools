@@ -61,7 +61,7 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
     keep_names: bpy.props.StringProperty(
         name="图像保留关键词",
         description="名称含保留关键词的图像不会被处理，可按中英文逗号分隔。\n可防止预览图等图像文件被误认为贴图文件被处理",
-        default="preview",
+        default="preview,3view",
         maxlen=200
     )
 
