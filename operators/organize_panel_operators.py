@@ -109,19 +109,21 @@ def fix_rigid_body_size(pmx_root, props):
                     mmd_rigid.size[i] = 0.1 * PMX_IMPORT_SCALE
 
 
-def organize_panel(pmx_root, props):
+def do_compatibility(pmx_root, props):
     # 名称修复优先执行
     fix_bone_name(pmx_root, props)
     fix_morph_name(pmx_root, props)
+    fix_material_morphs(pmx_root, props)
+    fix_rigid_body_size(pmx_root, props)
+
+
+def organize_panel(pmx_root, props):
     # 整理面板
     reorder_bone_panel(pmx_root, props)
     reorder_morph_panel(pmx_root, props)
     reorder_rigid_body_panel(pmx_root, props)
     reorder_display_panel(pmx_root, props)
     translate_name(pmx_root, props)
-    # 兼容处理
-    fix_material_morphs(pmx_root, props)
-    fix_rigid_body_size(pmx_root, props)
 
 
 def extract_text(text, pattern):

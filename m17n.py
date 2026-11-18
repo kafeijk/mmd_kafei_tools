@@ -497,6 +497,7 @@ translation_dict = {
         ("*", "预处理/后处理"): "Preprocessing & Postprocessing",
         ("*", "展开贴图路径参数"): "Expand Texture Path Options",
         ("*", "展开面板整理参数"): "Expand Panel Organization Options",
+        ("*", "展开兼容优化参数"): "Expand Compatibility Optimization Options",
         # Change Texture Path panel / parameters
         ("*", "修改贴图路径"): "Texture Path Change",
         ("*", "贴图文件夹名称"): "Folder Name",
@@ -650,6 +651,7 @@ translation_dict = {
         ("*", "执行勾选的预处理/后处理流程。"): "Run the selected preprocessing/postprocessing operations.",
         ("*", "请至少勾选一项处理！"): "Select at least one operation!",
         ("*", "请至少勾选一项面板整理选项！"): "Select at least one panel organization option!",
+        ("*", "请至少勾选一项兼容优化选项！"): "Select at least one compatibility optimization option!",
         ("*", "请填写贴图文件夹名称！"): "Texture folder name required!",
         ("*", "贴图文件夹名称无效！"): "Invalid texture folder name!",
 

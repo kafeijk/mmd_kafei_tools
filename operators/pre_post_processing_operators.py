@@ -4,7 +4,7 @@ from ..batch_utils import BatchProcessOperatorMixin
 from ..constants import BATCH_TASK_PRE_POST_PROCESSING, INVALID_CHARS
 from ..utils import check_batch_props, translate
 from .change_tex_loc_operators import do_change_tex_loc
-from .organize_panel_operators import organize_panel
+from .organize_panel_operators import organize_panel, do_compatibility
 from .remove_uv_map_operators import do_remove_uv_maps
 
 
@@ -23,26 +23,29 @@ class PrePostProcessingOperator(BatchProcessOperatorMixin, bpy.types.Operator):
         return self.start_batch_process(context, props, do_pre_post_processing)
 
     def check_props(self, props):
-        if not (props.change_tex_loc or props.remove_uv_map or props.organize_panel):
+        if not (props.change_tex_loc or props.remove_uv_map or props.organize_panel or props.compatibility_flag):
             self.report(type={'ERROR'}, message=translate("请至少勾选一项处理！"))
             return False
         if props.organize_panel:
-            compatibility_effective = props.compatibility_flag and any((
-                props.fix_bone_name_flag,
-                props.fix_morph_name_flag,
-                props.fix_all_materials_flag,
-                props.fix_rigid_body_size_flag,
-            ))
             organize_effective = any((
                 props.bone_panel_flag,
                 props.morph_panel_flag,
                 props.rigid_body_panel_flag,
                 props.display_panel_flag,
                 props.translation_flag,
-                compatibility_effective,
             ))
             if not organize_effective:
                 self.report(type={'ERROR'}, message=translate("请至少勾选一项面板整理选项！"))
+                return False
+        if props.compatibility_flag:
+            compatibility_effective = any((
+                props.fix_bone_name_flag,
+                props.fix_morph_name_flag,
+                props.fix_all_materials_flag,
+                props.fix_rigid_body_size_flag,
+            ))
+            if not compatibility_effective:
+                self.report(type={'ERROR'}, message=translate("请至少勾选一项兼容优化选项！"))
                 return False
         if not check_batch_props(self, props.batch):
             return False
@@ -77,5 +80,8 @@ def do_pre_post_processing(pmx_root, props, filepath):
         do_change_tex_loc(pmx_root, props, filepath)
     if props.remove_uv_map:
         do_remove_uv_maps(pmx_root)
+    # 兼容优化中的名称修复会影响面板整理的结果，需先执行
+    if props.compatibility_flag:
+        do_compatibility(pmx_root, props)
     if props.organize_panel:
         organize_panel(pmx_root, props)

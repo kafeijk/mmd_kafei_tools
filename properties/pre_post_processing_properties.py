@@ -32,6 +32,10 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
         name="展开面板整理参数",
         default=False
     )
+    compatibility_expanded: bpy.props.BoolProperty(
+        name="展开兼容优化参数",
+        default=False
+    )
 
     # 修改贴图路径
     new_folder: bpy.props.StringProperty(
@@ -102,7 +106,7 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
         name="兼容优化",
         description="兼容优化，解决MMD模型在MikuMikuDance与Blender之间的差异",
         default=True,
-        update=lambda self, context: self.check_selection(context, "compatibility_flag")
+        update=lambda self, context: self.ensure_one_selected("compatibility_flag")
     )
     fix_bone_name_flag: bpy.props.BoolProperty(
         name="骨骼名称修复",
@@ -142,38 +146,31 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
 
     def ensure_one_selected(self, changed_property):
         """至少保留一项勾选：全部取消时恢复刚取消的项"""
-        if not (self.change_tex_loc or self.remove_uv_map or self.organize_panel):
+        if not (self.change_tex_loc or self.remove_uv_map or self.organize_panel or self.compatibility_flag):
             setattr(self, changed_property, True)
 
     def check_selection(self, context, changed_property):
         """检查选项，如果都未选中则恢复原来的状态"""
-        compatibility_children = (
-            self.fix_bone_name_flag,
-            self.fix_morph_name_flag,
-            self.fix_all_materials_flag,
-            self.fix_rigid_body_size_flag,
-        )
+        # 面板整理至少保留一项
         if not any((
                 self.bone_panel_flag,
                 self.morph_panel_flag,
                 self.rigid_body_panel_flag,
                 self.display_panel_flag,
                 self.translation_flag,
-                self.compatibility_flag,
         )):
-            if hasattr(self, changed_property):
+            if changed_property in (
+                    "bone_panel_flag",
+                    "morph_panel_flag",
+                    "rigid_body_panel_flag",
+                    "display_panel_flag",
+                    "translation_flag",
+            ):
                 setattr(self, changed_property, True)
 
         # 上级选项失效后，子级选项随之失效
         if changed_property == "translation_flag":
             self.overwrite_flag = self.translation_flag
-
-        elif changed_property == "compatibility_flag":
-            state = self.compatibility_flag
-            self.fix_bone_name_flag = state
-            self.fix_morph_name_flag = state
-            self.fix_all_materials_flag = state
-            self.fix_rigid_body_size_flag = state
 
         elif changed_property in (
                 "fix_bone_name_flag",
@@ -182,5 +179,10 @@ class PrePostProcessingProperty(bpy.types.PropertyGroup):
                 "fix_rigid_body_size_flag",
         ):
             # 兼容优化被勾选时，至少保留一个子项
-            if self.compatibility_flag and not any(compatibility_children):
+            if self.compatibility_flag and not any((
+                    self.fix_bone_name_flag,
+                    self.fix_morph_name_flag,
+                    self.fix_all_materials_flag,
+                    self.fix_rigid_body_size_flag,
+            )):
                 setattr(self, changed_property, True)

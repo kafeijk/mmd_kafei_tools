@@ -808,6 +808,20 @@ class PrePostProcessingPanel(bpy.types.Panel):
         # 移除冗余UV
         col.prop(props, "remove_uv_map", text="移除冗余UV")
 
+        # 兼容优化
+        row = col.row(align=True)
+        row.prop(props, "compatibility_flag", text="兼容优化")
+        icon = 'DOWNARROW_HLT' if props.compatibility_expanded else 'RIGHTARROW'
+        row.prop(props, "compatibility_expanded", text="", icon=icon, emboss=False)
+        if props.compatibility_expanded:
+            param_box = col.box()
+            param_box.enabled = props.compatibility_flag
+            param_col = param_box.column()
+            param_col.prop(props, "fix_bone_name_flag")
+            param_col.prop(props, "fix_morph_name_flag")
+            param_col.prop(props, "fix_all_materials_flag")
+            param_col.prop(props, "fix_rigid_body_size_flag")
+
         # 面板整理
         row = col.row(align=True)
         row.prop(props, "organize_panel", text="面板整理")
@@ -829,18 +843,6 @@ class PrePostProcessingPanel(bpy.types.Panel):
             overwrite_flag_row.prop(props, "overwrite_flag")
             if props.translation_flag is False:
                 overwrite_flag_row.enabled = False
-
-            param_col.prop(props, "compatibility_flag")
-            compatibility_flag_row = param_col.row()
-            compatibility_flag_row.separator()
-            compatibility_flag_row.separator()
-            compatibility_flag_col = compatibility_flag_row.column()
-            compatibility_flag_col.prop(props, "fix_bone_name_flag")
-            compatibility_flag_col.prop(props, "fix_morph_name_flag")
-            compatibility_flag_col.prop(props, "fix_all_materials_flag")
-            compatibility_flag_col.prop(props, "fix_rigid_body_size_flag")
-            if props.compatibility_flag is False:
-                compatibility_flag_col.enabled = False
 
         show_batch_props(col, False, True, batch, FillSuffixPrePostProcessingOperator)
 
