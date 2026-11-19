@@ -16,7 +16,7 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
             ("REMOVE_CONSTRAINT", "移除约束", "移除约束"),  # keep_first
             ("REMOVE_VERTEX_GROUP", "移除顶点组", "移除顶点组"),
             ("REMOVE_SHAPE_KEY", "移除形态键", "移除形态键"),  # keep_current
-            ("RESET_SHAPE_KEY", "重置形态键", "将全部形态键数值归零，并恢复默认的范围上下限"),
+            ("RESET_SHAPE_KEY", "形态键数值归零", "将全部形态键数值归零，并恢复默认的范围上下限"),
         ]
     )
     uv_name: bpy.props.StringProperty(
