@@ -153,7 +153,7 @@ class ArrangeObjectProperty(bpy.types.PropertyGroup):
         min=1
     )
     spacing_circle: bpy.props.FloatProperty(
-        name="间距",
+        name="环间距",
         description="圆环/圆弧间距",
         default=1,
         subtype='DISTANCE'
