@@ -564,10 +564,20 @@ def find_armature(obj):
     递归查找 obj 的子对象，直到找到骨架（ARMATURE）对象。
     返回第一个找到的骨架对象，如果没有找到则返回 None。
     """
+    if obj is None:
+        return None
+
     if obj.type == 'ARMATURE' and ".dummy_armature" not in obj.name:
         return obj
 
+    # 模型根的直接子级通常就是骨架，先查一层，避免递归遍历大量刚体/关节子树
     for child in obj.children:
+        if child.type == 'ARMATURE' and ".dummy_armature" not in child.name:
+            return child
+
+    for child in obj.children:
+        if getattr(child, "mmd_type", "") in ("RIGID_BODY", "JOINT"):
+            continue
         result = find_armature(child)
         if result:
             return result
