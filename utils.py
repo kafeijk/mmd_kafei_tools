@@ -576,7 +576,12 @@ def find_armature(obj):
             return child
 
     for child in obj.children:
-        if getattr(child, "mmd_type", "") in ("RIGID_BODY", "JOINT"):
+        # MMD Tools 用 mmd_type 标记刚体/关节及其分组空物体；
+        # 同时兼容没有 mmd_tools 或标记缺失的场景，直接看物理数据。
+        if getattr(child, "mmd_type", "") in ("RIGID_BODY", "JOINT",
+                                              "RIGID_GRP_OBJ", "JOINT_GRP_OBJ"):
+            continue
+        if child.rigid_body is not None or child.rigid_body_constraint is not None:
             continue
         result = find_armature(child)
         if result:
