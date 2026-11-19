@@ -36,7 +36,6 @@ EYE_WHITE_WELD_THRESHOLD = 1e-6
 EYE_WHITE_SHRINKWRAP_OFFSET = 0.002
 EYE_WHITE_DISPLACE_STRENGTH = 1.0
 EYE_WHITE_DISPLACE_MID_LEVEL = 0.99
-EYE_WHITE_SMOOTH_FACTOR = 1.0
 EYE_WHITE_SMOOTH_ITERATIONS = 5
 EYE_WHITE_MATERIAL_NAME = "默认眼白"
 # 生成对象记录所属模型根对象名称的自定义属性
@@ -315,6 +314,8 @@ def get_eye_white_material():
     output.location = (0.0, 0.0)
     bsdf = node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
     bsdf.location = (-300.0, 0.0)
+    # 创建时基础色设为白色 #FFFFFFFF，避免沿用原理化 BSDF 默认的 0.8 灰
+    bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
     node_tree.links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
     return material
 
@@ -630,14 +631,15 @@ def add_eye_white_modifiers(obj, target):
     shrinkwrap.target = target
     shrinkwrap.offset = EYE_WHITE_SHRINKWRAP_OFFSET
     shrinkwrap.vertex_group = EYE_WHITE_VERTEX_GROUP
-    #
-    # smooth = obj.modifiers.new(name="平滑", type='SMOOTH')
-    # smooth.factor = EYE_WHITE_SMOOTH_FACTOR
-    # smooth.iterations = EYE_WHITE_SMOOTH_ITERATIONS
-    # smooth.use_x = True
-    # smooth.use_y = True
-    # smooth.use_z = False
-    # smooth.vertex_group = EYE_WHITE_VERTEX_GROUP
+
+    smooth = obj.modifiers.new(name="", type='SMOOTH')
+    smooth.iterations = EYE_WHITE_SMOOTH_ITERATIONS
+    smooth.use_x = True
+    smooth.use_y = True
+    smooth.use_z = True
+    smooth.vertex_group = EYE_WHITE_VERTEX_GROUP
+    smooth.show_viewport = False
+    smooth.show_render = False
 
     obj.modifiers.new(name="加权法向", type='WEIGHTED_NORMAL')
 
