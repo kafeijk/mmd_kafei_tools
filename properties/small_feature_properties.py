@@ -12,6 +12,7 @@ class SmallFeatureProperty(bpy.types.PropertyGroup):
             ("SUBSURFACE_CY", "修复Cycles显示模糊", "将原理化BSDF节点的次表面值归零"),
             ("MODIFY_COLORSPACE", "修改贴图色彩空间", "修改贴图色彩空间"),
             ("GROUP_OBJECT", "网格对象分组", "为网格对象分组"),
+            ("FIX_EYE_WHITE", "修复眼白发黑", "将眼白缩裹到眼睛的旋转扫过区域，修复眼白发黑的问题"),
         ],
         default="SCENE_ROOT"
     )
@@ -59,7 +60,7 @@ class ModifyColorspaceProperty(bpy.types.PropertyGroup):
     )
     keywords: bpy.props.StringProperty(
         name="关键词",
-        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开。若启用关键词搜索，则源色彩空间参数将被忽略",
+        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用中英文逗号分隔开。若启用关键词搜索，则源色彩空间参数将被忽略",
         default=''
     )
 
@@ -95,13 +96,13 @@ class GroupObjectProperty(bpy.types.PropertyGroup):
 
     node_keywords: bpy.props.StringProperty(
         name="关键词",
-        description="节点名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开",
+        description="节点名称关键词，用于搜索贴图。忽略大小写，可用中英文逗号分隔开",
         default='mmd_base_tex'
     )
 
     img_keywords: bpy.props.StringProperty(
         name="关键词",
-        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用英文逗号分隔开",
+        description="贴图名称关键词，用于搜索贴图。忽略大小写，可用中英文逗号分隔开",
         default='BaseColor,Diffuse,Albedo'
     )
 

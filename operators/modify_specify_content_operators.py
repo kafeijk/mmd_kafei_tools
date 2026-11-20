@@ -1,4 +1,23 @@
-from ..utils import *
+import math
+import bpy
+
+from ..constants import PMX_NAME_PATTERN
+
+from ..utils import (
+    alphanum_key,
+    deselect_all_objects,
+    find_ancestor,
+    find_pmx_root_with_child,
+    get_collection,
+    get_mesh_objs,
+    is_mmd_tools_enabled,
+    restore_selection,
+    select_and_activate,
+    translate,
+)
+
+# 尺寸超过阈值的物体统一放置的位置（与 ArrangeObjectProperty.threshold 的描述一致）
+BIG_OBJECT_LOCATION = (0, 300, 0)
 
 
 class ModifySpecifyContentOperator(bpy.types.Operator):
@@ -8,52 +27,53 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.main(context)
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        self.modify_content(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def main(self, context):
+    def check_props(self, context):
+        """校验：至少选中一个对象"""
+        if len(context.selected_objects) == 0:
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
+            return False
+        return True
+
+    def modify_content(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_modify_specify_content
-        if not self.check_props(props):
-            return
 
         # 记录选择状态
-        active_object = bpy.context.active_object
-        selected_objects = bpy.context.selected_objects
+        active_object = context.active_object
+        selected_objects = context.selected_objects
 
         content_type = props.content_type
         objs = get_obj_by_type(selected_objects, content_type)
 
-        if content_type == 'ADD_UV_MAP':
-            self.add_uv_map(objs, props)
-        elif content_type == 'ADD_COLOR_ATTRIBUTE':
-            self.add_color_attribute(objs, props)
-        elif content_type == 'REMOVE_UV_MAP':
-            self.remove_uvs(objs, props)
-        elif content_type == 'REMOVE_COLOR_ATTRIBUTE':
-            self.remove_color_attribute(objs, props)
-        elif content_type == 'REMOVE_MATERIAL':
-            self.remove_material(objs, props)
-        elif content_type == 'REMOVE_MODIFIER':
-            self.remove_modifiers(objs, props)
-        elif content_type == 'REMOVE_CONSTRAINT':
-            self.remove_constraint(objs, props)
-        elif content_type == 'REMOVE_VERTEX_GROUP':
-            self.remove_vgs(objs, props)
-        elif content_type == 'REMOVE_SHAPE_KEY':
-            self.remove_shape_keys(objs, props)
-        elif content_type == 'CLEAR_SHAPE_KEY':
-            self.clear_shape_keys(objs, props)
-
-        # 恢复选择状态
-        restore_selection(selected_objects, active_object)
-
-    def check_props(self, props):
-        objs = bpy.context.selected_objects
-        if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
-            return False
-        return True
+        try:
+            if content_type == 'ADD_UV_MAP':
+                self.add_uv_map(objs, props)
+            elif content_type == 'ADD_COLOR_ATTRIBUTE':
+                self.add_color_attribute(objs, props)
+            elif content_type == 'REMOVE_UV_MAP':
+                self.remove_uvs(objs, props)
+            elif content_type == 'REMOVE_COLOR_ATTRIBUTE':
+                self.remove_color_attribute(objs, props)
+            elif content_type == 'REMOVE_MATERIAL':
+                self.remove_material(objs, props)
+            elif content_type == 'REMOVE_MODIFIER':
+                self.remove_modifiers(objs, props)
+            elif content_type == 'REMOVE_CONSTRAINT':
+                self.remove_constraint(objs, props)
+            elif content_type == 'REMOVE_VERTEX_GROUP':
+                self.remove_vgs(objs, props)
+            elif content_type == 'REMOVE_SHAPE_KEY':
+                self.remove_shape_keys(objs, props)
+            elif content_type == 'RESET_SHAPE_KEY':
+                self.reset_shape_key_values(objs, props)
+        finally:
+            # 恢复选择状态（异常时同样恢复）
+            restore_selection(selected_objects, active_object)
 
     def add_uv_map(self, objs, props):
         uv_name = props.uv_name
@@ -61,14 +81,17 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
         average_islands_list = []
         uv_render_map = {}
 
-        # 新建uv
+        # 以网格为单位处理，避免多个物体共用同一网格时重复新建UV
+        meshes = {}
         for obj in objs:
-            mesh = obj.data
+            meshes[obj.data.as_pointer()] = obj.data
 
+        # 新建uv
+        for mesh_ptr, mesh in meshes.items():
             # 记录uv激活状态
             if mesh.uv_layers:
                 active_render_index = next(i for i in range(len(mesh.uv_layers)) if mesh.uv_layers[i].active_render)
-                uv_render_map[obj.name] = (mesh.uv_layers.active_index, active_render_index)
+                uv_render_map[mesh_ptr] = (mesh.uv_layers.active_index, active_render_index)
 
             # 新建UV  name='',创建的名称为属性;如果不填写，创建的名称为UVMap
             if uv_name != '':
@@ -80,11 +103,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             if new_uv:
                 new_uv.active = True
                 new_uv.active_render = True
-                # 只有成功创建UV的物体才会被添加进列表，否则后续操作会破坏其原始UV的布局
-                average_islands_list.append(obj)
-            else:
-                # 达到可创建uv数量上限
-                continue
+                # 只有成功创建UV的网格才加入列表，否则后续操作会破坏其原始UV的布局
+                average_islands_list.extend(obj for obj in objs if obj.data.as_pointer() == mesh_ptr)
 
         # 孤岛比例平均化
         if average_islands_flag and average_islands_list:
@@ -93,20 +113,21 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 select_and_activate(obj)
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.select_all(action='SELECT')
             bpy.ops.uv.average_islands_scale()
             bpy.ops.mesh.select_all(action='DESELECT')
             bpy.ops.object.mode_set(mode='OBJECT')
 
         # 恢复uv激活状态
-        for obj in objs:
-            mesh = obj.data
+        for mesh_ptr, mesh in meshes.items():
             if mesh.uv_layers and len(mesh.uv_layers) > 1:
-                mesh.uv_layers[uv_render_map[obj.name][0]].active = True
-                mesh.uv_layers[uv_render_map[obj.name][1]].active_render = True
+                active_index, active_render_index = uv_render_map[mesh_ptr]
+                mesh.uv_layers[active_index].active = True
+                mesh.uv_layers[active_render_index].active_render = True
             mesh.update()
 
     def add_color_attribute(self, objs, props):
-        """添加颜色属性，重名则覆盖（空串名称除外）"""
+        """添加颜色属性：重名时由 Blender 自动追加数字后缀，名称为空时生成默认名称"""
         name = props.color_attribute_name
         color = props.color
 
@@ -119,8 +140,9 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 type='BYTE_COLOR',
                 domain='CORNER'
             )
-            for loop in mesh.loops:
-                color_attribute.data[loop.index].color = color
+            # 每个面角一份颜色：将 [R, G, B, A] 重复 len(mesh.loops) 次，
+            color_values = list(color) * len(mesh.loops)
+            color_attribute.data.foreach_set("color", color_values)
 
             mesh.update()
 
@@ -135,7 +157,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
 
             for i in range(len(mesh.uv_layers) - 1, -1, -1):
                 if keep_first and i == 0:
-                    # 保留第一个颜色属性
+                    # 保留首个 UV 贴图
                     continue
                 uv = mesh.uv_layers[i]
                 mesh.uv_layers.remove(uv)
@@ -162,9 +184,8 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
     def remove_material(self, objs, props):
         """移除材质"""
         create_default = props.create_default
+        mmd_tools_enabled = is_mmd_tools_enabled()
         for obj in objs:
-            deselect_all_objects()
-            select_and_activate(obj)
             mesh = obj.data
 
             # 移除材质
@@ -172,34 +193,36 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
             if not create_default:
                 continue
 
-            # 新建默认材质
-            mat = bpy.data.materials.new(name=obj.name)
+            # PMX 模型去掉名称前缀（如 000_xxx → xxx）
+            pmx_root = find_pmx_root_with_child(obj) if mmd_tools_enabled else None
+            target_name = obj.name
+            match = PMX_NAME_PATTERN.match(obj.name) if pmx_root else None
+            if match:
+                target_name = match.group('name')
 
-            blender_version = bpy.app.version
-            if blender_version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
+            # 同名且无用户的旧材质会导致新建材质变成 xxx.001，先移除
+            remove_orphan_material(target_name)
+
+            # 新建默认材质
+            mat = bpy.data.materials.new(name=target_name)
+
+            if bpy.app.version < (5, 0, 0):  # Blender 5.0之后，use_nodes始终为True，之后将会被移除
                 mat.use_nodes = True
 
-            if mat.name != obj.name:
-                mat.name = obj.name  # 不清楚为什么要设置两次...
-                mat.name = obj.name
-            if mesh.materials:
-                mesh.materials[0] = mat  # assign to 1st material slot
-            else:
-                mesh.materials.append(mat)  # no slots
+            mesh.materials.append(mat)
 
             # 如果开启mmd_tools，进行额外调整
-            if not is_mmd_tools_enabled():
-                continue
-            # 针对pmx模型处理
-            pmx_root = find_pmx_root_with_child(obj)
             if not pmx_root:
                 continue
-            match = PMX_NAME_PATTERN.match(obj.name)
-            if match:
-                original_name = match.group('name')
-                mat.name = original_name
-                mat.name = original_name
+
             modify_mmd_material(mat)
+
+        # 转换材质
+        if create_default and mmd_tools_enabled and any(obj.type == 'MESH' for obj in objs):
+            deselect_all_objects()
+            for obj in objs:
+                obj.select_set(True)
+            bpy.ops.mmd_tools.convert_materials()
 
     def remove_modifiers(self, objs, props):
         """移除修改器"""
@@ -256,7 +279,7 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 obj.shape_key_remove(shape_key)
             obj.shape_key_remove(sk)
 
-    def clear_shape_keys(self, objs, props):
+    def reset_shape_key_values(self, objs, props):
         """
         Blender逻辑 -> 重置所有形态键权重为0，或最接近限制的值.
         当前逻辑 -> 重置所有形态键权重为0
@@ -274,28 +297,41 @@ class ModifySpecifyContentOperator(bpy.types.Operator):
                 kb.value = 0.0
 
 
+def remove_orphan_material(name):
+    """删除同名且无用户的材质，避免新建材质被自动重命名为 xxx.001"""
+    material = bpy.data.materials.get(name)
+    if material and material.users == 0:
+        bpy.data.materials.remove(material)
+
+
 def get_obj_by_type(objs, content_type):
     # https://docs.blender.org/api/current/bpy_types_enum_items/object_type_items.html#rna-enum-object-type-items
-    mesh_only = {'MESH'}
-    type_map = {
-        'REMOVE_MATERIAL': {'MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'VOLUME', 'GPENCIL'},
-        'REMOVE_MODIFIER': {'MESH', 'CURVE', 'SURFACE', 'FONT', 'VOLUME', 'LATTICE', 'GPENCIL'},
-        'REMOVE_VERTEX_GROUP': mesh_only,
-        'REMOVE_SHAPE_KEY': mesh_only,
-        'CLEAR_SHAPE_KEY': mesh_only,
-        'ADD_UV_MAP': mesh_only,
-        'REMOVE_UV_MAP': mesh_only,
-        'ADD_COLOR_ATTRIBUTE': mesh_only,
-        'REMOVE_COLOR_ATTRIBUTE': mesh_only,
+    mesh_only_types = {
+        'REMOVE_VERTEX_GROUP',
+        'REMOVE_SHAPE_KEY',
+        'RESET_SHAPE_KEY',
+        'ADD_UV_MAP',
+        'REMOVE_UV_MAP',
+        'ADD_COLOR_ATTRIBUTE',
+        'REMOVE_COLOR_ATTRIBUTE',
     }
 
     if content_type == 'REMOVE_CONSTRAINT':
-        return objs
+        # 物体级 constraints 属性对所有类型恒存在，这里只做能力校验；空集合删除时为空操作
+        return [obj for obj in objs if hasattr(obj, "constraints")]
 
-    allowed = type_map.get(content_type)
-    if allowed is None:
-        return []
-    return [obj for obj in objs if obj.type in allowed]
+    if content_type == 'REMOVE_MODIFIER':
+        # 同理 modifiers 属性恒存在；融球等无法添加修改器，空集合删除时为空操作
+        return [obj for obj in objs if hasattr(obj, "modifiers")]
+
+    if content_type == 'REMOVE_MATERIAL':
+        # 按数据块是否支持材质判断，避免类型枚举随版本变化（如 GPENCIL → GREASEPENCIL）
+        return [obj for obj in objs if obj.data is not None and hasattr(obj.data, "materials")]
+
+    if content_type in mesh_only_types:
+        return [obj for obj in objs if obj.type == 'MESH']
+
+    return []
 
 
 def modify_mmd_material(material):
@@ -330,10 +366,6 @@ def modify_mmd_material(material):
     mmd_material.is_shared_toon_texture = False
     # 移除卡通纹理
     mmd_material.toon_texture = ""
-    # 移除材质纹理
-    bpy.ops.mmd_tools.material_remove_texture()
-    # 移除球形纹理
-    bpy.ops.mmd_tools.material_remove_sphere_texture()
     # 脚本
     mmd_material.comment = ""
 
@@ -362,38 +394,34 @@ class ArrangeObjectOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
-        self.main(context)
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        self.arrange_objects(context)
         return {'FINISHED'}  # 让Blender知道操作已成功完成
 
-    def check_props(self, props):
-        objs = bpy.context.selected_objects
+    def check_props(self, context):
+        objs = context.selected_objects
         if len(objs) == 0:
-            self.report(type={'ERROR'}, message=f'Select at least one object!')
+            self.report(type={'ERROR'}, message=translate("请至少选择一个对象！"))
             return False
+        props = context.scene.mmd_kafei_tools_arrange_object
         arrangement_type = props.arrangement_type
         if arrangement_type in ["ARC", "CIRCLE"]:
-            found = False
-            for addon in bpy.context.preferences.addons.keys():
-                # add_curve_extra_objects 3.6
-                # extra_curve_objectes 4.2 4.5
-                if "extra" in addon and "curve" in addon and "object" in addon:
-                    found = True
-                    break
-            if not found:
+            operator_type = "CURVE_OT_simple" if arrangement_type == "ARC" else "CURVE_OT_spirals"
+            if not hasattr(bpy.types, operator_type):
                 self.report({'ERROR'},
-                            "Please enable the 'Extra Objects' / 'Extra Curve Objects' add-on in Preferences.")
+                            translate(
+                                "请在偏好设置中启用 Extra Objects / Extra Curve Objects 插件"))
                 return False
         return True
 
-    def main(self, context):
+    def arrange_objects(self, context):
         scene = context.scene
         props = scene.mmd_kafei_tools_arrange_object
-        if not self.check_props(props):
-            return
 
         # 记录选择状态
-        active_object = bpy.context.active_object
-        selected_objects = bpy.context.selected_objects
+        active_object = context.active_object
+        selected_objects = context.selected_objects
 
         arrangement_type = props.arrangement_type
         direction = props.direction
@@ -414,10 +442,15 @@ class ArrangeObjectOperator(bpy.types.Operator):
         big_objs = []
         normal_objs = []
 
-        # 获取选中物体的祖先节点
-        ancestors = {find_ancestor(obj) for obj in selected_objects}
+        # 获取选中物体的祖先节点（按选中顺序去重，保证 DEFAULT 排列顺序稳定）
+        ancestors = []
+        for obj in selected_objects:
+            ancestor = find_ancestor(obj)
+            if ancestor not in ancestors:
+                ancestors.append(ancestor)
 
         # 分离大小物体
+        normal_mesh_objs = []  # 与 normal_objs 一一对应，复用网格列表避免重复递归
         for ancestor in ancestors:
             if "arrangement" in ancestor.keys():
                 continue
@@ -426,33 +459,37 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 big_objs.append(ancestor)
             else:
                 normal_objs.append(ancestor)
+                normal_mesh_objs.append(mesh_objs)
 
         # 对原来的选中物体按面数进行排序
         normal_objs_sorted = []
         if order in {"FACE_ASC", "FACE_DESC"}:
-            # 计算每个对象的总面数的元组列表[(obj1,face_count1),(obj2,face_count2),...]
-            obj_face_counts = [(obj, sum(len(mesh.data.polygons) for mesh in get_mesh_objs(obj))) for obj in
-                               normal_objs]
+            # 计算每个对象的总面数：[(ancestor1,face_count1),(ancestor2,face_count2),...]
+            obj_face_counts = []
+            for ancestor, mesh_objs in zip(normal_objs, normal_mesh_objs):
+                face_count = sum(len(mesh_obj.data.polygons) for mesh_obj in mesh_objs)
+                obj_face_counts.append((ancestor, face_count))
             reverse = order == "FACE_DESC"
             obj_face_counts.sort(key=lambda x: x[1], reverse=reverse)
-            normal_objs_sorted = [obj for obj, _ in obj_face_counts]
+            normal_objs_sorted = [ancestor for ancestor, _ in obj_face_counts]
         elif order in {"NAME_ASC", "NAME_DESC"}:
             normal_objs_sorted = normal_objs.copy()
             reverse = order == "NAME_DESC"
-            normal_objs_sorted.sort(key=lambda obj: alphanum_key(obj.name), reverse=reverse)
+            normal_objs_sorted.sort(key=lambda ancestor: alphanum_key(ancestor.name), reverse=reverse)
         elif order in {"SIZE_ASC", "SIZE_DESC"}:
             reverse = order == "SIZE_DESC"
-            obj_size_list = [(obj, get_max_length(get_mesh_objs(obj))) for obj in normal_objs]
+            obj_size_list = [(ancestor, get_max_length(mesh_objs))
+                             for ancestor, mesh_objs in zip(normal_objs, normal_mesh_objs)]
             obj_size_list.sort(key=lambda x: x[1], reverse=reverse)
-            normal_objs_sorted = [obj for obj, _ in obj_size_list]
+            normal_objs_sorted = [ancestor for ancestor, _ in obj_size_list]
         elif order == "DEFAULT":
             normal_objs_sorted = normal_objs.copy()
 
-        for i, obj in enumerate(normal_objs_sorted):
+        for ancestor in normal_objs_sorted:
             # 移除原先约束
-            for constraint in obj.constraints:
+            for constraint in ancestor.constraints:
                 if constraint.type in {'FOLLOW_PATH', 'LOCKED_TRACK'}:
-                    obj.constraints.remove(constraint)
+                    ancestor.constraints.remove(constraint)
 
         # 每次复用集合
         coll = get_collection("Controller Collection")
@@ -461,45 +498,46 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 bpy.data.objects.remove(obj, do_unlink=True)
 
         if arrangement_type == "ARRAY":
-            for i, obj in enumerate(normal_objs_sorted):
+            for i, ancestor in enumerate(normal_objs_sorted):
                 if direction == "HORIZONTAL":
                     row = i // num_per_row
                     col = i % num_per_row
                     x = start_x + col * spacing_x
                     y = start_y + row * spacing_y
-                    obj.location = (x, y, 0)
+                    ancestor.location = (x, y, 0)
                 else:
                     row = i // num_per_row
                     col = i % num_per_row
                     x = start_x + col * spacing_x
                     z = start_z + row * spacing_z
-                    obj.location = (x, 0, z)
+                    ancestor.location = (x, 0, z)
 
             if len(coll.objects) == 0:
                 bpy.data.collections.remove(coll)
         elif arrangement_type in ["ARC", "CIRCLE"]:
             # 在TMP_SCENE中预先创建圆弧/圆环，以解决性能问题
-            curr_scene_name = bpy.context.scene.name
+            curr_scene = context.scene
             tmp_scene = bpy.data.scenes.new("TMP_SCENE")
-            bpy.context.window.scene = tmp_scene
+            try:
+                context.window.scene = tmp_scene
 
-            # 添加空物体作为锁定追踪目标
-            bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
-            empty = bpy.context.active_object
-            empty.name = "Locked Track Target"
-            empty["arrangement"] = "Locked Track Target"
+                # 添加空物体作为锁定追踪目标
+                bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
+                empty = context.active_object
+                empty.name = "Locked Track Target"
+                empty["arrangement"] = "Locked Track Target"
 
-            # 创建圆环
-            curves = []
-            num_circles = math.ceil(len(normal_objs_sorted) / num_per_circle)
-            for i in range(num_circles):
-                curve = create_curve(arrangement_type, radius + i * spacing_circle)
-                curve["arrangement"] = "Curve"
-                curves.append(curve)
-
-            # 恢复Scene
-            bpy.context.window.scene = bpy.data.scenes[curr_scene_name]
-            bpy.data.scenes.remove(tmp_scene)
+                # 创建圆环
+                curves = []
+                num_circles = math.ceil(len(normal_objs_sorted) / num_per_circle)
+                for i in range(num_circles):
+                    curve = create_curve(arrangement_type, radius + i * spacing_circle)
+                    curve["arrangement"] = "Curve"
+                    curves.append(curve)
+            finally:
+                # 无论是否异常都切回原场景并删除临时场景，避免把用户留在临时场景
+                context.window.scene = curr_scene
+                bpy.data.scenes.remove(tmp_scene)
             # 恢复Link
             coll.objects.link(empty)
             for curve in curves:
@@ -507,26 +545,26 @@ class ArrangeObjectOperator(bpy.types.Operator):
 
             curr_curve_character_index = 0
             curr_curve_index = 0
-            for i, obj in enumerate(normal_objs_sorted):
+            for ancestor in normal_objs_sorted:
                 if curr_curve_character_index >= num_per_circle:
                     curr_curve_character_index = 0
                     curr_curve_index += 1
                 curr_curve = curves[curr_curve_index]
                 # 位置归零，旋转暂不处理
-                obj.location = (0, 0, 0)
+                ancestor.location = (0, 0, 0)
 
                 # 添加跟随路径约束
-                follow_path_cons = obj.constraints.new(type='FOLLOW_PATH')
+                follow_path_cons = ancestor.constraints.new(type='FOLLOW_PATH')
                 follow_path_cons.target = curr_curve
                 follow_path_cons.use_fixed_location = True
 
                 if offset:
-                    # (1 / num_per_circle) 一个身位
-                    # (1 / num_per_circle) * unit   几分之一个身位
-                    # ((curr_curve_index + (1 / unit)) % (1 / unit) 当前环数对(1 / unit)求模，使其结果小于(1 / unit)
-                    # curr_offset 当前环所有物体共同的偏移量，其结果始终小于1个身位
-                    unit = 0.25  # 暂不对外提供参数
-                    curr_offset = (1 / num_per_circle) * unit * ((curr_curve_index + (1 / unit)) % (1 / unit))
+                    # 一个身位 = 1 / num_per_circle；
+                    # 相邻环之间再错开 unit 个身位，并按 1 / unit 个环为一组循环，
+                    # 保证不同环的共同偏移量始终小于 1 个身位
+                    unit = 1 / 4  # 暂不对外提供参数
+                    ring_offset = curr_curve_index % (1 / unit)
+                    curr_offset = (1 / num_per_circle) * unit * ring_offset
                     offset_factor = curr_curve_character_index / num_per_circle + curr_offset
                 else:
                     if arrangement_type == "ARC":
@@ -542,37 +580,36 @@ class ArrangeObjectOperator(bpy.types.Operator):
                 follow_path_cons.up_axis = 'UP_Z'
                 follow_path_cons.influence = 1
 
-                locked_track_cons = obj.constraints.new(type='LOCKED_TRACK')
+                locked_track_cons = ancestor.constraints.new(type='LOCKED_TRACK')
                 locked_track_cons.target = empty
                 locked_track_cons.track_axis = 'TRACK_NEGATIVE_Y'
                 locked_track_cons.influence = 1
 
                 curr_curve_character_index += 1
 
-        # 排列X长度大于 threshold 的物体
-        for obj in big_objs:
-            obj.location = (0, 300, 0)
+        # 尺寸超过阈值的物体统一放置
+        for ancestor in big_objs:
+            ancestor.location = BIG_OBJECT_LOCATION
 
         # 恢复选中状态
         restore_selection(selected_objects, active_object)
 
 
 def has_big_obj(objs, threshold):
+    """任一网格对象在 X、Y 或 Z 方向上的尺寸超过阈值时返回 True"""
     for mesh_obj in objs:
-        # 计算物体在X轴上的长度
         x_length = mesh_obj.dimensions[0]
         y_length = mesh_obj.dimensions[1]
         z_length = mesh_obj.dimensions[2]
-        # 如果物体在X轴上的长度大于5，就把它添加到big_objs列表中
         if x_length > threshold or y_length > threshold or z_length > threshold:
             return True
     return False
 
 
 def get_max_length(objs):
+    """返回所有网格对象在 X、Y、Z 三个方向上的最大尺寸"""
     max_length = 0
     for mesh_obj in objs:
-        # 计算物体在X轴上的长度
         x_length = mesh_obj.dimensions[0]
         y_length = mesh_obj.dimensions[1]
         z_length = mesh_obj.dimensions[2]

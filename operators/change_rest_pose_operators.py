@@ -1,41 +1,85 @@
-import mathutils
+import bpy
 
 from ..tools.ApplyModifierForObjectWithShapeKeys import applyModifierForObjectWithShapeKeys
-from ..utils import *
-from ..mmd_utils import *
-
-bpy.types.Object.original_location = bpy.props.FloatVectorProperty(
-    get=lambda obj: obj.get('original_location', None)
+from ..utils import (
+    deselect_all_objects,
+    find_ancestor,
+    find_joint_parent,
+    find_pmx_armature,
+    find_pmx_objects,
+    find_pmx_root_with_child,
+    find_rigid_body_parent,
+    get_physical_bone,
+    is_mmd_tools_enabled,
+    select_and_activate,
+    show_object,
+    translate,
 )
-bpy.types.Object.original_rotation = bpy.props.FloatVectorProperty(
-    subtype="EULER",
-    get=lambda obj: obj.get('original_rotation', None)
-)
-bpy.types.Object.original_location_lock = bpy.props.BoolVectorProperty(
-    get=lambda obj: obj.get('original_location_lock', None)
-)
+from ..mmd_utils import get_mmd_armature_id
+
+# 初始姿态调整状态，记录在 PMX ROOT 空物体上
+REST_POSE_STATE_KEY = "mmd_kafei_tools_rest_pose_state"
+REST_POSE_LAST_ACTION_KEY = "mmd_kafei_tools_rest_pose_last_action"
+REST_POSE_STATE_UNBOUND = "UNBOUND"
+REST_POSE_STATE_BOUND = "BOUND"
+REST_POSE_ACTION_BIND = "BIND"
+REST_POSE_ACTION_APPLY_BIND = "APPLY_BIND"
+REST_POSE_ACTION_APPLY_POSE = "APPLY_POSE"
 
 
-class ChangeRestPoseStartOperator(bpy.types.Operator):
+class ChangeRestPoseOperatorMixin:
+    """初始姿态调整公共逻辑"""
+
+    def check_props(self, context):
+        if not is_mmd_tools_enabled():
+            self.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
+            return False
+        active_object = context.active_object
+        if not active_object:
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
+            return False
+        pmx_root = find_pmx_root_with_child(active_object)
+        if not pmx_root:
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
+            return False
+        armature = find_pmx_armature(pmx_root)
+        if not armature:
+            self.report(type={'ERROR'}, message=translate("未找到模型骨架！"))
+            return False
+        return True
+
+
+class ChangeRestPoseStartOperator(ChangeRestPoseOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_start"
     bl_label = "绑定"
     bl_description = "绑定刚体Joint，调整姿态时将会同步影响刚体Joint"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
+    h_joint_strategy: bpy.props.EnumProperty(
+        name="横Joint变换策略",
+        description="用何种方式重新设定横Joint的变换",  # Joint的缩放值对最终结果无影响
+        items=[
+            # 生成横Joint时的逻辑
+            # public IPEVector3[,] GetSideJointPos(IPEVector3[,] bodyPos)
+            # public IPEVector3[,] GetSideJointRot(IPEVector3[,] bodyRot)
+            ("CENTROID", "平均", "根据连接的刚体A与刚体B计算平均值"),
+            # PE修改骨骼时横Joint的变换逻辑
+            ("RIGIDBODY_A", "跟随刚体A", "跟随刚体A")
+        ]
+    )
+
     def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        root = find_pmx_root_with_child(context.active_object)
         self.start(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
+        root[REST_POSE_STATE_KEY] = REST_POSE_STATE_BOUND
+        root[REST_POSE_LAST_ACTION_KEY] = REST_POSE_ACTION_BIND
+        return {'FINISHED'}
 
     def start(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_change_rest_pose
-
-        # 校验是否选中MMD模型
-        if self.check_props(props) is False:
-            return
-
         # 获取模型信息
-        active_object = bpy.context.active_object
+        active_object = context.active_object
         root = find_pmx_root_with_child(active_object)
         armature = find_pmx_armature(root)
         rigidbody_parent = find_rigid_body_parent(root)
@@ -51,26 +95,25 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
         deselect_all_objects()
         select_and_activate(armature)
         bpy.ops.object.mode_set(mode='POSE')
-        # 姿态变换归零
-        bpy.ops.pose.select_all(action='SELECT')
-        bpy.ops.pose.loc_clear()
-        bpy.ops.pose.rot_clear()
-        bpy.ops.pose.scale_clear()
-        bpy.ops.pose.select_all(action='DESELECT')
 
+        # 如果没有 rigidbody_parent，则关节无意义，此时关节的存在必然会导致MMD闪退
+        # 刚体/Joint 部分整体跳过；其余流程照常
+        if rigidbody_parent is None:
+            return
         # 设置刚体约束
         set_rigidbody_cons(rigidbody_parent, armature)
-        # 设置Joint控制器（约束、驱动）
-        self.set_joint_controller(props, root, armature, joint_parent, rigidbody_parent)
+        if joint_parent is not None:
+            # 设置Joint控制器（约束、驱动）
+            self.set_joint_controller(root, armature, joint_parent, rigidbody_parent)
 
-    def set_joint_controller(self, props, root, armature, joint_parent, rigidbody_parent):
-        h_joint_strategy = props.h_joint_strategy
+    def set_joint_controller(self, root, armature, joint_parent, rigidbody_parent):
+        h_joint_strategy = self.h_joint_strategy
 
-        v_joints = []  # 纵Joints
-        h_joints = self.find_h_joints(root, armature, joint_parent)  # 横Joints
-        for joint in joint_parent.children:
-            if joint not in h_joints:
-                v_joints.append(joint)
+        # 横Joints
+        h_joints = self.find_h_joints(root, armature, joint_parent)
+        h_joint_set = set(h_joints)
+        # 纵Joints
+        v_joints = [joint for joint in joint_parent.children if joint not in h_joint_set]
 
         # 纵Joint约束为刚体A
         for joint in v_joints:
@@ -81,8 +124,6 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
                 self.set_joint_cons(joint, rigidbody_parent)
             elif h_joint_strategy == "CENTROID":
                 self.do_set_joint_driver(joint, rigidbody_parent)
-            else:
-                pass
 
     def find_h_joints(self, root, armature, joint_parent):
         bl_names = get_physical_bone(root)
@@ -112,23 +153,11 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
 
         return h_joints
 
-    def get_ancestor_linked(self, pb):
-        parent = pb.parent
-        while parent and parent.children == 1:
-            parent = parent.parent
-        return parent
-
     def do_set_joint_driver(self, joint, rigidbody_parent):
         rigidbody1 = joint.rigid_body_constraint.object1
         rigidbody2 = joint.rigid_body_constraint.object2
         if not all(r in rigidbody_parent.children for r in [rigidbody1, rigidbody2]):
             return
-
-        # 记录初始位置
-        if "original_location" not in joint:
-            joint["original_location"] = joint.location.copy()
-        if "original_rotation" not in joint:
-            joint["original_rotation"] = joint.rotation_euler.copy()
 
         # 移除已有驱动
         if joint.animation_data and joint.animation_data.drivers:
@@ -196,42 +225,25 @@ class ChangeRestPoseStartOperator(bpy.types.Operator):
         if rigidbody1 in rigidbody_parent.children:
             constraint.target = rigidbody1
 
-    def check_props(self, props):
-        active_object = bpy.context.active_object
-        if not active_object:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        pmx_root = find_pmx_root_with_child(active_object)
-        if not pmx_root:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        armature = find_pmx_armature(pmx_root)
-        if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
-            return False
-        return True
 
-
-class ChangeRestPoseEndOperator(bpy.types.Operator):
+class ChangeRestPoseEndOperator(ChangeRestPoseOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_end"
     bl_label = "应用绑定"
     bl_description = "应用刚体Joint的变换并解除绑定"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        root = find_pmx_root_with_child(context.active_object)
         self.end(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
+        root[REST_POSE_STATE_KEY] = REST_POSE_STATE_UNBOUND
+        root[REST_POSE_LAST_ACTION_KEY] = REST_POSE_ACTION_APPLY_BIND
+        return {'FINISHED'}
 
     def end(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_sf
-
-        # 校验是否选中MMD模型
-        if self.check_props(props) is False:
-            return
-
         # 获取模型信息
-        active_object = bpy.context.active_object
+        active_object = context.active_object
         root = find_pmx_root_with_child(active_object)
         armature = find_pmx_armature(root)
         objs = find_pmx_objects(armature)
@@ -245,57 +257,62 @@ class ChangeRestPoseEndOperator(bpy.types.Operator):
 
         # 回到物体模式
         deselect_all_objects()
-        if objs[0]:
+        if objs:
             show_object(objs[0])
             select_and_activate(objs[0])
 
-        # 应用纵Joint约束
-        apply_cons(joint_parent)
-
+        # 如果没有 rigidbody_parent，则关节无意义，此时关节的存在必然会导致MMD闪退
+        # 刚体/Joint 部分整体跳过；其余流程照常
+        if rigidbody_parent is None:
+            return
+        if joint_parent is not None:
+            # 应用纵Joint约束
+            apply_cons(joint_parent)
         # 应用刚体约束
         apply_cons(rigidbody_parent)
         # 重设刚体约束
         set_rigidbody_cons(rigidbody_parent, armature, enabled=False)
-
-        # 应用（移除）横Joint驱动器
-        apply_driver(joint_parent)
-
-    def check_props(self, props):
-        active_object = bpy.context.active_object
-        if not active_object:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        pmx_root = find_pmx_root_with_child(active_object)
-        if not pmx_root:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        armature = find_pmx_armature(pmx_root)
-        if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
-            return False
-        return True
+        if joint_parent is not None:
+            # 应用（移除）横Joint驱动器
+            apply_driver(joint_parent)
 
 
-class ChangeRestPoseEnd2Operator(bpy.types.Operator):
+class ChangeRestPoseEnd2Operator(ChangeRestPoseOperatorMixin, bpy.types.Operator):
     bl_idname = "mmd_kafei_tools.change_rest_pose_end2"
     bl_label = "应用姿态"
     bl_description = "应用当前姿态对网格和骨架的影响"
     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
 
     def execute(self, context):
+        if not self.check_props(context):
+            return {'CANCELLED'}
+        root = find_pmx_root_with_child(context.active_object)
         self.end(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
+        root[REST_POSE_LAST_ACTION_KEY] = REST_POSE_ACTION_APPLY_POSE
+        return {'FINISHED'}
+
+    def check_props(self, context):
+        if not super().check_props(context):
+            return False
+
+        # 选中对象可能来自多个模型，这里限制为单个模型
+        roots = set()
+        for obj in context.selected_objects:
+            root = find_pmx_root_with_child(obj)
+            if root:
+                roots.add(root)
+        if not roots:
+            self.report(type={'ERROR'}, message=translate("请选择MMD模型！"))
+            return False
+        if len(roots) > 1:
+            self.report(type={'ERROR'}, message=translate("检测到多个MMD模型！"))
+            return False
+        return True
 
     def end(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_change_rest_pose
-
-        # 校验是否选中MMD模型
-        if self.check_props(props) is False:
-            return
-
         # 获取模型信息
-        selected_objects = bpy.context.selected_objects
+        selected_objects = list(context.selected_objects)
+        active_object = context.active_object
         roots = set()
         for obj in selected_objects:
             root = find_pmx_root_with_child(obj)
@@ -305,42 +322,32 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
         root = roots.pop()
         armature = find_pmx_armature(root)
         objs = find_pmx_objects(armature)
-        force_apply = props.force_apply
+        # 提前过滤掉当前姿态下顶点未变化的网格，避免执行耗时的形态键应用
+        objs = self.filter_pose_changed_objects(context, objs)
 
         for obj in objs:
             deselect_all_objects()
             show_object(obj)
             select_and_activate(obj)
 
-            if force_apply:
-                # 记录修改器显示状态并隐藏修改器
-                mod_map = {}
-                for mod in obj.modifiers:
-                    if hasattr(mod, 'show_viewport'):
-                        mod_map[mod.name] = mod.show_viewport
-                        mod.show_viewport = False
+            # 记录修改器显示状态并隐藏修改器
+            mod_map = {}
+            for mod in obj.modifiers:
+                if hasattr(mod, 'show_viewport'):
+                    mod_map[mod.name] = mod.show_viewport
+                    mod.show_viewport = False
 
-                # 创建骨架修改器
-                armature_mod = self.create_armature_mod(obj, armature)
-                # 移动骨架修改器到首位
-                bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
-                # 强制应用修改器
-                applyModifierForObjectWithShapeKeys(context, [armature_mod.name], False)
+            # 创建骨架修改器
+            armature_mod = self.create_armature_mod(obj, armature)
+            # 移动骨架修改器到首位
+            bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
+            # 强制应用修改器
+            applyModifierForObjectWithShapeKeys(context, [armature_mod.name], False)
 
-                # 恢复修改器显示状态
-                for mod in obj.modifiers:
-                    if mod_map.get(mod.name):
-                        mod.show_viewport = mod_map.get(mod.name)
-
-            else:
-                if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 0:
-                    continue
-                # 创建骨架修改器
-                armature_mod = self.create_armature_mod(obj, armature)
-                # 移动骨架修改器到首位
-                bpy.ops.object.modifier_move_to_index(modifier=armature_mod.name, index=0)
-                # 应用修改器
-                bpy.ops.object.modifier_apply(modifier=armature_mod.name, single_user=True)
+            # 恢复修改器显示状态
+            for mod in obj.modifiers:
+                if mod_map.get(mod.name):
+                    mod.show_viewport = mod_map.get(mod.name)
 
         deselect_all_objects()
         show_object(armature)
@@ -350,9 +357,17 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
         bpy.ops.pose.armature_apply(selected=False)
         bpy.ops.object.mode_set(mode='OBJECT')
 
+        # 恢复处理前的选择与活动对象
+        deselect_all_objects()
+        for obj in selected_objects:
+            try:
+                obj.select_set(True)
+            except RuntimeError:
+                pass
+        bpy.context.view_layer.objects.active = active_object
+
         # 清理数据块，释放文件体积
-        if force_apply:
-            bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
+        bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
 
     def create_armature_mod(self, obj, armature):
         armature_mod = obj.modifiers.new(name=get_mmd_armature_id(), type='ARMATURE')
@@ -361,99 +376,28 @@ class ChangeRestPoseEnd2Operator(bpy.types.Operator):
         armature_mod.object = armature
         return armature_mod
 
-    def check_props(self, props):
-        selected_objects = bpy.context.selected_objects
-        if not selected_objects:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
+    def filter_pose_changed_objects(self, context, objs, epsilon=1e-6):
+        """过滤出当前姿态下顶点发生变化的网格对象"""
+        context.view_layer.update()
+        depsgraph = context.evaluated_depsgraph_get()
 
-        roots = set()
-        for obj in selected_objects:
-            root = find_pmx_root_with_child(obj)
-            if not root:
-                continue
-            roots.add(root)
-        if not roots:
-            self.report(type={'ERROR'}, message=f'Select MMD model!')
-            return False
-        if len(roots) > 1:
-            self.report(type={'ERROR'}, message=f'Multiple MMD models detected!')
-            return False
+        changed_objs = []
+        for obj in objs:
+            # 当前姿态顶点：网格已有骨架修改器，depsgraph 评估结果即为受骨骼影响后的顶点
+            obj_eval = obj.evaluated_get(depsgraph)
+            mesh = obj_eval.to_mesh()
+            changed = len(mesh.vertices) != len(obj.data.vertices)
+            if not changed:
+                for vertex_eval, vertex_rest in zip(mesh.vertices, obj.data.vertices):
+                    if (vertex_eval.co - vertex_rest.co).length > epsilon:
+                        changed = True
+                        break
+            obj_eval.to_mesh_clear()
 
-        root = roots.pop()
-        armature = find_pmx_armature(root)
-        if not armature:
-            self.report(type={'ERROR'}, message=f'Armature not found!')
-            return False
+            if changed:
+                changed_objs.append(obj)
 
-        return True
-
-# todo 修正刚体旋转值？	xy轴向如何处理？ 关联刚体的平均值 圆形切向作为x
-# 是否加入该功能待定
-# class ChangeRigidRotationOperator(bpy.types.Operator):
-#     bl_idname = "mmd_kafei_tools.change_rigid_rotation"
-#     bl_label = "修正刚体朝向"
-#     bl_description = "修正刚体朝向"
-#     bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
-#
-#     def execute(self, context):
-#         self.start(context)
-#         return {'FINISHED'}  # 让Blender知道操作已成功完成
-#
-#     def start(self, context):
-#         scene = context.scene
-#         props = scene.mmd_kafei_tools_change_rest_pose
-#
-#         # 校验是否选中MMD模型
-#         # if self.check_props(props) is False:
-#         #     return
-#
-#         # 获取模型信息
-#         active_object = bpy.context.active_object
-#         root = find_pmx_root_with_child(active_object)
-#         armature = find_pmx_armature(root)
-#         rigidbody_parent = find_rigid_body_parent(root)
-#         joint_parent = find_joint_parent(root)
-#
-#         # 获取物理骨骼和刚体
-#         if rigidbody_parent is None:
-#             return []
-#         rigid_bodies = {}
-#         for rigidbody in rigidbody_parent.children:
-#             # 存在有刚体但没有关联骨骼的情况
-#             if rigidbody.mmd_rigid.bone == '':
-#                 continue
-#             # 0:骨骼 1:物理 2:物理+骨骼
-#             if rigidbody.mmd_rigid.type not in ('1', '2'):
-#                 continue
-#
-#             rigid_bodies[rigidbody.mmd_rigid.bone] = rigidbody
-#
-#         # 获取骨骼链
-#         bone_chains = {}
-#         for pb_name in rigid_bodies.keys():
-#             pb = armature.pose.bones.get(pb_name)
-#             if not pb:
-#                 continue
-#             ancestor = find_ancestor(pb)
-#             bone_chains[pb.name] = ancestor
-#
-#         for pb_name, rigidbody in rigid_bodies.items():
-#             pb = armature.pose.bones.get(pb_name)
-#             # 获取网格对象的局部轴向量（全局坐标系下）
-#             mesh_local_z = rigidbody.matrix_world.to_quaternion() @ mathutils.Vector((0, 0, 1))
-#
-#             # 获取骨骼对象的局部轴向量（全局坐标系下）
-#             bone_local_y = pb.matrix.to_quaternion() @ mathutils.Vector((0, -1, 0))
-#
-#             # 计算网格对象局部z轴和骨骼对象局部y轴之间的偏差（全局坐标系下）
-#             z_y_offset = mesh_local_z.rotation_difference(bone_local_y)
-#
-#             # 将偏差值应用到网格对象的全局旋转
-#             original_mode = rigidbody.rotation_mode
-#             rigidbody.rotation_mode = 'QUATERNION'
-#             rigidbody.rotation_quaternion = z_y_offset @ rigidbody.rotation_quaternion
-#             rigidbody.rotation_mode = original_mode
+        return changed_objs
 
 
 def modify_root_trans_lock(obj, lock):
@@ -464,7 +408,7 @@ def modify_root_trans_lock(obj, lock):
         ancestor.rotation_mode = 'QUATERNION'
         ancestor.rotation_quaternion = (1, 0, 0, 0)
         ancestor.rotation_mode = 'XYZ'
-        ancestor.rotation_euler = (math.radians(0), math.radians(0), math.radians(0))
+        ancestor.rotation_euler = (0.0, 0.0, 0.0)
         ancestor.scale = (1, 1, 1)
 
         ancestor.lock_location = (lock, lock, lock)
@@ -490,7 +434,7 @@ def modify_pb_trans_lock(armature, lock):
 
 
 def apply_cons(parent):
-    for index, child in enumerate(parent.children):
+    for child in parent.children:
         global_matrix = child.matrix_world
 
         if child.parent:
@@ -519,12 +463,6 @@ def set_rigidbody_cons(rigidbody_parent, armature, enabled=True):
 
 def apply_driver(parent):
     for child in parent.children:
-        # 移除自定义属性
-        if "original_location" in child:
-            del child["original_location"]
-        if "original_rotation" in child:
-            del child["original_rotation"]
-
         # 移除 joint 的位置和旋转驱动器
         if child.animation_data and child.animation_data.drivers:
             for fcurve in child.animation_data.drivers:

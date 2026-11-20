@@ -1,15 +1,25 @@
-import importlib.util
 import math
-import sys
+import os
+import re
+import stat
 import time
-import zipfile
 
 import bpy
 import addon_utils
 from mathutils import Vector
 import bpy_extras.anim_utils as anim_utils
 
-from .constants import *
+from .constants import (
+    ABC_NAME_PATTERN,
+    CONVERT_NAME_TO_L_REGEXP,
+    CONVERT_NAME_TO_R_REGEXP,
+    INVALID_CHARS,
+    MAX_RETRIES,
+    PMX_EXPORT_SCALE,
+    PMX_IMPORT_SCALE,
+    TMP_COLLECTION_NAME,
+    TXT_INFO_PATTERN,
+)
 
 
 def find_pmx_root():
@@ -89,12 +99,13 @@ def restore_selection(selected_objects, active_object):
     for obj in selected_objects:
         try:  # 防止 StructRNA of type Object has been removed
             select_and_activate(obj)
-        except:
-            pass
+        except ReferenceError:  # 物体已被删除，跳过
+            continue
     if active_object:
         try:  # 防止 StructRNA of type Object has been removed
-            select_and_activate(active_object)
-        except:
+            # 可能会出现激活但没选中的情况
+            bpy.context.view_layer.objects.active = active_object
+        except ReferenceError:  # 物体已被删除，跳过
             pass
 
 
@@ -128,6 +139,42 @@ def set_visibility(obj, visibility):
     obj.hide_viewport = visibility[2]
     # 是否在渲染中禁用
     obj.hide_render = visibility[3]
+
+
+def view3d_context():
+    """返回 bpy.context.temp_override 所需的 area/region。
+    优先使用当前 area（UI 下行为不变）；后台运行时当前上下文没有 area/region，
+    这里从 screen 中取 VIEW_3D 的 WINDOW 区域；找不到 3D 视图时为 None。
+
+    areas   https://docs.blender.org/manual/en/latest/interface/window_system/areas.html
+    regions https://docs.blender.org/manual/en/latest/interface/window_system/regions.html
+    """
+    area = bpy.context.area if bpy.context.area and bpy.context.area.type == 'VIEW_3D' else None
+    if area is None and bpy.context.screen:
+        area = next((a for a in bpy.context.screen.areas if a.type == 'VIEW_3D'), None)
+    # https://docs.blender.org/api/current/bpy_types_enum_items/region_type_items.html#rna-enum-region-type-items
+    region = next((r for r in area.regions if r.type == 'WINDOW'), None) if area else None
+    return {"area": area, "region": region}
+
+
+def center_view_camera():
+    """相机视角下重新对准相机；非相机视角或后台运行时忽略"""
+    if bpy.app.background:
+        return
+    view3d = view3d_context()
+    area = view3d["area"]
+    if area is None:
+        return
+    region_3d = getattr(area.spaces.active, "region_3d", None)
+    # https://docs.blender.org/api/current/bpy.types.RegionView3D.html#bpy.types.RegionView3D.view_perspective
+    if region_3d is None or region_3d.view_perspective != 'CAMERA':
+        return
+    with bpy.context.temp_override(**view3d):
+        try:
+            bpy.ops.view3d.view_center_camera()
+        except RuntimeError:
+            # 上下文不满足（如无活动视口）时忽略
+            pass
 
 
 def get_physical_bone(root):
@@ -228,7 +275,7 @@ def get_collection(collection_name):
     return collection
 
 
-def recursive_search(directory, suffix, threshold, search_strategy, conflict_strategy):
+def recursive_search(directory, suffix, threshold, search_strategy, conflict_strategy, stats=None):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型 todo 之后看看能不能更通用些"""
     file_list = []
     pmx_count = 0
@@ -244,6 +291,9 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
             model_files = [f for f in files
                            if f.lower().endswith(('.pmx', '.pmd'))
                            and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
+            # 当前目录的模型全部小于阈值时直接跳过
+            if not model_files:
+                continue
 
             # 如果满足条件的model_files有多个，取最新的还是取全部
             if search_strategy == 'LATEST':
@@ -277,14 +327,17 @@ def recursive_search(directory, suffix, threshold, search_strategy, conflict_str
 
             for file in curr_list:
                 file_list.append(os.path.join(root, file))
-    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
+    msg = translate("实际待处理数量：{}。文件总数：{}，跳过数量：{}").format(
         len(file_list), pmx_count, pmx_count - len(file_list)
     )
     print(msg)
+    if stats is not None:
+        stats["total"] = pmx_count
+        stats["skipped"] = pmx_count - len(file_list)
     return file_list
 
 
-def recursive_search_img(directory, suffix, threshold, search_strategy, conflict_strategy, ext):
+def recursive_search_img(directory, suffix, threshold, search_strategy, conflict_strategy, ext, stats=None):
     """寻找指定路径下各个子目录中，时间最新且未进行处理的那个模型"""
     file_list = []
     pmx_count = 0
@@ -298,6 +351,9 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
             model_files = [f for f in files
                            if f.lower().endswith(('.pmx', '.pmd'))
                            and os.path.getsize(os.path.join(root, f)) > threshold * 1024]  # 排除掉已被排除的文件的影响
+            # 当前目录的模型全部小于阈值时直接跳过
+            if not model_files:
+                continue
 
             # 如果满足条件的model_files有多个，取最新的还是取全部
             if search_strategy == 'LATEST':
@@ -308,10 +364,12 @@ def recursive_search_img(directory, suffix, threshold, search_strategy, conflict
                 for model_file in model_files:
                     if is_render(root, model_file, suffix, ext, conflict_strategy):
                         file_list.append(os.path.join(root, model_file))
-    msg = bpy.app.translations.pgettext_iface("Actual files to process: {}. Total files: {}, skipped: {}").format(
-        len(file_list), pmx_count, pmx_count - len(file_list)
-    )
+    msg = translate("实际待处理数量：{}。文件总数：{}，跳过数量：{}").format(
+        len(file_list), pmx_count, pmx_count - len(file_list))
     print(msg)
+    if stats is not None:
+        stats["total"] = pmx_count
+        stats["skipped"] = pmx_count - len(file_list)
     return file_list
 
 
@@ -334,7 +392,7 @@ def import_pmx(filepath: str) -> bool:
     """导入PMX文件，失败时自动重试"""
     params = {
         'filepath': filepath,
-        'scale': 0.08,
+        'scale': PMX_IMPORT_SCALE,
         # 移除未使用的顶点和重复的或无效的面
         'clean_model': True,
         # 其余参数默认。即使ImportHelper存在用户使用过的缓存，参数默认值仍然为其定义时默认值
@@ -343,52 +401,56 @@ def import_pmx(filepath: str) -> bool:
     for attempt in range(MAX_RETRIES):
         try:
             bpy.ops.mmd_tools.import_model('EXEC_DEFAULT', **params)
-            print(bpy.app.translations.pgettext_iface(
-                f"Import successful, file: {filepath}, retry count: {attempt}"
-            ))
+            if attempt == 0:
+                print(translate("导入成功，文件：{}").format(filepath))
+            else:
+                print(translate("导入成功，文件：{}，重试次数：{}").format(filepath, attempt))
             return True
         except Exception as e:
-            print(bpy.app.translations.pgettext_iface(
-                f"Import failed, retrying soon, file: {filepath}, error: {e}"
-            ))
+            print(translate("导入失败，即将重试，文件：{}，错误：{}").format(filepath, e))
             clean_scene()
             time.sleep(1)
 
-    # 所有重试均失败
-    raise Exception(bpy.app.translations.pgettext_iface(
-        f"Continuous import error, please check. File path: {filepath}"
-    ))
+    # 所有重试均失败。或是MMD Tools版本问题，或是pmx模型文件问题，直接抛出异常。
+    raise Exception(translate("持续导入异常，请检查。文件路径：{}").format(filepath))
+
+
+def force_writable(path):
+    """清除只读属性，失败时打印提示"""
+    try:
+        # 只清除只读属性：Windows 上等同于 S_IREAD|S_IEXEC，
+        # 但在 POSIX 上不会把权限整体改成 0o700
+        os.chmod(path, stat.S_IWRITE)
+        return True
+    except OSError as e:
+        print(translate("修改文件权限失败，路径：{}，错误：{}").format(path, e))
+        return False
 
 
 def export_pmx(filepath: str) -> bool:
     """导出PMX文件，失败时自动重试"""
-    v = get_mmd_tools_version()
     params = {
         'filepath': filepath,
-        'scale': 12.5,
+        'scale': PMX_EXPORT_SCALE,
     }
-    if v < (4, 5, 2):
-        params['copy_textures'] = False
-    else:
-        params['copy_textures_mode'] = 'NONE'
 
     for attempt in range(MAX_RETRIES):
         try:
             bpy.ops.mmd_tools.export_pmx('EXEC_DEFAULT', **params)
-            print(bpy.app.translations.pgettext_iface(
-                f"Export successful, file: {filepath}, retry count: {attempt}"
-            ))
+            if attempt == 0:
+                print(translate("导出成功，文件：{}").format(filepath))
+            else:
+                print(translate("导出成功，文件：{}，重试次数：{}").format(filepath, attempt))
             return True
         except Exception as e:
-            print(bpy.app.translations.pgettext_iface(
-                f"Export failed, retrying soon, file: {filepath}, error: {e}"
-            ))
+            if os.path.exists(filepath) and not os.access(filepath, os.W_OK):
+                force_writable(filepath)
+
+            print(translate("导出失败，即将重试，文件：{}，错误：{}").format(filepath, e))
             time.sleep(1)
 
     # 全部重试失败后抛出异常
-    raise Exception(bpy.app.translations.pgettext_iface(
-        f"Continuous export error, please check. File path: {filepath}"
-    ))
+    raise Exception(translate("持续导出异常，请检查。文件路径：{}").format(filepath))
 
 
 def clean_scene():
@@ -424,11 +486,108 @@ def clean_scene():
     bpy.ops.outliner.orphans_purge(do_recursive=True)
 
 
+# 需要跟踪孤儿数据的数据块类型，网格需先于形态键清理
+TRACKED_DATA_BLOCK_TYPES = ("meshes", "shape_keys")
+
+
+def snapshot_data_blocks():
+    """记录当前已存在的数据块，供后续只清理本次新增的无用户数据"""
+    data_pointers = {}
+
+    for name in TRACKED_DATA_BLOCK_TYPES:
+        if not hasattr(bpy.data, name):
+            continue
+
+        data_blocks = getattr(bpy.data, name)
+        pointers = {block.as_pointer() for block in data_blocks}
+        data_pointers[name] = pointers
+
+    return data_pointers
+
+
+def purge_new_orphan_data(snapshot, extra_pointers=None):
+    """只删除快照之后新增的数据块，避免误删用户已有数据
+
+    extra_pointers 用于传入执行期间主动删除对象后遗留的数据块指针，
+    这些数据块虽然存在于快照中，但也需要一并清理。
+    """
+    if not snapshot:
+        return
+
+    extra_pointers = set(extra_pointers or ())
+    shape_key_owners = None
+
+    for name, before in snapshot.items():
+        blocks = getattr(bpy.data, name)
+        for block in list(blocks):
+            pointer = block.as_pointer()
+            if pointer in before and pointer not in extra_pointers:
+                continue
+            # 形态键集合没有 remove()（4.5 等版本），且失去网格后 users 仍可能为 1，
+            # 因此按“是否仍被网格/曲线/晶格引用”判断，用 batch_remove 清理
+            if name == "shape_keys":
+                if shape_key_owners is None:
+                    shape_key_owners = set()
+                    for owner_type in ("meshes", "curves", "lattices"):
+                        if not hasattr(bpy.data, owner_type):
+                            continue
+                        for owner in getattr(bpy.data, owner_type):
+                            shape_keys = getattr(owner, "shape_keys", None)
+                            if shape_keys is not None:
+                                shape_key_owners.add(shape_keys.as_pointer())
+                if pointer in shape_key_owners:
+                    continue
+                try:
+                    bpy.data.batch_remove([block])
+                except Exception:
+                    pass
+                continue
+            if block.users != 0:
+                continue
+            if getattr(block, "use_fake_user", False):
+                continue
+            try:
+                blocks.remove(block)
+            except Exception:
+                pass
+
+
 def find_ancestor(obj):
     ancestor = obj
     while ancestor.parent is not None:
         ancestor = ancestor.parent
     return ancestor
+
+
+def find_armature(obj):
+    """
+    递归查找 obj 的子对象，直到找到骨架（ARMATURE）对象。
+    返回第一个找到的骨架对象，如果没有找到则返回 None。
+    """
+    if obj is None:
+        return None
+
+    if obj.type == 'ARMATURE' and ".dummy_armature" not in obj.name:
+        return obj
+
+    # 模型根的直接子级通常就是骨架，先查一层，避免递归遍历大量刚体/关节子树
+    for child in obj.children:
+        if child.type == 'ARMATURE' and ".dummy_armature" not in child.name:
+            return child
+
+    for child in obj.children:
+        # MMD Tools 用 mmd_type 标记刚体/关节及其分组空物体；
+        # 同时兼容没有 mmd_tools 或标记缺失的场景，直接看物理数据。
+        if getattr(child, "mmd_type", "") in ("RIGID_BODY", "JOINT",
+                                              "RIGID_GRP_OBJ", "JOINT_GRP_OBJ"):
+            continue
+        if child.rigid_body is not None or child.rigid_body_constraint is not None:
+            continue
+        result = find_armature(child)
+        if result:
+            return result
+
+    return None
 
 
 def find_children(obj, obj_type=None):
@@ -444,104 +603,20 @@ def find_children(obj, obj_type=None):
     return children
 
 
-def is_plugin_enabled(plugin_name):
-    """校验插件是否开启"""
-    for addon in bpy.context.preferences.addons:
-        if addon.module == plugin_name:
-            return True
-    return False
-
-
 def is_mmd_tools_enabled():
     """
-    校验mmd_tools是否开启，addon.module分别为：
-    3.x版本 为 mmd_tools
-    4.2版本 临时为 bl_ext.user_default.mmd_tools
-    4.3版本及以后 bl_ext.blender_org.mmd_tools
+    校验mmd_tools是否开启
+
+    直接看 Object.mmd_type 是否注册即可：它由 mmd_tools 注册，
+    注册了就说明插件可用；反注册了（含 addon_utils.disable() 半关闭）就不可用。
+    这样不用遍历 addon_utils.modules()，面板每次重绘都不会有额外开销。
     """
-    for addon in bpy.context.preferences.addons:
-        if addon.module.endswith("mmd_tools"):
-            return True
-    return False
+    return hasattr(bpy.types.Object, "mmd_type")
 
 
-def install_library(name):
-    """安装第三方库"""
-    if is_module_installed(name):
-        return
-
-    # 获取 Blender 的 scripts/modules 目录
-    blender_modules_path = os.path.join(bpy.utils.resource_path('LOCAL'), "scripts", "modules")
-    if not os.path.exists(blender_modules_path):
-        raise RuntimeError(
-            bpy.app.translations.pgettext_iface("Specified directory not found: {}").format(blender_modules_path))
-
-    file = os.path.join(os.path.dirname(__file__), "tools", name + ".zip")
-    if not os.path.exists(file):
-        raise FileNotFoundError(bpy.app.translations.pgettext_iface("File not found: {}").format(file))
-
-    # 解压 ZIP 文件
-    with zipfile.ZipFile(file, 'r') as zip_ref:
-        zip_ref.extractall(blender_modules_path)
-
-    # 立即导入新模块
-    sys.path.append(blender_modules_path)  # 确保 Python 可以找到新模块
-    imported_module = importlib.import_module(name)
-    importlib.reload(imported_module)
-
-
-def batch_process(func, props, f_flag=False):
-    batch = props.batch
-    directory = batch.directory
-    search_strategy = batch.search_strategy
-    abs_path = bpy.path.abspath(directory)
-    threshold = batch.threshold
-    suffix = batch.suffix
-    conflict_strategy = batch.conflict_strategy
-    start_time = time.time()
-    file_list = recursive_search(abs_path, suffix, threshold, search_strategy, conflict_strategy)
-    file_count = len(file_list)
-    for index, filepath in enumerate(file_list):
-        get_collection(TMP_COLLECTION_NAME)
-        file_base_name = os.path.basename(filepath)
-        ext = os.path.splitext(filepath)[1].lower()
-        if ".pmd" == ext:
-            ext = ".pmx"  # 再导出的时候是pmx格式的，如果依然以pmd为后缀，导入PE会报错
-
-        # 如果新文件名已经包含指定后缀，则对原文件进行覆盖
-        if os.path.splitext(filepath)[0].endswith(suffix):
-            new_filepath = os.path.splitext(filepath)[0] + ext
-        else:
-            new_filepath = os.path.splitext(filepath)[0] + suffix + ext
-
-        curr_time = time.time()
-        import_pmx(filepath)
-        pmx_root = bpy.context.active_object
-        if f_flag:
-            func(pmx_root, props, filepath)
-        else:
-            func(pmx_root, props)
-
-        deselect_all_objects()
-        select_and_activate(pmx_root)
-        export_pmx(new_filepath)
-
-        current_time = time.time() - curr_time
-        total_time = time.time() - start_time
-        msg = bpy.app.translations.pgettext_iface(
-            "File \"{}\" processing completed, progress {}/{} (elapsed {} seconds, total {} seconds)"
-        ).format(
-            file_base_name, index + 1, file_count,
-            f"{current_time:.2f}", f"{total_time:.2f}"
-        )
-        print(msg)
-        clean_scene()
-
-    total_time = time.time() - start_time
-    msg = bpy.app.translations.pgettext_iface("Directory \"{}\" processing completed (total {} seconds)").format(
-        abs_path, f"{total_time:.2f}",
-    )
-    print(msg)
+def is_mmd_rigid_body(obj):
+    """判断对象是否为 mmd_tools 的刚体"""
+    return getattr(obj, "mmd_type", None) == 'Rigid body'
 
 
 def check_batch_props(operator, batch):
@@ -549,7 +624,7 @@ def check_batch_props(operator, batch):
     directory = batch.directory
 
     if not is_mmd_tools_enabled():
-        operator.report(type={'ERROR'}, message=f'MMD Tools plugin not enabled!')
+        operator.report(type={'ERROR'}, message=translate("未启用MMD Tools插件！"))
         return False
 
     # 获取目录的全限定路径 这里用blender提供的方法获取，而不是os.path.abspath。没有必要将相对路径转为绝对路径，因为哪种路径是由用户决定的
@@ -557,19 +632,22 @@ def check_batch_props(operator, batch):
     # 如果用户随意填写，可能会解析成当前blender文件的同级路径，但不影响什么
     abs_path = bpy.path.abspath(directory)
     if not os.path.exists(abs_path):
-        operator.report(type={'ERROR'}, message=f'Model directory not found!')
+        operator.report(type={'ERROR'}, message=translate("模型目录不存在！"))
+        return False
+    if not os.path.isdir(abs_path):
+        operator.report(type={'ERROR'}, message=translate("请确保模型目录为文件夹！"))
         return False
     # 获取目录所在盘符的根路径
     drive, tail = os.path.splitdrive(abs_path)
     drive_root = os.path.join(drive, os.sep)
     # 校验目录是否是盘符根目录
     if abs_path == drive_root:
-        operator.report(type={'ERROR'}, message=f'Invalid root directory! Change to subfolder.')
+        operator.report(type={'ERROR'}, message=translate("模型目录为盘符根目录，请更换为其它目录！"))
         return False
 
     # 仅简单校验下后缀是否合法
     if any(char in suffix for char in INVALID_CHARS):
-        operator.report(type={'ERROR'}, message=f'Invalid name suffix!')
+        operator.report(type={'ERROR'}, message=translate("名称后缀不合法！"))
         return False
     return True
 
@@ -591,30 +669,6 @@ def convertNameToLR(name, use_underscore=False):
     return name
 
 
-def set_tail(armature, parent_name, child_name):
-    parent = armature.data.edit_bones.get(parent_name, None)
-    if not parent:
-        return
-    child = armature.data.edit_bones.get(child_name, None)
-    if not child:
-        return
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-
-def move_after_target_vg(obj, target_index):
-    """将活动顶点组移动到指定索引的顶点组的后面"""
-    delta = obj.vertex_groups.active_index - (min(target_index, len(obj.vertex_groups) - 1))
-    if delta > 0:
-        direction = 'UP'
-        delta_fix = abs(delta) - 1
-    else:
-        direction = 'DOWN'
-        delta_fix = abs(delta)
-    for i in range(delta_fix):
-        bpy.ops.object.vertex_group_move(direction=direction)
-
-
 def get_target_bone(armature, edit_bone):
     # a connected child bone is preferred
     for child in edit_bone.children:
@@ -627,12 +681,6 @@ def get_target_bone(armature, edit_bone):
         ):
             return child
     return None
-
-
-def set_target_bone(bone, root_bone):
-    """设置骨骼末端指向，参数均为edit_bone"""
-
-    root_bone.bone.use_connect = True
 
 
 def create_frame(mmd_root, name):
@@ -772,12 +820,17 @@ def create_tmp_obj(armature, collection):
     return tmp_obj
 
 
-def copy_obj(obj):
+def copy_obj(obj, name=None, collection=None):
+    """复制物体（含独立网格数据）；可选设置名称、移动到目标集合"""
     new_mesh = obj.data.copy()
     new_obj = obj.copy()
     new_obj.data = new_mesh
     col = obj.users_collection[0]
     col.objects.link(new_obj)
+    if name:
+        new_obj.name = name
+    if collection:
+        move_to_target_collection_recursive(new_obj, collection)
     return new_obj
 
 
@@ -789,23 +842,18 @@ def int2base(x, base, width=0):
     import string
     digs = string.digits + string.ascii_uppercase
     assert (2 <= base <= len(digs))
-    digits, negtive = '', False
+    digits, negative = '', False
     if x <= 0:
         if x == 0:
             return '0' * max(1, width)
-        x, negtive, width = -x, True, width - 1
+        x, negative, width = -x, True, width - 1
     while x:
         digits = digs[x % base] + digits
         x //= base
     digits = '0' * (width - len(digits)) + digits
-    if negtive:
+    if negative:
         digits = '-' + digits
     return digits
-
-
-def is_module_installed(module_name):
-    module_spec = importlib.util.find_spec(module_name)
-    return module_spec is not None
 
 
 def get_addon_version(name):
@@ -841,11 +889,6 @@ def try_int(s):
 def alphanum_key(s):
     """ 将字符串转换成由字符串和数字块组成的列表 "z23a" -> ["z", 23, "a"]"""
     return [try_int(c) for c in re.split('([0-9]+)', s)]
-
-
-def natural_sort(l):
-    """按照人类期望的方式对给定的列表进行排序"""
-    l.sort(key=alphanum_key)
 
 
 def get_mesh_objs(ancestor):
@@ -924,6 +967,21 @@ def is_pose_bone_selected(pb):
         return pb.select
 
 
+def is_pose_bone_hidden(pb):
+    """
+    获取姿态模式下骨骼的隐藏状态
+
+    Blender 5.0 起 PoseBone 有独立的 hide 属性，与 Bone.hide 不同步，
+    姿态模式下骨骼的隐藏状态应读取 PoseBone.hide。
+
+    """
+    blender_version = bpy.app.version
+    if blender_version < (5, 0, 0):
+        return pb.bone.hide
+    else:
+        return pb.hide
+
+
 def get_action_fcurves(obj):
     """
     获取Action下的fcurves
@@ -952,6 +1010,32 @@ def get_action_fcurves(obj):
             return None
         channelbag = anim_utils.action_get_channelbag_for_slot(action, animation_data.action_slot)
         return channelbag.fcurves
+
+
+# foreach_get / foreach_set 在个别版本上不支持对应属性，
+# 这些异常都表示"批量读写不可用"，统一退回逐帧读写。
+_FOREACH_ERRORS = (AttributeError, TypeError, ValueError, RuntimeError, NotImplementedError)
+
+
+def get_fcurve_frames(fcurve):
+    """
+    读取一条 F-Curve 上所有关键帧的帧号（float），一次 RNA 调用批量取回。
+
+    用 foreach_get 取回全部 co（帧号、值成对排列），比逐关键帧访问 co.x 快得多；
+    不支持批量读取时退回逐帧读取。
+    """
+    keyframe_points = fcurve.keyframe_points
+    count = len(keyframe_points)
+
+    if count == 0:
+        return []
+
+    try:
+        co = [0.0] * (count * 2)
+        keyframe_points.foreach_get("co", co)
+        return co[0::2]
+    except _FOREACH_ERRORS:
+        return [kp.co[0] for kp in keyframe_points]
 
 
 def translate(key: str) -> str:

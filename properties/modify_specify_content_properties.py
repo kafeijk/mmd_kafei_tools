@@ -1,7 +1,5 @@
 import bpy
 
-from .batch_properties import BatchProperty
-
 
 class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
     content_type: bpy.props.EnumProperty(
@@ -18,7 +16,7 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
             ("REMOVE_CONSTRAINT", "移除约束", "移除约束"),  # keep_first
             ("REMOVE_VERTEX_GROUP", "移除顶点组", "移除顶点组"),
             ("REMOVE_SHAPE_KEY", "移除形态键", "移除形态键"),  # keep_current
-            ("CLEAR_SHAPE_KEY", "清除形态键", "清除形态键，恢复默认的范围上下限，并将全部形态键数值归零"),
+            ("RESET_SHAPE_KEY", "形态键数值归零", "将全部形态键数值归零，并恢复默认的范围上下限"),
         ]
     )
     uv_name: bpy.props.StringProperty(
@@ -68,7 +66,6 @@ class ModifySpecifyContentProperty(bpy.types.PropertyGroup):
         description="移除形态键时，保留当前形态，否则保留默认形态",
         default=True
     )
-    batch: bpy.props.PointerProperty(type=BatchProperty)
 
     @staticmethod
     def register():
@@ -125,7 +122,8 @@ class ArrangeObjectProperty(bpy.types.PropertyGroup):
     num_per_row: bpy.props.IntProperty(
         name="每行数量",
         description="每行数量",
-        default=20
+        default=20,
+        min=1
     )
     spacing: bpy.props.FloatVectorProperty(
         name="间距",
@@ -151,10 +149,11 @@ class ArrangeObjectProperty(bpy.types.PropertyGroup):
     num_per_circle: bpy.props.IntProperty(
         name="每环数量",
         description="每个圆环/圆弧放置角色的数量",
-        default=20
+        default=20,
+        min=1
     )
     spacing_circle: bpy.props.FloatProperty(
-        name="间距",
+        name="环间距",
         description="圆环/圆弧间距",
         default=1,
         subtype='DISTANCE'

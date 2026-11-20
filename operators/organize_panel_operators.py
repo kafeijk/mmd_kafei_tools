@@ -1,33 +1,41 @@
+import re
+
 import bmesh
-from collections import defaultdict
-from ..tools.jaconv.jaconv import *
-from ..utils import *
-from ..mmd_utils import *
+import bpy
 
+from collections import OrderedDict, defaultdict
 
-class OrganizePanelOperator(bpy.types.Operator):
-    bl_idname = "mmd_kafei_tools.organize_panel"
-    bl_label = "执行"
-    bl_description = "整理面板"
-    bl_options = {'REGISTER', 'UNDO'}  # 启用撤销功能
+from ..constants import (
+    BONE_PANEL_ORDERS,
+    RIGID_BODY_PREFIX_REGEXP,
+    get_common_frame_names,
+    get_common_items,
+    morph_affixation_map,
+    morph_name_map,
+    morph_prefix_map,
+    morph_suffix_map,
+    UNKNOWN_ORDER, PMX_IMPORT_SCALE,
+)
 
-    def execute(self, context):
-        self.main(context)
-        return {'FINISHED'}  # 让Blender知道操作已成功完成
-
-    def main(self, context):
-        scene = context.scene
-        props = scene.mmd_kafei_tools_organize_panel
-
-        if not self.check_props(props):
-            return
-        batch_process(organize_panel, props, f_flag=False)
-
-    def check_props(self, props):
-        batch = props.batch
-        if not check_batch_props(self, batch):
-            return False
-        return True
+from ..tools.jaconv.jaconv import enlargesmallkana, h2z, kata2hira, z2h
+from ..utils import (
+    ItemOp,
+    copy_obj,
+    create_tmp_obj,
+    deselect_all_objects,
+    do_add_item,
+    find_pmx_armature,
+    find_pmx_objects,
+    find_rigid_body_parent,
+    get_mmd_tools_version,
+    int2base,
+    is_not_dummy_bone,
+    record_visibility,
+    select_and_activate,
+    set_visibility,
+    show_object,
+)
+from ..mmd_utils import fix_bone_issues, fix_morph_issues, get_mmd_armature_id, unsafe_change_bone_id
 
 
 def fix_material_morphs(pmx_root, props):
@@ -65,7 +73,7 @@ def delete_mesh_verts(rb):
 
 
 def fix_rigid_body_size(pmx_root, props):
-    """检测尺寸为0的受物理影响的刚体并设置默认值0.1，避免物理烘焙因尺寸为0出现异常"""
+    """检测尺寸为0的受物理影响的刚体并设置默认值0.008（对应 MMD 的 0.1），避免物理烘焙因尺寸为0出现异常"""
     if not props.compatibility_flag:
         return
     if not props.fix_rigid_body_size_flag:
@@ -82,7 +90,6 @@ def fix_rigid_body_size(pmx_root, props):
         'BOX': [0, 1, 2]
     }
 
-    names = []
     for rb in rbs:
         mmd_rigid = rb.mmd_rigid
         # 仅处理受物理影响的刚体
@@ -99,24 +106,24 @@ def fix_rigid_body_size(pmx_root, props):
             # 将小于阈值的维度设置为 0.008
             for i in dims:
                 if size[i] < 1e-3:
-                    mmd_rigid.size[i] = 0.008
-
-            names.append(rb.name.split("_", 1)[1])
+                    mmd_rigid.size[i] = 0.1 * PMX_IMPORT_SCALE
 
 
-def organize_panel(pmx_root, props):
+def do_compatibility(pmx_root, props):
     # 名称修复优先执行
     fix_bone_name(pmx_root, props)
     fix_morph_name(pmx_root, props)
+    fix_material_morphs(pmx_root, props)
+    fix_rigid_body_size(pmx_root, props)
+
+
+def organize_panel(pmx_root, props):
     # 整理面板
     reorder_bone_panel(pmx_root, props)
     reorder_morph_panel(pmx_root, props)
     reorder_rigid_body_panel(pmx_root, props)
     reorder_display_panel(pmx_root, props)
     translate_name(pmx_root, props)
-    # 兼容处理
-    fix_material_morphs(pmx_root, props)
-    fix_rigid_body_size(pmx_root, props)
 
 
 def extract_text(text, pattern):
@@ -341,7 +348,7 @@ def reorder_bone_panel(pmx_root, props):
 
     # 根据预设骨骼的相对顺序对existed_names排序
     bone_order_dict = {value: index for index, value in enumerate(BONE_PANEL_ORDERS)}
-    preset_bones.sort(key=lambda x: bone_order_dict.get(x, 666888))
+    preset_bones.sort(key=lambda x: bone_order_dict.get(x, UNKNOWN_ORDER))
 
     # 遍历亲子关系，检测是否合法，如果不合法，则将亲及其parent移动到子骨前面
     for child, parent in child_parent_map.items():
@@ -370,7 +377,7 @@ def reorder_bone_panel(pmx_root, props):
                                 preset_name, additional_parent_children_map, jp_bl_map, bl_jp_map)
 
     # 不在预设中的骨骼，保持原始顺序
-    non_preset_bones.sort(key=lambda x: vgs_dict.get(jp_bl_map[x], 666888))
+    non_preset_bones.sort(key=lambda x: vgs_dict.get(jp_bl_map[x], UNKNOWN_ORDER))
 
     # 最终骨骼排序列表
     final_order_bones = preset_bones + non_preset_bones
@@ -450,7 +457,7 @@ def repair_relationship(armature, existed_names, not_existed_names, bone_order_d
     # 获取parent的所有子骨
     children = parent_children_map[parent_jp_name]
     # 将所有子骨按照预设顺序排序
-    children.sort(key=lambda x: bone_order_dict.get(x, 6666))
+    children.sort(key=lambda x: bone_order_dict.get(x, UNKNOWN_ORDER))
 
     is_valid = is_parent_valid_by_id(child_pb, parent_pb)
     # 合法则跳过
@@ -567,8 +574,8 @@ def reorder_morph_panel(pmx_root, props):
         mmd_root.active_morph_type = morph_type
         # 获取表情当前索引
         morphs = getattr(mmd_root, morph_type)
-        morpy_name = morph[0]
-        index = next((i for i, m in enumerate(morphs) if m.name == morpy_name), None)
+        morph_name = morph[0]
+        index = next((i for i, m in enumerate(morphs) if m.name == morph_name), None)
         if index is None:
             continue
         # 激活表情
@@ -638,7 +645,7 @@ def sort_morphs(morphs, preset_list):
         remaining.append(morph)
         morphs.remove(morph)
     # 预设内元素排序
-    morphs.sort(key=lambda x: preset_dict.get(x[0], 666888))
+    morphs.sort(key=lambda x: preset_dict.get(x[0], UNKNOWN_ORDER))
     # 预设外元素排序
     remaining.sort(key=lambda x: x[0].replace('左', '史'))
     # 添加预设外元素
@@ -664,7 +671,7 @@ def sort_other_morphs(morphs, preset_list):
         remaining1.append(morph)
         morphs.remove(morph)
     # 预设内元素排序
-    morphs.sort(key=lambda x: preset_dict.get(x[0], 666888))
+    morphs.sort(key=lambda x: preset_dict.get(x[0], UNKNOWN_ORDER))
 
     # 元素分类
     remaining2 = []
@@ -769,7 +776,7 @@ def reorder_rigid_body_panel(pmx_root, props):
         any_physical = rigid_body_any_physical_map[number]
         if any_physical:
             continue
-        rigid_bodies.sort(key=lambda x: (bone_order_dict.get(x.mmd_rigid.bone, 666888), get_original_name(x.name)))
+        rigid_bodies.sort(key=lambda x: (bone_order_dict.get(x.mmd_rigid.bone, UNKNOWN_ORDER), get_original_name(x.name)))
 
         last_removed_index = -1
         for i in range(len(final_order_list) - 1, -1, -1):
@@ -782,10 +789,9 @@ def reorder_rigid_body_panel(pmx_root, props):
         if last_removed_index != -1:
             final_order_list[last_removed_index:last_removed_index] = rigid_bodies
 
-    def set_index(obj, index):
+    def set_index(obj, index, mmd_tools_version):
         m = RIGID_BODY_PREFIX_REGEXP.match(obj.name)
         name = m.group('name') if m else obj.name
-        mmd_tools_version = get_mmd_tools_version()
 
         # mmd_tools v4.5.4 对象索引前缀改为十进制 # https://github.com/MMD-Blender/blender_mmd_tools/releases/tag/v4.5.4
         if mmd_tools_version >= (4, 5, 4):
@@ -794,7 +800,7 @@ def reorder_rigid_body_panel(pmx_root, props):
             obj.name =  f"{int2base(index, 36, 3)}_{name}"
 
     for index, rigid_body in enumerate(final_order_list):
-        set_index(rigid_body, index)
+        set_index(rigid_body, index, v)
 
 
 def reorder_display_panel(pmx_root, props):

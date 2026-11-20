@@ -1,4 +1,3 @@
-import os
 import re
 
 from collections import OrderedDict
@@ -21,10 +20,55 @@ TXT_INFO_PATTERN = re.compile(r'(.*)(_e(\.\d{3})?)$')
 INVALID_CHARS = '<>:"/\\|?*'
 # 最大重试次数
 MAX_RETRIES = 5
+# 批量处理时连续失败达到该数量即停止，并提示可能是模型或 mmd_tools 版本问题
+MAX_CONSECUTIVE_FAILURES = 3
+# 批处理 modal 定时器间隔（秒）
+TIMER_INTERVAL = 0.01
+# 批处理任务标识，供面板读取对应进度
+BATCH_TASK_PRE_POST_PROCESSING = "pre_post_processing"
+BATCH_TASK_RENDER_PREVIEW = "render_preview"
+BATCH_TASK_RENDER_THREE_VIEW = "render_three_view"
 # 临时集合名称
 TMP_COLLECTION_NAME = "KAFEI临时集合"
 # 默认精度
 PRECISION = 0.0001
+# 预设传递配对误差：顶点数相对差与 27 邻域命中率阈值（仅 PMX → PMX 使用，不对外提供）
+PAIRING_TOLERANCE = 0.2
+# 预设传递：Blender 重名后缀（.001 等）与 ID 名称最大字节数
+DUPLICATE_SUFFIX_PATTERN = re.compile(r'^(?P<base>.+)\.(\d{3,})$')
+MAX_ID_NAME_LENGTH = 63
+# PMX(MMD) 与 Blender 的单位换算倍数：导入按 0.08 缩放，导出按 1/0.08 缩放
+PMX_IMPORT_SCALE = 0.08
+PMX_EXPORT_SCALE = 1 / PMX_IMPORT_SCALE
+# 不在预设排序表中的元素统一排到最后
+UNKNOWN_ORDER = float("inf")
+# 三点照明的角度（度）与面光源尺寸
+KEY_LIGHT_ANGLE = 30
+FILL_LIGHT_ANGLE = 60
+LIGHT_ROTATION_X = 75
+LIGHT_HEIGHT_ANGLE = 15
+LIGHT_SIZE = 1
+# 插件生成灯光的标识、记录的模型 root 属性与三盏灯的角色标识
+LIGHT_MARKER = "Tri-Lighting"
+LIGHT_ROOT_PROPERTY = "mmd_kafei_tools_light_root"
+LIGHT_ROLES = ("KeyLight", "FillLight", "BackLight")
+# 兼容旧版本的灯光角色标识
+LIGHT_ROLE_ALIASES = {"MainLight": "KeyLight"}
+# 灯光控制器标识与灯光链接排除集合名称
+LIGHT_CONTROLLER_ATTR = "LightRoot"
+LIGHT_EXCLUDE_COLLECTION = "灯光排除"
+# 三点照明颜色预设：#RRGGBB（主光, 辅光, 背光）
+LIGHT_COLOR_PRESETS = {
+    "DEFAULT": ("#FFD1BC", "#DAEAFF", "#BCDAFF"),
+    "RED_BLUE": ("#FF4D8D  ", "#5C7CFF  ", "#9B4DFF  "),
+    "BLUE_PURPLE": ("#5979FF", "#E1BCFF", "#C459FF"),
+    "MOONLIGHT": ("#CDE0FF", "#9FB8E8", "#7D9CFF"),
+    "SAKURA": ("#FFE1EA", "#FFC9DE", "#FF9FC4"),
+    "SOFT_WHITE": ("#FFF6EC", "#EAF2FF", "#DCE8FF"),
+}
+
+# 相机 Z 位移系数：按角色高度约 1 的假设，相机跟随的升降量取骨骼 Z 位移的一半
+CAMERA_Z_FACTOR = 0.5
 # 文件类型与扩展名的map，value相同可能会造成一些问题但几率太低这里不考虑
 IMG_TYPE_EXT_MAP = {
     "BMP": ".bmp",
@@ -42,6 +86,25 @@ IMG_TYPE_EXT_MAP = {
     "TIFF": ".tif",
     "WEBP": ".webp"
 }
+
+# -------------------------------------------------------------
+# 输出分辨率预设
+# -------------------------------------------------------------
+# 标识 -> (界面显示名, 宽, 高)，字典顺序即界面展示顺序
+RESOLUTION_PRESETS = OrderedDict({
+    "1080P": ("1080p", 1920, 1080),
+    "2K": ("2K", 2560, 1440),
+    "4K": ("4K", 3840, 2160),
+    "360P": ("360p", 640, 360),
+    "480P": ("480p", 854, 480),
+    "540P": ("540p", 960, 540),
+    "720P": ("720p", 1280, 720),
+    "8K": ("8K", 7680, 4320),
+    "720_4_3": ("960×720(4:3)", 960, 720),
+    "1080_4_3": ("1440×1080(4:3)", 1440, 1080),
+    "1440_4_3": ("1920×1440(4:3)", 1920, 1440),
+    "2160_4_3": ("2880×2160(4:3)", 2880, 2160),
+})
 
 # -------------------------------------------------------------
 # 追加次标准骨骼 骨骼面板顺序预设
@@ -472,3 +535,52 @@ morph_suffix_map.update({
     '上': 'Up',
     '下': 'Down',
 })
+
+# -------------------------------------------------------------
+# 渲染预览图 - 三视图
+# -------------------------------------------------------------
+# 临时集合名称与临时对象标记（写入对象自定义属性）
+THREE_VIEW_COLLECTION_NAME = "三视图临时集合"
+THREE_VIEW_TEMP_FLAG = "three_view_temp"
+THREE_VIEW_TEMP_SOURCE = "three_view_source_root"
+THREE_VIEW_CLIP_CUBE_NAME = "CLIP_CUBE"
+THREE_VIEW_CLIP_MODIFIER_NAME = "CLIP"
+THREE_VIEW_CAMERA_NAME = "三视图相机"
+# 三视图副本对象名称后缀：按视图角色区分，最终形如“原名称 侧视图副本”
+THREE_VIEW_SIDE_COPY_LABEL = "侧视图副本"
+THREE_VIEW_BACK_COPY_LABEL = "后视图副本"
+THREE_VIEW_CLOSEUP_COPY_LABEL = "面部特写副本"
+# Blender 对象名称的字节上限（UTF-8），超出会被截断
+OBJECT_NAME_MAX_BYTES = 63
+# 渲染预览图取景用的临时包围盒对象（仅“仅可见网格”开启时创建）
+PREVIEW_BOUNDS_PROXY_NAME = "PREVIEW_BOUNDS_PROXY"
+# 材质 Alpha 判定为“不可见”的阈值
+MATERIAL_ALPHA_EPSILON = 1e-6
+
+# 其它不参与身体判断的顶点组
+ARM_EXCLUDED_GROUP_NAMES = {'mmd_edge_scale', 'mmd_vertex_order', 'FACE_VERTEX_3'}
+
+# 手臂角度自动求解：粗搜索步长与角度上限（度）
+ARM_ANGLE_STEP = 10
+ARM_ANGLE_LIMIT = 90
+
+# 横向居中使用的分位中心百分比（去掉两端的稀疏离群几何）
+THREE_VIEW_CENTER_PERCENTILE = 2.0
+# 特写裁剪立方体的深度余量
+THREE_VIEW_CLIP_DEPTH_MARGIN = 5.0
+# 相机：布局相机在角色前方的额外距离与裁剪范围余量
+THREE_VIEW_CAMERA_DISTANCE_MARGIN = 5.0
+THREE_VIEW_CAMERA_CLIP_MARGIN = 10.0
+# 无「頭」顶点组时，按模型高度估算的头部高度比例
+THREE_VIEW_HEAD_FALLBACK_RATIO = 1 / 6
+# 头部包围盒左右不对称的容忍比例：左右宽度差超过头部宽度的该比例时，
+# 视为单侧头发/配饰造成偏移，改用较短一侧的宽度作为左右边界（保证特写居中）
+THREE_VIEW_HEAD_SYMMETRY_TOLERANCE = 0.1
+# 头部包围盒横向允许超出眼部网格的倍数：超过时按眼部范围的该倍数收缩并居中
+THREE_VIEW_HEAD_EYE_RANGE_RATIO =1.8
+# 眼部锚定：特写中眼睛中心距画面上边界的高度比例
+THREE_VIEW_CLOSEUP_EYE_HEIGHT_RATIO = 0.4
+# 眼部顶点组没有权重时，用眼部骨骼位置估算眼部范围：眼部范围 = 骨骼距中心距离 × 该倍数
+THREE_VIEW_EYE_BONE_RANGE_RATIO = 1.8
+# 仅特写时原模型右移出相机视野的额外间距（相对画面宽度）
+THREE_VIEW_OFFSCREEN_GAP = 0.1

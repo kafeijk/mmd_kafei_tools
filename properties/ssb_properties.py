@@ -1,5 +1,6 @@
 import bpy
 
+from ..constants import PMX_IMPORT_SCALE
 from .batch_properties import BatchProperty
 
 
@@ -120,7 +121,7 @@ class AddSsbProperty(bpy.types.PropertyGroup):
     scale: bpy.props.FloatProperty(
         name="缩放",
         description="导入模型时的缩放倍数",
-        default=0.08
+        default=PMX_IMPORT_SCALE
     )
     base: bpy.props.PointerProperty(type=SsbBaseProperty)
 
