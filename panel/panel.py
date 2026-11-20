@@ -1069,7 +1069,7 @@ class AboutPanel(bpy.types.Panel):
 
         col.operator(
             "wm.url_open",
-            text="开源地址",
+            text="项目地址",
             icon='URL'
         ).url = r"https://github.com/kafeijk/mmd_kafei_tools/releases"
 

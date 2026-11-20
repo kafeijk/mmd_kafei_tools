@@ -754,7 +754,7 @@ translation_dict = {
 
         # Other
         ("Operator", "用户文档"): "Documentation",
-        ("Operator", "开源地址"): "Repository",
+        ("Operator", "项目地址"): "Project",
     },
 
 }
